@@ -10,9 +10,9 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-center sm:justify-start">
           <div className="flex items-center gap-3">
             <div className="h-12 bg-white rounded-lg p-1 shadow-inner flex items-center justify-center">
-              <img 
-                src="/logo.png" 
-                alt="Logo SV IPB" 
+              <img
+                src="/logo.png"
+                alt="Logo SV IPB"
                 className="h-full w-auto object-contain"
               />
             </div>
@@ -26,11 +26,11 @@ export default function Home() {
       <main className="flex-grow flex flex-col items-center justify-center relative px-6 py-20">
         {/* Background Decorative Element */}
         <div className="absolute top-0 right-0 w-full h-96 bg-gradient-to-b from-[#06125C]/5 to-transparent pointer-events-none" />
-        
+
         <div className="relative z-10 w-full max-w-5xl mx-auto">
           <div className="text-center mb-16">
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-6 leading-tight text-[#06125C]">
-              Sistem Pendaftaran <br className="hidden sm:block"/>
+              Sistem Pendaftaran <br className="hidden sm:block" />
               <span className="text-amber-500">
                 Seminar Hasil Penelitian
               </span>

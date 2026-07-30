@@ -39,7 +39,7 @@ export default function Home() {
 
           <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             {/* Mahasiswa Portal */}
-            <Link href="/login?role=mahasiswa" className="group relative p-8 rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:border-[#06125C]/30 transition-all flex flex-col justify-between overflow-hidden">
+            <Link href="/login/mahasiswa" className="group relative p-8 rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:border-[#06125C]/30 transition-all flex flex-col justify-between overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:translate-x-1">
                 <ArrowRight className="text-[#06125C]" />
               </div>
@@ -55,7 +55,7 @@ export default function Home() {
             </Link>
 
             {/* Dosen Portal */}
-            <Link href="/login?role=dosen" className="group relative p-8 rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:border-[#06125C]/30 transition-all flex flex-col justify-between overflow-hidden">
+            <Link href="/login/dosen" className="group relative p-8 rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:border-[#06125C]/30 transition-all flex flex-col justify-between overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:translate-x-1">
                 <ArrowRight className="text-[#06125C]" />
               </div>
@@ -71,7 +71,7 @@ export default function Home() {
             </Link>
 
             {/* Admin Portal */}
-            <Link href="/login?role=admin" className="group relative p-8 rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:border-[#06125C]/30 transition-all flex flex-col justify-between overflow-hidden">
+            <Link href="/login/admin" className="group relative p-8 rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:border-[#06125C]/30 transition-all flex flex-col justify-between overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:translate-x-1">
                 <ArrowRight className="text-[#06125C]" />
               </div>

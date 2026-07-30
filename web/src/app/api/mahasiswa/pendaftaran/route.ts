@@ -34,6 +34,12 @@ export async function POST(request: Request) {
     
     const fileKolokium = formData.get("file-kolokium") as File | null;
     if (fileKolokium && fileKolokium.size > 0) {
+      if (fileKolokium.size > 500 * 1024) {
+        return NextResponse.json({ error: "Ukuran file Bukti Forum Kolokium melebihi 500 KB." }, { status: 400 });
+      }
+      if (fileKolokium.type !== "application/pdf") {
+        return NextResponse.json({ error: "File Bukti Forum Kolokium harus berformat PDF." }, { status: 400 });
+      }
       const buffer = Buffer.from(await fileKolokium.arrayBuffer());
       const ext = path.extname(fileKolokium.name) || '.pdf';
       const filename = `kolokium_${mhsId}_${crypto.randomUUID()}${ext}`;
@@ -43,6 +49,12 @@ export async function POST(request: Request) {
     
     const fileDospem = formData.get("file-dospem") as File | null;
     if (fileDospem && fileDospem.size > 0) {
+      if (fileDospem.size > 500 * 1024) {
+        return NextResponse.json({ error: "Ukuran file Persetujuan Dosen Pembimbing melebihi 500 KB." }, { status: 400 });
+      }
+      if (fileDospem.type !== "application/pdf") {
+        return NextResponse.json({ error: "File Persetujuan Dosen Pembimbing harus berformat PDF." }, { status: 400 });
+      }
       const buffer = Buffer.from(await fileDospem.arrayBuffer());
       const ext = path.extname(fileDospem.name) || '.pdf';
       const filename = `dospem_${mhsId}_${crypto.randomUUID()}${ext}`;

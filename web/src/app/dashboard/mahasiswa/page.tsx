@@ -76,7 +76,7 @@ export default function MahasiswaDashboard() {
   
   // State for Ruangan
   const [showRuanganModal, setShowRuanganModal] = useState(false);
-  const [ruanganStatus, setRuanganStatus] = useState<"idle" | "submitted" | "requesting_change" | "waiting_approval" | "change_approved">("idle");
+  const [ruanganStatus, setRuanganStatus] = useState<"idle" | "submitted" | "requesting_change" | "waiting_approval" | "change_approved" | "ditolak">("idle");
   const [inputRuangan, setInputRuangan] = useState("");
   const [ruanganName, setRuanganName] = useState("");
   const [inputRuanganBaru, setInputRuanganBaru] = useState("");
@@ -84,6 +84,27 @@ export default function MahasiswaDashboard() {
   
   const [fileKolokiumName, setFileKolokiumName] = useState<string | null>(null);
   const [fileDospemName, setFileDospemName] = useState<string | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setFileName: (name: string | null) => void) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== "application/pdf") {
+        alert("Hanya file PDF yang diperbolehkan");
+        e.target.value = ""; // Reset input
+        setFileName(null);
+        return;
+      }
+      if (file.size > 500 * 1024) { // 500 KB limit
+        alert("Ukuran file maksimal adalah 500 KB");
+        e.target.value = ""; // Reset input
+        setFileName(null);
+      } else {
+        setFileName(file.name);
+      }
+    } else {
+      setFileName(null);
+    }
+  };
 
   const [masterDosen, setMasterDosen] = useState<string[]>([]);
 
@@ -902,8 +923,8 @@ export default function MahasiswaDashboard() {
                         type="file" 
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
                         required 
-                        accept=".pdf,image/*" 
-                        onChange={(e) => setFileKolokiumName(e.target.files?.[0]?.name || null)}
+                        accept=".pdf" 
+                        onChange={(e) => handleFileChange(e, setFileKolokiumName)}
                       />
                       <div className="space-y-1 text-center pointer-events-none">
                         <UploadCloud className={`mx-auto h-8 w-8 ${fileKolokiumName ? 'text-[#06125C]' : 'text-slate-400 group-hover:text-[#06125C]'}`} />
@@ -911,7 +932,7 @@ export default function MahasiswaDashboard() {
                           <span className="font-medium text-[#06125C]">{fileKolokiumName || "Upload a file"}</span>
                           {!fileKolokiumName && <p className="pl-1">or drag and drop</p>}
                         </div>
-                        <p className="text-xs text-slate-500">{fileKolokiumName ? "Berhasil dipilih" : "PDF, PNG, JPG up to 5MB"}</p>
+                        <p className="text-xs text-slate-500">{fileKolokiumName ? "Berhasil dipilih" : "PDF up to 500 KB"}</p>
                       </div>
                     </div>
                   </div>
@@ -925,8 +946,8 @@ export default function MahasiswaDashboard() {
                         type="file" 
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
                         required 
-                        accept=".pdf,image/*" 
-                        onChange={(e) => setFileDospemName(e.target.files?.[0]?.name || null)}
+                        accept=".pdf" 
+                        onChange={(e) => handleFileChange(e, setFileDospemName)}
                       />
                       <div className="space-y-1 text-center pointer-events-none">
                         <UploadCloud className={`mx-auto h-8 w-8 ${fileDospemName ? 'text-[#06125C]' : 'text-slate-400 group-hover:text-[#06125C]'}`} />
@@ -934,7 +955,7 @@ export default function MahasiswaDashboard() {
                           <span className="font-medium text-[#06125C]">{fileDospemName || "Upload a file"}</span>
                           {!fileDospemName && <p className="pl-1">or drag and drop</p>}
                         </div>
-                        <p className="text-xs text-slate-500">{fileDospemName ? "Berhasil dipilih" : "PDF, PNG, JPG up to 5MB"}</p>
+                        <p className="text-xs text-slate-500">{fileDospemName ? "Berhasil dipilih" : "PDF up to 500 KB"}</p>
                       </div>
                     </div>
                   </div>

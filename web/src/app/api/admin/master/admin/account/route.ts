@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     // Generate username default (contoh: admin_nama)
     const nameSlug = (user.nama || "admin").toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 10);
     const username = `admin_${nameSlug}_${Math.floor(Math.random() * 1000)}`;
-    const password = generateSecurePassword();
+    const password = "password123";
 
     // Register into Better Auth
     const res = await auth.api.signUpEmail({

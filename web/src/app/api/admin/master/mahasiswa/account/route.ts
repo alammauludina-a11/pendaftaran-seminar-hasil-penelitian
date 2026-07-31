@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const firstName = (userRecord.name || userRecord.nama || "").split(" ")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
     const generatedUsername = firstName ? `${firstName}_123` : "user_123";
     const emailToUse = userRecord.email; 
-    const password = generateSecurePassword();
+    const password = "password123";
     
     // 1. Delete existing user (Master Data only)
     await db.delete(users).where(eq(users.id, id));

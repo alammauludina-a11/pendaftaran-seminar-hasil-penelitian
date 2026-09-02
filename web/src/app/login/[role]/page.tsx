@@ -20,8 +20,8 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const { data, error } = await signIn.username({
-        username,
+      const { data, error } = await signIn.email({
+        email: username,
         password,
       });
 
@@ -74,9 +74,9 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Username (Akun)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
             <input
-              type="text"
+              type="email"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required

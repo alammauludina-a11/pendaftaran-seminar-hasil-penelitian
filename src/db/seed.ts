@@ -1,3 +1,6 @@
+import { config } from "dotenv";
+config({ path: ".env.local" });
+
 import { db } from "./index";
 import { users, periode, slotWaktu, pendaftaran } from "./schema";
 

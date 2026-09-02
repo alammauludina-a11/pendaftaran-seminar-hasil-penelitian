@@ -7,7 +7,9 @@ export default async function authMiddleware(request: NextRequest) {
   let session = null;
   try {
     const headers = new Headers(request.headers);
-    const response = await fetch(new URL("/api/auth/get-session", request.url), {
+    const baseURL = process.env.BETTER_AUTH_URL || request.nextUrl.origin;
+    const fetchUrl = new URL("/api/auth/get-session", baseURL);
+    const response = await fetch(fetchUrl, {
       headers: headers,
     });
     if (response.ok) {

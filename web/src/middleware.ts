@@ -6,10 +6,9 @@ export default async function authMiddleware(request: NextRequest) {
   // We fetch the session from Better Auth API
   let session = null;
   try {
+    const headers = new Headers(request.headers);
     const response = await fetch(new URL("/api/auth/get-session", request.url), {
-      headers: {
-        cookie: request.headers.get("cookie") || "",
-      },
+      headers: headers,
     });
     if (response.ok) {
       session = await response.json();

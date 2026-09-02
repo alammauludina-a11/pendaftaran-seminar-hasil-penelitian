@@ -36,6 +36,9 @@ export default function LoginPage() {
             return;
         }
         
+        // Set role cookie for middleware
+        document.cookie = `user-role=${role}; path=/; max-age=604800`;
+
         // Redirect based on role
         if (role === "mahasiswa") {
           router.push("/dashboard/mahasiswa");

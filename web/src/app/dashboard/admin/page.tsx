@@ -106,6 +106,7 @@ export default function AdminDashboard() {
   const router = useRouter();
   const handleLogout = async () => {
     await authClient.signOut();
+    document.cookie = "user-role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     router.push("/");
   };
 

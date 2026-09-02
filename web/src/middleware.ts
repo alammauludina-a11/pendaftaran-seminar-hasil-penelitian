@@ -22,7 +22,11 @@ export default async function authMiddleware(request: NextRequest) {
 
   // Protect dashboard routes
   if (!user && pathname.startsWith("/dashboard")) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const role = pathname.split("/")[2];
+    if (role) {
+      return NextResponse.redirect(new URL(`/login/${role}`, request.url));
+    }
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   // Redirect authenticated users from /login and protect role-specific routes

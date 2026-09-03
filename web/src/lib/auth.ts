@@ -12,6 +12,11 @@ export const auth = betterAuth({
         user: schema.users
     }
   }),
+  trustedProxies: true,
+  rateLimit: {
+    window: 60,
+    max: 1000
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 4,

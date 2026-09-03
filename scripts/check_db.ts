@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
-import { db } from "./src/db/index";
-import { users, account } from "./src/db/schema";
+import { db } from "../src/db/index";
+import { users, account } from "../src/db/schema";
 import { eq } from "drizzle-orm";
 
 async function check() {

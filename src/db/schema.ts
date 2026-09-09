@@ -130,3 +130,11 @@ export const verification = sqliteTable("verification", {
   createdAt: integer("created_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
+
+export const files = sqliteTable("files", {
+  id: text("id").primaryKey(), // crypto.randomUUID()
+  name: text("name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  data: text("data").notNull(), // Base64 encoded string
+  createdAt: integer("created_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+});

@@ -41,10 +41,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "File Bukti Forum Kolokium harus berformat PDF." }, { status: 400 });
       }
       const buffer = Buffer.from(await fileKolokium.arrayBuffer());
-      const ext = path.extname(fileKolokium.name) || '.pdf';
-      const filename = `kolokium_${mhsId}_${crypto.randomUUID()}${ext}`;
-      await writeFile(path.join(process.cwd(), "public/uploads", filename), buffer);
-      fileBuktiKolokiumUrl = `/uploads/${filename}`;
+      const base64Data = buffer.toString("base64");
+      const fileId = crypto.randomUUID();
+      
+      await db.insert(require("@/db/schema").files).values({
+        id: fileId,
+        name: fileKolokium.name,
+        mimeType: "application/pdf",
+        data: base64Data,
+      });
+      
+      fileBuktiKolokiumUrl = `/api/files/${fileId}`;
     }
     
     const fileDospem = formData.get("file-dospem") as File | null;
@@ -56,10 +63,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "File Persetujuan Dosen Pembimbing harus berformat PDF." }, { status: 400 });
       }
       const buffer = Buffer.from(await fileDospem.arrayBuffer());
-      const ext = path.extname(fileDospem.name) || '.pdf';
-      const filename = `dospem_${mhsId}_${crypto.randomUUID()}${ext}`;
-      await writeFile(path.join(process.cwd(), "public/uploads", filename), buffer);
-      fileApprovalDospemUrl = `/uploads/${filename}`;
+      const base64Data = buffer.toString("base64");
+      const fileId = crypto.randomUUID();
+      
+      await db.insert(require("@/db/schema").files).values({
+        id: fileId,
+        name: fileDospem.name,
+        mimeType: "application/pdf",
+        data: base64Data,
+      });
+      
+      fileApprovalDospemUrl = `/api/files/${fileId}`;
     }
 
     // Check if period is active

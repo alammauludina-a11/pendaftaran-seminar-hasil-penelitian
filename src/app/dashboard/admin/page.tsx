@@ -271,6 +271,7 @@ export default function AdminDashboard() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Master Data Modal State
+  const [selectedMasterIds, setSelectedMasterIds] = useState<string[]>([]);
   const [masterSearch, setMasterSearch] = useState("");
   const [masterAngkatanFilter, setMasterAngkatanFilter] = useState("Semua Angkatan");
   const [showAddDataModal, setShowAddDataModal] = useState(false);
@@ -392,6 +393,32 @@ export default function AdminDashboard() {
     } catch (e) {
       console.error(e);
       alert("Terjadi kesalahan sistem.");
+    }
+  };
+
+  const handleBulkDeleteMasterData = async () => {
+    if (selectedMasterIds.length === 0) return;
+    if (!confirm(`Apakah Anda yakin ingin menghapus ${selectedMasterIds.length} data terpilih secara massal?`)) return;
+    try {
+      const res = await fetch("/api/admin/master/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: activeMasterTab, ids: selectedMasterIds })
+      });
+      
+      if (res.ok) {
+        if (activeMasterTab === "mahasiswa") setMasterMahasiswa(prev => prev.filter(m => !selectedMasterIds.includes(String(m.id))));
+        else if (activeMasterTab === "dosen") setMasterDosen(prev => prev.filter(d => !selectedMasterIds.includes(String(d.id))));
+        else setMasterAdmin(prev => prev.filter(a => !selectedMasterIds.includes(String(a.id))));
+        
+        setSelectedMasterIds([]); // Clear selection after successful deletion
+      } else {
+        const data = await res.json();
+        alert(data.error || "Gagal menghapus data massal.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Terjadi kesalahan sistem saat menghapus data massal.");
     }
   };
 
@@ -763,6 +790,26 @@ export default function AdminDashboard() {
       console.error(e);
       alert("Terjadi kesalahan sistem.");
     }
+  };
+  const currentMasterData = activeMasterTab === "mahasiswa" 
+    ? masterMahasiswa.filter(m => (m.name.toLowerCase().includes(masterSearch.toLowerCase()) || m.nim.toLowerCase().includes(masterSearch.toLowerCase())) && (masterAngkatanFilter === "Semua Angkatan" || m.angkatan === masterAngkatanFilter))
+    : activeMasterTab === "dosen"
+    ? masterDosen.filter(d => d.name.toLowerCase().includes(masterSearch.toLowerCase()) || d.nip.toLowerCase().includes(masterSearch.toLowerCase()))
+    : masterAdmin.filter(a => a.name.toLowerCase().includes(masterSearch.toLowerCase()));
+
+  const handleSelectAllMaster = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedMasterIds(currentMasterData.map(item => String(item.id)));
+    } else {
+      setSelectedMasterIds([]);
+    }
+  };
+
+  const toggleSelectMaster = (id: string | number) => {
+    const strId = String(id);
+    setSelectedMasterIds(prev => 
+      prev.includes(strId) ? prev.filter(selectedId => selectedId !== strId) : [...prev, strId]
+    );
   };
 
   return (
@@ -1270,19 +1317,19 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="flex border-b border-slate-100">
                 <button
-                  onClick={() => setActiveMasterTab("mahasiswa")}
+                  onClick={() => { setActiveMasterTab("mahasiswa"); setSelectedMasterIds([]); }}
                   className={`px-6 py-4 text-sm font-bold ${activeMasterTab === "mahasiswa" ? "text-[#06125C] border-b-2 border-[#06125C]" : "text-slate-500 hover:text-slate-800"}`}
                 >
                   Data Mahasiswa
                 </button>
                 <button
-                  onClick={() => setActiveMasterTab("dosen")}
+                  onClick={() => { setActiveMasterTab("dosen"); setSelectedMasterIds([]); }}
                   className={`px-6 py-4 text-sm font-bold ${activeMasterTab === "dosen" ? "text-[#06125C] border-b-2 border-[#06125C]" : "text-slate-500 hover:text-slate-800"}`}
                 >
                   Data Dosen
                 </button>
                 <button
-                  onClick={() => setActiveMasterTab("admin")}
+                  onClick={() => { setActiveMasterTab("admin"); setSelectedMasterIds([]); }}
                   className={`px-6 py-4 text-sm font-bold ${activeMasterTab === "admin" ? "text-[#06125C] border-b-2 border-[#06125C]" : "text-slate-500 hover:text-slate-800"}`}
                 >
                   Data Admin
@@ -1302,6 +1349,14 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div className="flex items-center gap-3">
+                    {selectedMasterIds.length > 0 && (
+                      <button
+                        onClick={handleBulkDeleteMasterData}
+                        className="bg-red-50 hover:bg-red-100 text-red-600 font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 transition-all border border-red-200"
+                      >
+                        Hapus Terpilih ({selectedMasterIds.length})
+                      </button>
+                    )}
                     {activeMasterTab === "mahasiswa" && (
                       <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
                         <Filter size={16} className="text-slate-400" />
@@ -1384,6 +1439,14 @@ export default function AdminDashboard() {
                   <table className="w-full text-left">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase font-semibold">
                       <tr>
+                        <th className="p-4 w-12 text-center">
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            checked={currentMasterData.length > 0 && selectedMasterIds.length === currentMasterData.length}
+                            onChange={handleSelectAllMaster}
+                          />
+                        </th>
                         <th className="p-4">No</th>
                         {activeMasterTab !== "admin" && <th className="p-4">{activeMasterTab === "mahasiswa" ? "NIM" : "NIP/NPI"}</th>}
                         <th className="p-4">{activeMasterTab === "dosen" ? "Nama Dosen" : "Nama Lengkap"}</th>
@@ -1395,8 +1458,16 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm">
-                      {activeMasterTab === "mahasiswa" && masterMahasiswa.filter(m => (m.name.toLowerCase().includes(masterSearch.toLowerCase()) || m.nim.toLowerCase().includes(masterSearch.toLowerCase())) && (masterAngkatanFilter === "Semua Angkatan" || m.angkatan === masterAngkatanFilter)).map((m, i) => (
+                      {activeMasterTab === "mahasiswa" && (currentMasterData as typeof masterMahasiswa).map((m, i) => (
                         <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="p-4 text-center">
+                            <input 
+                              type="checkbox" 
+                              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              checked={selectedMasterIds.includes(String(m.id))}
+                              onChange={() => toggleSelectMaster(m.id)}
+                            />
+                          </td>
                           <td className="p-4 text-slate-500">{i + 1}</td>
                           <td className="p-4 font-medium text-slate-800">{m.nim}</td>
                           <td className="p-4 text-slate-700">{m.name}</td>
@@ -1442,8 +1513,16 @@ export default function AdminDashboard() {
                         </tr>
                       ))}
 
-                      {activeMasterTab === "dosen" && masterDosen.filter(d => d.name.toLowerCase().includes(masterSearch.toLowerCase()) || d.nip.toLowerCase().includes(masterSearch.toLowerCase())).map((d, i) => (
+                      {activeMasterTab === "dosen" && (currentMasterData as typeof masterDosen).map((d, i) => (
                         <tr key={d.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="p-4 text-center">
+                            <input 
+                              type="checkbox" 
+                              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              checked={selectedMasterIds.includes(String(d.id))}
+                              onChange={() => toggleSelectMaster(d.id)}
+                            />
+                          </td>
                           <td className="p-4 text-slate-500">{i + 1}</td>
                           <td className="p-4 font-medium text-slate-800">{d.nip}</td>
                           <td className="p-4 font-semibold text-slate-800">{d.name}</td>
@@ -1492,8 +1571,16 @@ export default function AdminDashboard() {
                         </tr>
                       ))}
 
-                      {activeMasterTab === "admin" && masterAdmin.filter(a => a.name.toLowerCase().includes(masterSearch.toLowerCase())).map((a, i) => (
+                      {activeMasterTab === "admin" && (currentMasterData as typeof masterAdmin).map((a, i) => (
                         <tr key={a.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="p-4 text-center">
+                            <input 
+                              type="checkbox" 
+                              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              checked={selectedMasterIds.includes(String(a.id))}
+                              onChange={() => toggleSelectMaster(a.id)}
+                            />
+                          </td>
                           <td className="p-4 text-slate-500">{i + 1}</td>
                           <td className="p-4 text-slate-700">{a.name}</td>
                           <td className="p-4">

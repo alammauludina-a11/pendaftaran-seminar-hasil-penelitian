@@ -1191,7 +1191,16 @@ export default function AdminDashboard() {
                         className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#06125C]/20 outline-none text-sm font-bold text-[#06125C]"
                       >
                         <option value="" disabled>Pilih Angkatan</option>
-                        {Array.from(new Set(masterMahasiswa.map(m => m.angkatan).filter(Boolean))).map(angkatan => (
+                        {Array.from(new Set(masterMahasiswa.map(m => m.angkatan).filter(Boolean))).filter(angkatan => {
+                          const fullAngkatan = `AKN ${angkatan}`;
+                          // Allow the current periode's own angkatan (editing)
+                          if (fullAngkatan === activePeriode.angkatan) return true;
+                          // Exclude angkatan that already have a periode for the same seminar type
+                          const alreadyUsed = periodes.some(
+                            p => p.angkatan === fullAngkatan && p.jenisSeminar === activePeriode.jenisSeminar && p.id !== activePeriode.id
+                          );
+                          return !alreadyUsed;
+                        }).map(angkatan => (
                           <option key={angkatan} value={`AKN ${angkatan}`}>AKN {angkatan}</option>
                         ))}
                       </select>

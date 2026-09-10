@@ -148,7 +148,7 @@ export default function MahasiswaDashboard() {
     
     const interval = setInterval(() => {
       fetchRuanganData();
-    }, 15000);
+    }, 5000);
     
     return () => clearInterval(interval);
   }, [activeTab, pendaftaranStatus]);

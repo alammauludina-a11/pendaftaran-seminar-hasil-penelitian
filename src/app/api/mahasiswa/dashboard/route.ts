@@ -152,7 +152,8 @@ export async function GET(request: Request) {
         pengumuman: pengumuman,
         masterDosen: masterDosen,
         riwayatTanggalKolokium: riwayatTanggalKolokium,
-        isKolokiumSelesai: isKolokiumSelesai
+        isKolokiumSelesai: isKolokiumSelesai,
+        mhsAngkatan: mhsAngkatan
       }, { status: 200 });
     }
 
@@ -208,7 +209,8 @@ export async function GET(request: Request) {
       riwayatTanggalKolokium: riwayatTanggalKolokium,
       isKolokiumSelesai: isKolokiumSelesai,
       kelasData: myKelasData,
-      kelasMembers: myKelasMembers
+      kelasMembers: myKelasMembers,
+      mhsAngkatan: mhsAngkatan
     }, { status: 200 });
   } catch (error) {
     console.error(error);

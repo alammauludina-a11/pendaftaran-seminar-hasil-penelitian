@@ -133,6 +133,7 @@ export default function MahasiswaDashboard() {
   const [kelasData, setKelasData] = useState<any>(null);
   const [kelasMembers, setKelasMembers] = useState<any[]>([]);
   const [isKolokiumSelesai, setIsKolokiumSelesai] = useState<boolean>(false);
+  const [mhsAngkatan, setMhsAngkatan] = useState<string>("-");
   
   const { data: sessionData } = useSession();
   const user = {
@@ -167,6 +168,7 @@ export default function MahasiswaDashboard() {
       setActivePeriodeData(data.activePeriodeData || null);
       setRiwayatTanggalKolokium(data.riwayatTanggalKolokium || null);
       setIsKolokiumSelesai(data.isKolokiumSelesai || false);
+      setMhsAngkatan(data.mhsAngkatan || "-");
       
       if (data.pendaftaranStatus) {
         setPendaftaranStatus(data.pendaftaranStatus);
@@ -390,6 +392,11 @@ export default function MahasiswaDashboard() {
             <div className="hidden md:flex flex-col items-end">
               <span className="text-sm font-semibold">{user.nama}</span>
               <span className="text-xs text-blue-200">{user.nim} • Mahasiswa</span>
+              {mhsAngkatan !== "-" && mhsAngkatan !== "" && (
+                <span className="text-[10px] bg-blue-800/50 px-2 py-0.5 rounded-full text-blue-100 mt-1">
+                  Angkatan {mhsAngkatan}
+                </span>
+              )}
             </div>
             <button
               onClick={() => setShowPasswordModal(true)}

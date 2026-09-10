@@ -32,9 +32,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Prevent duplicate periode for the same angkatan + jenisSeminar
+    // Prevent duplicate periode for the same angkatan + jenisSeminar (non-draft only)
     const finalJenisSeminar = jenisSeminar || "hasil_penelitian";
-    const existing = await db.select({ id: periode.id })
+    const existing = await db.select({ id: periode.id, isDraft: periode.isDraft })
       .from(periode)
       .where(
         and(
@@ -45,11 +45,17 @@ export async function POST(request: Request) {
       .limit(1);
 
     if (existing.length > 0) {
-      const label = finalJenisSeminar === "kolokium" ? "Seminar Kolokium" : "Seminar Hasil Penelitian";
-      return NextResponse.json(
-        { error: `Periode ${label} untuk angkatan ${angkatan} sudah ada. Setiap angkatan hanya dapat memiliki satu periode per jenis seminar.` },
-        { status: 409 }
-      );
+      if (!existing[0].isDraft) {
+        // A published periode already exists — block creation
+        const label = finalJenisSeminar === "kolokium" ? "Seminar Kolokium" : "Seminar Hasil Penelitian";
+        return NextResponse.json(
+          { error: `Periode ${label} untuk angkatan ${angkatan} sudah ada. Setiap angkatan hanya dapat memiliki satu periode per jenis seminar.` },
+          { status: 409 }
+        );
+      } else {
+        // Only a draft exists — delete it and let a fresh draft be created
+        await db.delete(periode).where(eq(periode.id, existing[0].id));
+      }
     }
 
     let finalStart = startDate || '';

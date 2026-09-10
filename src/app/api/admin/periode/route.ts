@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { periode } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { autoGenerateSlots } from "@/lib/slot-generator";
 
 export async function GET() {
@@ -29,6 +29,26 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Nama angkatan wajib diisi." },
         { status: 400 }
+      );
+    }
+
+    // Prevent duplicate periode for the same angkatan + jenisSeminar
+    const finalJenisSeminar = jenisSeminar || "hasil_penelitian";
+    const existing = await db.select({ id: periode.id })
+      .from(periode)
+      .where(
+        and(
+          eq(periode.angkatan, angkatan),
+          eq(periode.jenisSeminar, finalJenisSeminar)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      const label = finalJenisSeminar === "kolokium" ? "Seminar Kolokium" : "Seminar Hasil Penelitian";
+      return NextResponse.json(
+        { error: `Periode ${label} untuk angkatan ${angkatan} sudah ada. Setiap angkatan hanya dapat memiliki satu periode per jenis seminar.` },
+        { status: 409 }
       );
     }
 

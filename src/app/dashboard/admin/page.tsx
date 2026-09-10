@@ -789,14 +789,35 @@ export default function AdminDashboard() {
 
   const handleCreateNewPeriode = async () => {
     try {
-      const uniqueAngkatan = Array.from(new Set(masterMahasiswa.map(m => m.angkatan).filter(Boolean)));
-      const defaultAngkatan = uniqueAngkatan.length > 0 ? `AKN ${uniqueAngkatan[0]}` : `AKN ${new Date().getFullYear() - 1960 + 60}`;
+      const uniqueAngkatan = Array.from(new Set(masterMahasiswa.map(m => m.angkatan).filter(Boolean))) as string[];
+      const currentType = selectedSeminarType || "hasil_penelitian";
+
+      // Find angkatan that do NOT already have a periode for this seminar type
+      const existingAngkatan = new Set(
+        periodes
+          .filter(p => p.jenisSeminar === currentType)
+          .map(p => p.angkatan)
+      );
+      const availableAngkatan = uniqueAngkatan.filter(a => !existingAngkatan.has(`AKN ${a}`));
+
+      let defaultAngkatan: string;
+      if (availableAngkatan.length > 0) {
+        defaultAngkatan = `AKN ${availableAngkatan[0]}`;
+      } else if (uniqueAngkatan.length > 0) {
+        // All angkatan are taken — alert and stop
+        const label = currentType === "kolokium" ? "Seminar Kolokium" : "Seminar Hasil Penelitian";
+        alert(`Semua angkatan sudah memiliki periode ${label}. Tidak dapat membuat periode baru.`);
+        return;
+      } else {
+        defaultAngkatan = `AKN ${new Date().getFullYear() - 1960 + 60}`;
+      }
+
       const res = await fetch("/api/admin/periode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           angkatan: defaultAngkatan,
-          jenisSeminar: selectedSeminarType || "hasil_penelitian",
+          jenisSeminar: currentType,
           startDate: "",
           endDate: "",
           registrationEndDate: "",
@@ -1059,7 +1080,14 @@ export default function AdminDashboard() {
               </div>
               <button
                 onClick={handleCreateNewPeriode}
-                className="bg-[#06125C] hover:bg-[#06125C]/90 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center gap-2"
+                disabled={(() => {
+                  const currentType = selectedSeminarType || "hasil_penelitian";
+                  const uniqueAngkatan = Array.from(new Set(masterMahasiswa.map(m => m.angkatan).filter(Boolean)));
+                  const existingAngkatan = new Set(periodes.filter(p => p.jenisSeminar === currentType).map(p => p.angkatan));
+                  const available = uniqueAngkatan.filter(a => !existingAngkatan.has(`AKN ${a}`));
+                  return uniqueAngkatan.length > 0 && available.length === 0;
+                })()}
+                className="bg-[#06125C] hover:bg-[#06125C]/90 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
               >
                 <Plus size={18} /> Buat Periode Baru
               </button>

@@ -792,10 +792,10 @@ export default function AdminDashboard() {
       const uniqueAngkatan = Array.from(new Set(masterMahasiswa.map(m => m.angkatan).filter(Boolean))) as string[];
       const currentType = selectedSeminarType || "hasil_penelitian";
 
-      // Find angkatan that do NOT already have a periode for this seminar type
+      // Find angkatan that do NOT already have a NON-DRAFT periode for this seminar type
       const existingAngkatan = new Set(
         periodes
-          .filter(p => p.jenisSeminar === currentType)
+          .filter(p => p.jenisSeminar === currentType && !p.isDraft)
           .map(p => p.angkatan)
       );
       const availableAngkatan = uniqueAngkatan.filter(a => !existingAngkatan.has(`AKN ${a}`));
@@ -1083,7 +1083,8 @@ export default function AdminDashboard() {
                 disabled={(() => {
                   const currentType = selectedSeminarType || "hasil_penelitian";
                   const uniqueAngkatan = Array.from(new Set(masterMahasiswa.map(m => m.angkatan).filter(Boolean)));
-                  const existingAngkatan = new Set(periodes.filter(p => p.jenisSeminar === currentType).map(p => p.angkatan));
+                  // Only non-draft periods count as "already exists"
+                  const existingAngkatan = new Set(periodes.filter(p => p.jenisSeminar === currentType && !p.isDraft).map(p => p.angkatan));
                   const available = uniqueAngkatan.filter(a => !existingAngkatan.has(`AKN ${a}`));
                   return uniqueAngkatan.length > 0 && available.length === 0;
                 })()}
@@ -1197,7 +1198,7 @@ export default function AdminDashboard() {
                           if (fullAngkatan === activePeriode.angkatan) return true;
                           // Exclude angkatan that already have a periode for the same seminar type
                           const alreadyUsed = periodes.some(
-                            p => p.angkatan === fullAngkatan && p.jenisSeminar === activePeriode.jenisSeminar && p.id !== activePeriode.id
+                            p => p.angkatan === fullAngkatan && p.jenisSeminar === activePeriode.jenisSeminar && p.id !== activePeriode.id && !p.isDraft
                           );
                           return !alreadyUsed;
                         }).map(angkatan => (

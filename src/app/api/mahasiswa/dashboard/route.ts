@@ -41,6 +41,7 @@ export async function GET(request: Request) {
         fileBuktiKolokium: pendaftaran.fileBuktiKolokium,
         fileApprovalDospem: pendaftaran.fileApprovalDospem,
         tanggalKolokium: pendaftaran.tanggalKolokium,
+        kelasSeminarId: pendaftaran.kelasSeminarId,
       })
       .from(pendaftaran)
       .where(and(eq(pendaftaran.userId, mhsId), eq(pendaftaran.jenisSeminar, jenis as "kolokium" | "hasil_penelitian")));
@@ -160,6 +161,26 @@ export async function GET(request: Request) {
       }
     }
 
+    // Fetch Kelas Details if assigned
+    let myKelasData = null;
+    let myKelasMembers: any[] = [];
+    if (reg.kelasSeminarId) {
+      const kData = await db.select().from(kelasSeminar).where(eq(kelasSeminar.id, reg.kelasSeminarId));
+      if (kData.length > 0) {
+        myKelasData = kData[0];
+        // Fetch all students in this class
+        const membersRaw = await db
+          .select({
+            nama: users.nama,
+            nim: users.nipNim,
+          })
+          .from(pendaftaran)
+          .innerJoin(users, eq(pendaftaran.userId, users.id))
+          .where(eq(pendaftaran.kelasSeminarId, reg.kelasSeminarId));
+        myKelasMembers = membersRaw;
+      }
+    }
+
     return NextResponse.json({
       pendaftaranStatus: reg.status,
       catatanPenolakan: reg.note,
@@ -170,7 +191,9 @@ export async function GET(request: Request) {
       details: reg,
       pengumuman: pengumuman,
       masterDosen: masterDosen,
-      riwayatTanggalKolokium: riwayatTanggalKolokium
+      riwayatTanggalKolokium: riwayatTanggalKolokium,
+      kelasData: myKelasData,
+      kelasMembers: myKelasMembers
     }, { status: 200 });
   } catch (error) {
     console.error(error);

@@ -69,7 +69,7 @@ export default function MahasiswaDashboard() {
   const [currentView, setCurrentView] = useState<"visual_awal" | "coming_soon" | "main">("visual_awal");
   const [selectedSeminarType, setSelectedSeminarType] = useState<"kolokium" | "hasil_penelitian" | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"pengajuan" | "status" | "ruangan" | "pengumuman">("pengajuan");
+  const [activeTab, setActiveTab] = useState<"pengajuan" | "status" | "kelas" | "ruangan" | "pengumuman">("pengajuan");
   const [formStatus, setFormStatus] = useState<"idle" | "submitting" | "success">("idle");
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [selectedDateFilter, setSelectedDateFilter] = useState<string | null>(null);
@@ -130,6 +130,8 @@ export default function MahasiswaDashboard() {
   const [pengumuman, setPengumuman] = useState<any[]>([]); // For now empty as we haven't implemented full class assignments in dummy data
   const [activePeriodeData, setActivePeriodeData] = useState<any>(null);
   const [riwayatTanggalKolokium, setRiwayatTanggalKolokium] = useState<string | null>(null);
+  const [kelasData, setKelasData] = useState<any>(null);
+  const [kelasMembers, setKelasMembers] = useState<any[]>([]);
   
   const { data: sessionData } = useSession();
   const user = {
@@ -185,6 +187,8 @@ export default function MahasiswaDashboard() {
               setRuanganName("");
             }
           }
+          if (data.kelasData) setKelasData(data.kelasData);
+          if (data.kelasMembers) setKelasMembers(data.kelasMembers);
         }
       } else {
         setPendaftaranStatus(null);
@@ -529,6 +533,17 @@ export default function MahasiswaDashboard() {
           >
             <FileText size={18} />
             Status Pendaftaran
+          </button>
+          <button
+            onClick={() => setActiveTab("kelas")}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+              activeTab === "kelas" 
+                ? "bg-[#06125C] text-white shadow-md" 
+                : "text-slate-600 hover:bg-slate-100 hover:text-[#06125C]"
+            }`}
+          >
+            <Users size={18} />
+            Kelas
           </button>
           <button
             onClick={() => setActiveTab("ruangan")}
@@ -994,6 +1009,97 @@ export default function MahasiswaDashboard() {
                 </button>
               </div>
             </form>
+            )}
+          </div>
+        )}
+
+        {/* TAB: KELAS */}
+        {activeTab === "kelas" && (
+          <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-bl-full -z-10 opacity-50"></div>
+            
+            <div className="flex items-center gap-4 mb-8 pb-6 border-b border-slate-100">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <Users size={24} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-[#06125C]">Informasi Kelas Seminar</h2>
+                <p className="text-slate-500 text-sm">Pembagian kelas dan daftar anggota kelas Anda.</p>
+              </div>
+            </div>
+
+            {!kelasData ? (
+              <div className="text-center py-12">
+                <div className="w-20 h-20 mx-auto bg-slate-50 rounded-full flex items-center justify-center text-slate-400 mb-4">
+                  <Users size={32} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800 mb-2">Belum Ada Kelas</h3>
+                <p className="text-slate-500 max-w-md mx-auto">Anda belum dimasukkan ke dalam kelas seminar oleh Administrator. Silakan cek kembali nanti atau hubungi Admin jika jadwal sudah dekat.</p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                <div className="bg-emerald-50/50 rounded-2xl p-6 border border-emerald-100/50 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+                  <div>
+                    <div className="text-emerald-600 font-medium text-sm mb-1">Kelas Anda Saat Ini</div>
+                    <div className="text-2xl font-bold text-[#06125C]">{kelasData.namaKelas}</div>
+                  </div>
+                  <div className="flex flex-col md:flex-row gap-4 md:gap-8">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-emerald-500 shadow-sm">
+                        <Calendar size={18} />
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500">Jadwal Kelas</div>
+                        <div className="text-sm font-semibold text-slate-800">{kelasData.date || "Belum ditentukan"}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-emerald-500 shadow-sm">
+                        <MapPin size={18} />
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500">Ruangan</div>
+                        <div className="text-sm font-semibold text-slate-800">{kelasData.room || "Belum ditentukan"}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-bold text-[#06125C] mb-4 flex items-center gap-2">
+                    <UserCheck size={20} className="text-slate-400" />
+                    Anggota Kelas ({kelasMembers.length})
+                  </h3>
+                  
+                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                        <tr>
+                          <th className="px-6 py-4 w-16 text-center">No</th>
+                          <th className="px-6 py-4">Nama Mahasiswa</th>
+                          <th className="px-6 py-4">NIM</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {kelasMembers.map((m, idx) => (
+                          <tr key={idx} className={m.nim === user.nim ? "bg-emerald-50/30" : "hover:bg-slate-50/50"}>
+                            <td className="px-6 py-4 text-center text-slate-500">{idx + 1}</td>
+                            <td className="px-6 py-4 font-medium text-slate-800">
+                              {m.nama}
+                              {m.nim === user.nim && (
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800">
+                                  Anda
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-slate-600">{m.nim}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}

@@ -754,17 +754,19 @@ export default function MahasiswaDashboard() {
                         <div className="col-span-2 mt-2">
                           <p className="text-slate-500 mb-2 font-semibold">Dokumen Terlampir</p>
                           <div className="flex flex-col gap-2">
-                            <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg">
-                              <div className="flex items-center gap-2">
-                                <FileText size={16} className={pendaftaranDetails.fileBuktiKolokium ? "text-blue-500" : "text-slate-400"} />
-                                <span className={pendaftaranDetails.fileBuktiKolokium ? "text-slate-700 font-medium" : "text-slate-400 italic"}>Bukti Forum Kolokium</span>
+                            {selectedSeminarType === "hasil_penelitian" && (
+                              <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg">
+                                <div className="flex items-center gap-2">
+                                  <FileText size={16} className={pendaftaranDetails.fileBuktiKolokium ? "text-blue-500" : "text-slate-400"} />
+                                  <span className={pendaftaranDetails.fileBuktiKolokium ? "text-slate-700 font-medium" : "text-slate-400 italic"}>Bukti Forum Kolokium</span>
+                                </div>
+                                {pendaftaranDetails.fileBuktiKolokium ? (
+                                  <a href={pendaftaranDetails.fileBuktiKolokium} target="_blank" rel="noreferrer" className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-md hover:bg-blue-100 font-semibold transition-colors">Lihat Berkas</a>
+                                ) : (
+                                  <span className="text-xs text-slate-400">Tidak ada</span>
+                                )}
                               </div>
-                              {pendaftaranDetails.fileBuktiKolokium ? (
-                                <a href={pendaftaranDetails.fileBuktiKolokium} target="_blank" rel="noreferrer" className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-md hover:bg-blue-100 font-semibold transition-colors">Lihat Berkas</a>
-                              ) : (
-                                <span className="text-xs text-slate-400">Tidak ada</span>
-                              )}
-                            </div>
+                            )}
                             <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg">
                               <div className="flex items-center gap-2">
                                 <FileText size={16} className={pendaftaranDetails.fileApprovalDospem ? "text-blue-500" : "text-slate-400"} />
@@ -970,28 +972,30 @@ export default function MahasiswaDashboard() {
                 <div className="space-y-5">
                   <h3 className="font-semibold text-slate-800 border-b pb-2">Unggah Berkas</h3>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Bukti Forum Kolokium <span className="text-red-500">*</span></label>
-                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-200 border-dashed rounded-xl hover:bg-slate-50 hover:border-[#06125C]/30 transition-all group relative">
-                      <input 
-                        id="file-kolokium" 
-                        name="file-kolokium" 
-                        type="file" 
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                        required 
-                        accept=".pdf" 
-                        onChange={(e) => handleFileChange(e, setFileKolokiumName)}
-                      />
-                      <div className="space-y-1 text-center pointer-events-none">
-                        <UploadCloud className={`mx-auto h-8 w-8 ${fileKolokiumName ? 'text-[#06125C]' : 'text-slate-400 group-hover:text-[#06125C]'}`} />
-                        <div className="flex text-sm text-slate-600 justify-center">
-                          <span className="font-medium text-[#06125C]">{fileKolokiumName || "Upload a file"}</span>
-                          {!fileKolokiumName && <p className="pl-1">or drag and drop</p>}
+                  {selectedSeminarType === "hasil_penelitian" && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Bukti Forum Kolokium <span className="text-red-500">*</span></label>
+                      <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-200 border-dashed rounded-xl hover:bg-slate-50 hover:border-[#06125C]/30 transition-all group relative">
+                        <input 
+                          id="file-kolokium" 
+                          name="file-kolokium" 
+                          type="file" 
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                          required={selectedSeminarType === "hasil_penelitian"} 
+                          accept=".pdf" 
+                          onChange={(e) => handleFileChange(e, setFileKolokiumName)}
+                        />
+                        <div className="space-y-1 text-center pointer-events-none">
+                          <UploadCloud className={`mx-auto h-8 w-8 ${fileKolokiumName ? 'text-[#06125C]' : 'text-slate-400 group-hover:text-[#06125C]'}`} />
+                          <div className="flex text-sm text-slate-600 justify-center">
+                            <span className="font-medium text-[#06125C]">{fileKolokiumName || "Upload a file"}</span>
+                            {!fileKolokiumName && <p className="pl-1">or drag and drop</p>}
+                          </div>
+                          <p className="text-xs text-slate-500">{fileKolokiumName ? "Berhasil dipilih" : "PDF up to 500 KB"}</p>
                         </div>
-                        <p className="text-xs text-slate-500">{fileKolokiumName ? "Berhasil dipilih" : "PDF up to 500 KB"}</p>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Persetujuan Dosen Pembimbing <span className="text-red-500">*</span></label>

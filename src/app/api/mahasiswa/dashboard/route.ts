@@ -112,6 +112,7 @@ export async function GET(request: Request) {
     let riwayatTanggalKolokium = null;
     const riwayatKolokium = await db.select({
       waktuMulai: slotWaktu.waktuMulai,
+      waktuSelesai: slotWaktu.waktuSelesai,
       tanggalKolokium: pendaftaran.tanggalKolokium
     }).from(pendaftaran)
     .leftJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
@@ -121,13 +122,25 @@ export async function GET(request: Request) {
       eq(pendaftaran.statusVerifikasi, "disetujui")
     )).limit(1);
 
+    let isKolokiumSelesai = false;
     if (riwayatKolokium.length > 0) {
-      if (riwayatKolokium[0].waktuMulai) {
-         const d = new Date(riwayatKolokium[0].waktuMulai);
+      const k = riwayatKolokium[0];
+      if (k.waktuSelesai) {
+         isKolokiumSelesai = new Date(k.waktuSelesai) < new Date();
+      } else if (k.waktuMulai) {
+         // Fallback if waktuSelesai missing but waktuMulai exists
+         isKolokiumSelesai = new Date(k.waktuMulai) < new Date();
+      } else if (k.tanggalKolokium) {
+         // If legacy manual string date, assume it's done if it's approved
+         isKolokiumSelesai = true; 
+      }
+
+      if (k.waktuMulai) {
+         const d = new Date(k.waktuMulai);
          const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
          riwayatTanggalKolokium = `${d.getDate().toString().padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
-      } else if (riwayatKolokium[0].tanggalKolokium) {
-         riwayatTanggalKolokium = riwayatKolokium[0].tanggalKolokium;
+      } else if (k.tanggalKolokium) {
+         riwayatTanggalKolokium = k.tanggalKolokium;
       }
     }
 
@@ -138,7 +151,8 @@ export async function GET(request: Request) {
         activePeriodeData: periodes.length > 0 ? periodes[0] : null,
         pengumuman: pengumuman,
         masterDosen: masterDosen,
-        riwayatTanggalKolokium: riwayatTanggalKolokium
+        riwayatTanggalKolokium: riwayatTanggalKolokium,
+        isKolokiumSelesai: isKolokiumSelesai
       }, { status: 200 });
     }
 
@@ -192,6 +206,7 @@ export async function GET(request: Request) {
       pengumuman: pengumuman,
       masterDosen: masterDosen,
       riwayatTanggalKolokium: riwayatTanggalKolokium,
+      isKolokiumSelesai: isKolokiumSelesai,
       kelasData: myKelasData,
       kelasMembers: myKelasMembers
     }, { status: 200 });

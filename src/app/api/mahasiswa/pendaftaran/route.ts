@@ -97,10 +97,13 @@ export async function POST(request: Request) {
         .select({
           pendaftaranId: pendaftaran.id,
           tanggalKolokiumInput: pendaftaran.tanggalKolokium,
-          kelasDate: kelasSeminar.date
+          kelasDate: kelasSeminar.date,
+          waktuMulai: slotWaktu.waktuMulai,
+          waktuSelesai: slotWaktu.waktuSelesai
         })
         .from(pendaftaran)
         .leftJoin(kelasSeminar, eq(pendaftaran.kelasSeminarId, kelasSeminar.id))
+        .leftJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
         .where(
           and(
             eq(pendaftaran.userId, mhsId),
@@ -109,8 +112,21 @@ export async function POST(request: Request) {
           )
         );
       
-      if (riwayatKolokium.length === 0) {
-        return NextResponse.json({ error: "Anda tidak bisa mengajukan jadwal Seminar Hasil Penelitian karena belum menyelesaikan Seminar Kolokium." }, { status: 403 });
+      
+      let isKolokiumSelesai = false;
+      if (riwayatKolokium.length > 0) {
+        const k = riwayatKolokium[0];
+        if (k.waktuSelesai) {
+           isKolokiumSelesai = new Date(k.waktuSelesai) < new Date();
+        } else if (k.waktuMulai) {
+           isKolokiumSelesai = new Date(k.waktuMulai) < new Date();
+        } else if (k.tanggalKolokiumInput || k.kelasDate) {
+           isKolokiumSelesai = true; 
+        }
+      }
+
+      if (!isKolokiumSelesai) {
+        return NextResponse.json({ error: "Anda tidak bisa mengajukan jadwal Seminar Hasil Penelitian karena belum menyelesaikan tahapan Seminar Kolokium." }, { status: 403 });
       }
 
       const kolokium = riwayatKolokium[0];

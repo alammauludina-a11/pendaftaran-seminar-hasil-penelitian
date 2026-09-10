@@ -132,6 +132,7 @@ export default function MahasiswaDashboard() {
   const [riwayatTanggalKolokium, setRiwayatTanggalKolokium] = useState<string | null>(null);
   const [kelasData, setKelasData] = useState<any>(null);
   const [kelasMembers, setKelasMembers] = useState<any[]>([]);
+  const [isKolokiumSelesai, setIsKolokiumSelesai] = useState<boolean>(false);
   
   const { data: sessionData } = useSession();
   const user = {
@@ -165,6 +166,7 @@ export default function MahasiswaDashboard() {
       setMasterDosen(data.masterDosen || []);
       setActivePeriodeData(data.activePeriodeData || null);
       setRiwayatTanggalKolokium(data.riwayatTanggalKolokium || null);
+      setIsKolokiumSelesai(data.isKolokiumSelesai || false);
       
       if (data.pendaftaranStatus) {
         setPendaftaranStatus(data.pendaftaranStatus);
@@ -658,7 +660,17 @@ export default function MahasiswaDashboard() {
         {/* Tab Content: Pengajuan */}
         {activeTab === "pengajuan" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {!activePeriodeData ? (
+            {selectedSeminarType === "hasil_penelitian" && !isKolokiumSelesai ? (
+              <div className="bg-white rounded-3xl p-10 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center min-h-[400px]">
+                <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mb-6 shadow-sm border border-amber-100">
+                  <XCircle size={40} />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-700 mb-3">Seminar Kolokium Belum Selesai</h2>
+                <p className="text-slate-500 max-w-md mx-auto mb-8 leading-relaxed">
+                  Anda harus menyelesaikan tahapan Seminar Kolokium (disetujui dan terlaksana) terlebih dahulu sebelum dapat mengajukan jadwal untuk Seminar Hasil Penelitian.
+                </p>
+              </div>
+            ) : !activePeriodeData ? (
               <div className="bg-white rounded-3xl p-10 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center min-h-[400px]">
                 <div className="w-20 h-20 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mb-6 shadow-sm border border-slate-100">
                   <Calendar size={40} />

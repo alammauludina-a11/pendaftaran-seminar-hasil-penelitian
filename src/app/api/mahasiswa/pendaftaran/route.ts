@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { pendaftaran, periode, slotWaktu, kelasSeminar } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNotNull, ne } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -131,6 +131,27 @@ export async function POST(request: Request) {
           await db.update(slotWaktu).set({ tersedia: true }).where(eq(slotWaktu.id, alreadyInPeriode.slotWaktuId));
         }
         
+        // Check if the new slot is still available (race condition guard)
+        if (slot_id) {
+          const slotCheck = await db.select().from(slotWaktu).where(eq(slotWaktu.id, slot_id)).limit(1);
+          const isSlotTaken = await db
+            .select({ id: pendaftaran.id })
+            .from(pendaftaran)
+            .innerJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
+            .where(
+              and(
+                eq(slotWaktu.id, slot_id),
+                ne(pendaftaran.statusVerifikasi, 'ditolak'),
+                ne(pendaftaran.id, alreadyInPeriode.id) // exclude self
+              )
+            )
+            .limit(1);
+
+          if (isSlotTaken.length > 0 || (slotCheck.length > 0 && !slotCheck[0].tersedia)) {
+            return NextResponse.json({ error: "Slot jadwal yang Anda pilih baru saja diambil oleh mahasiswa lain. Silakan pilih jadwal lain." }, { status: 409 });
+          }
+        }
+
         // Update the application
         const result = await db
           .update(pendaftaran)
@@ -161,6 +182,31 @@ export async function POST(request: Request) {
         }, { status: 200 });
       } else {
         return NextResponse.json({ error: "Anda sudah mendaftar pada periode ini." }, { status: 409 });
+      }
+    }
+
+    // RACE CONDITION GUARD: atomically verify the slot is still free before inserting
+    if (slot_id) {
+      const slotRecord = await db.select().from(slotWaktu).where(eq(slotWaktu.id, slot_id)).limit(1);
+      if (slotRecord.length === 0) {
+        return NextResponse.json({ error: "Slot jadwal tidak ditemukan." }, { status: 404 });
+      }
+
+      // Check if any non-rejected registration already holds this slot
+      const conflicting = await db
+        .select({ id: pendaftaran.id })
+        .from(pendaftaran)
+        .innerJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
+        .where(
+          and(
+            eq(slotWaktu.id, slot_id),
+            ne(pendaftaran.statusVerifikasi, 'ditolak')
+          )
+        )
+        .limit(1);
+
+      if (conflicting.length > 0 || !slotRecord[0].tersedia) {
+        return NextResponse.json({ error: "Slot jadwal yang Anda pilih baru saja diambil oleh mahasiswa lain. Silakan refresh dan pilih jadwal lain." }, { status: 409 });
       }
     }
 

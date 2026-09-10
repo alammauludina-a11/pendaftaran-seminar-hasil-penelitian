@@ -142,6 +142,17 @@ export default function MahasiswaDashboard() {
     fetchRuanganData();
   }, []);
 
+  // Auto-refresh slot availability every 15 seconds when on pengajuan tab
+  useEffect(() => {
+    if (activeTab !== "pengajuan" || pendaftaranStatus !== null) return;
+    
+    const interval = setInterval(() => {
+      fetchRuanganData();
+    }, 15000);
+    
+    return () => clearInterval(interval);
+  }, [activeTab, pendaftaranStatus]);
+
   const fetchDashboardData = async (jenis?: string) => {
     try {
       const seminarType = jenis || selectedSeminarType || "hasil_penelitian";
@@ -292,8 +303,12 @@ export default function MahasiswaDashboard() {
           setActiveTab("status");
         }, 1500);
       } else {
-        alert("Gagal mengajukan.");
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || "Gagal mengajukan. Silakan coba lagi.");
         setFormStatus("idle");
+        // Refresh slots in case the chosen slot was just taken
+        fetchRuanganData();
+        setSelectedSlot(null);
       }
     } catch (e) {
       setFormStatus("idle");

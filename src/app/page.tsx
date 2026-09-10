@@ -30,9 +30,9 @@ export default function Home() {
         <div className="relative z-10 w-full max-w-5xl mx-auto">
           <div className="text-center mb-16">
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-6 leading-tight text-[#06125C]">
-              Sistem Pendaftaran <br className="hidden sm:block" />
+              Sistem Penjadwalan <br className="hidden sm:block" />
               <span className="text-amber-500">
-                Seminar Hasil Penelitian
+                Seminar Kolokium dan Seminar Hasil Penelitian
               </span>
             </h1>
           </div>

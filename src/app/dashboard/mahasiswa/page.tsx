@@ -146,6 +146,13 @@ export default function MahasiswaDashboard() {
     fetchRuanganData();
   }, []);
 
+  useEffect(() => {
+    if (sessionData?.user) {
+      const angkatan = (sessionData.user as any).angkatan;
+      if (angkatan) setMhsAngkatan(angkatan);
+    }
+  }, [sessionData]);
+
   // Auto-refresh slot availability every 15 seconds when on pengajuan tab
   useEffect(() => {
     if (activeTab !== "pengajuan" || pendaftaranStatus !== null) return;

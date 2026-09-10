@@ -54,6 +54,10 @@ export const auth = betterAuth({
           jabatan: {
               type: "string",
               required: false
+          },
+          angkatan: {
+              type: "string",
+              required: false
           }
       }
   }

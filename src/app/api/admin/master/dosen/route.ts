@@ -70,6 +70,7 @@ export async function POST(request: Request) {
         name: newUser[0].nama,
         prodi: newUser[0].prodi || "Informatika",
         jabatan: newUser[0].jabatan || "Dosen",
+        statusDosen: newUser[0].statusDosen,
         account: null,
       },
     }, { status: 201 });

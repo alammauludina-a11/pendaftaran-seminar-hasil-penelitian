@@ -69,6 +69,7 @@ export async function PUT(
         name: updated[0].nama,
         prodi: updated[0].prodi,
         jabatan: updated[0].jabatan,
+        statusDosen: updated[0].statusDosen,
       }
     }, { status: 200 });
   } catch (error: any) {

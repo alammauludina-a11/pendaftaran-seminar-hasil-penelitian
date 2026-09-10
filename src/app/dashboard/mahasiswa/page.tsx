@@ -1043,26 +1043,6 @@ export default function MahasiswaDashboard() {
                     <div className="text-emerald-600 font-medium text-sm mb-1">Kelas Anda Saat Ini</div>
                     <div className="text-2xl font-bold text-[#06125C]">{kelasData.namaKelas}</div>
                   </div>
-                  <div className="flex flex-col md:flex-row gap-4 md:gap-8">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-emerald-500 shadow-sm">
-                        <Calendar size={18} />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500">Jadwal Kelas</div>
-                        <div className="text-sm font-semibold text-slate-800">{kelasData.date || "Belum ditentukan"}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-emerald-500 shadow-sm">
-                        <MapPin size={18} />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500">Ruangan</div>
-                        <div className="text-sm font-semibold text-slate-800">{kelasData.room || "Belum ditentukan"}</div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 <div>

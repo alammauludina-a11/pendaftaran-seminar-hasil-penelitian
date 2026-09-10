@@ -92,15 +92,22 @@ export default function DosenDashboard() {
    useEffect(() => {
       fetchData(selectedPeriodeId);
       fetchModerator(selectedPeriodeId);
+
+      const interval = setInterval(() => {
+         fetchData(selectedPeriodeId, true);
+         fetchModerator(selectedPeriodeId);
+      }, 5000);
+
+      return () => clearInterval(interval);
    }, [selectedPeriodeId]);
 
    useEffect(() => {
       fetchAvailableSlots();
    }, []);
 
-   const fetchData = async (periodeId?: string | null) => {
+   const fetchData = async (periodeId?: string | null, silent = false) => {
       try {
-         setIsLoading(true);
+         if (!silent) setIsLoading(true);
          const url = periodeId ? `/api/dosen/dashboard?periodeId=${periodeId}` : "/api/dosen/dashboard";
          const res = await fetch(url);
          const data = await res.json();
@@ -112,7 +119,7 @@ export default function DosenDashboard() {
       } catch (e) {
          console.error(e);
       } finally {
-         setIsLoading(false);
+         if (!silent) setIsLoading(false);
       }
    };
 

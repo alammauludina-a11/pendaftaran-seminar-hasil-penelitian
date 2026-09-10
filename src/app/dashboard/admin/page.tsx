@@ -215,11 +215,15 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchData();
+    const interval = setInterval(() => {
+      fetchData(true);
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
-      setIsLoading(true);
+      if (!silent) setIsLoading(true);
       const [resPeriode, resMhs, resDosen, resAdmin, resPend, resKelas] = await Promise.all([
         fetch("/api/admin/periode"),
         fetch("/api/admin/master/mahasiswa"),
@@ -245,7 +249,7 @@ export default function AdminDashboard() {
     } catch (e) {
       console.error(e);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 

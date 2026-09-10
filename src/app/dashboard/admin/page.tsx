@@ -10,7 +10,7 @@ import autoTable from 'jspdf-autotable';
 import {
   LogOut, FileCheck, MapPin, Megaphone, CheckCircle2, XCircle, Eye,
   Clock, CheckSquare, X, Search, Filter, Users, Calendar, AlertCircle, Settings,
-  ArrowLeft, Plus, Trash2, LayoutDashboard, Sparkles, Loader2, UserCheck
+  ArrowLeft, Plus, Trash2, LayoutDashboard, Sparkles, Loader2, UserCheck, ChevronUp, ChevronDown
 } from "lucide-react";
 import DashboardAnalisis from "./DashboardAnalisis";
 import AnalisisLog from "./AnalisisLog";
@@ -272,6 +272,7 @@ export default function AdminDashboard() {
 
   // Master Data Modal State
   const [selectedMasterIds, setSelectedMasterIds] = useState<string[]>([]);
+  const [masterSort, setMasterSort] = useState<{ key: string, order: 'asc' | 'desc' } | null>(null);
   const [masterSearch, setMasterSearch] = useState("");
   const [masterAngkatanFilter, setMasterAngkatanFilter] = useState("Semua Angkatan");
   const [showAddDataModal, setShowAddDataModal] = useState(false);
@@ -817,11 +818,60 @@ export default function AdminDashboard() {
       alert("Terjadi kesalahan sistem.");
     }
   };
-  const currentMasterData = activeMasterTab === "mahasiswa" 
+  const rawCurrentMasterData = activeMasterTab === "mahasiswa" 
     ? masterMahasiswa.filter(m => (m.name.toLowerCase().includes(masterSearch.toLowerCase()) || m.nim.toLowerCase().includes(masterSearch.toLowerCase())) && (masterAngkatanFilter === "Semua Angkatan" || m.angkatan === masterAngkatanFilter))
     : activeMasterTab === "dosen"
     ? masterDosen.filter(d => d.name.toLowerCase().includes(masterSearch.toLowerCase()) || d.nip.toLowerCase().includes(masterSearch.toLowerCase()))
     : masterAdmin.filter(a => a.name.toLowerCase().includes(masterSearch.toLowerCase()));
+
+  const currentMasterData = [...rawCurrentMasterData].sort((a: any, b: any) => {
+    if (!masterSort) return 0;
+    const { key, order } = masterSort;
+    
+    let valA = a[key] ?? '';
+    let valB = b[key] ?? '';
+    
+    if (key === 'account') {
+        valA = a.account ? '1' : '0';
+        valB = b.account ? '1' : '0';
+    } else if (key === 'nim_nip') {
+        valA = a.nim || a.nip || '';
+        valB = b.nim || b.nip || '';
+    }
+
+    if (typeof valA === 'string' && typeof valB === 'string') {
+        return order === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    }
+    
+    return order === 'asc' ? (valA > valB ? 1 : -1) : (valB > valA ? 1 : -1);
+  });
+
+  const handleMasterSort = (key: string) => {
+    let order: 'asc' | 'desc' = 'asc';
+    if (masterSort && masterSort.key === key && masterSort.order === 'asc') {
+      order = 'desc';
+    }
+    setMasterSort({ key, order });
+  };
+
+  const renderMasterSortableHeader = (label: string, key: string, align: 'left' | 'center' | 'right' = 'left') => {
+    const isSorted = masterSort?.key === key;
+    return (
+      <th 
+        key={key}
+        className={`p-4 text-${align} cursor-pointer hover:bg-slate-100 transition-colors select-none`}
+        onClick={() => handleMasterSort(key)}
+      >
+        <div className={`flex items-center gap-1 ${align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : ''}`}>
+          {label}
+          <div className="flex flex-col">
+            <ChevronUp size={10} className={`${isSorted && masterSort.order === 'asc' ? 'text-indigo-600' : 'text-slate-300'}`} />
+            <ChevronDown size={10} className={`${isSorted && masterSort.order === 'desc' ? 'text-indigo-600' : 'text-slate-300'} -mt-1`} />
+          </div>
+        </div>
+      </th>
+    );
+  };
 
   const handleSelectAllMaster = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -1474,12 +1524,12 @@ export default function AdminDashboard() {
                           />
                         </th>
                         <th className="p-4">No</th>
-                        {activeMasterTab !== "admin" && <th className="p-4">{activeMasterTab === "mahasiswa" ? "NIM" : "NIP/NPI"}</th>}
-                        <th className="p-4">{activeMasterTab === "dosen" ? "Nama Dosen" : "Nama Lengkap"}</th>
-                        {activeMasterTab === "dosen" && <th className="p-4 text-center">Status</th>}
-                        {activeMasterTab === "mahasiswa" && <th className="p-4">Angkatan</th>}
-                        {activeMasterTab === "mahasiswa" && <th className="p-4">Program Studi</th>}
-                        <th className="p-4">Akun Login</th>
+                        {activeMasterTab !== "admin" && renderMasterSortableHeader(activeMasterTab === "mahasiswa" ? "NIM" : "NIP/NPI", "nim_nip")}
+                        {renderMasterSortableHeader(activeMasterTab === "dosen" ? "Nama Dosen" : "Nama Lengkap", "name")}
+                        {activeMasterTab === "dosen" && renderMasterSortableHeader("Status", "statusDosen", "center")}
+                        {activeMasterTab === "mahasiswa" && renderMasterSortableHeader("Angkatan", "angkatan")}
+                        {activeMasterTab === "mahasiswa" && renderMasterSortableHeader("Program Studi", "prodi")}
+                        {renderMasterSortableHeader("Akun Login", "account")}
                         <th className="p-4 text-right">Aksi</th>
                       </tr>
                     </thead>

@@ -288,7 +288,7 @@ export default function AdminDashboard() {
 
 
 
-  const handleGenerateAkunMahasiswa = async (id: string | number) => {
+  const handleGenerateAkunMahasiswa = async (id: string | number, silent = false) => {
     try {
       const res = await fetch("/api/admin/master/mahasiswa/account", {
         method: "POST",
@@ -298,16 +298,19 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (data.success) {
         setMasterMahasiswa(prev => prev.map(m => m.id === id ? { ...m, account: { username: data.username, password: data.password } } : m));
+        return { ok: true };
       } else {
-        alert(data.error);
+        if (!silent) alert(data.error);
+        return { ok: false, error: data.error };
       }
     } catch (e) {
       console.error(e);
-      alert("Terjadi kesalahan sistem");
+      if (!silent) alert("Terjadi kesalahan sistem");
+      return { ok: false, error: "Kesalahan sistem" };
     }
   };
 
-  const handleGenerateAkunDosen = async (id: string | number) => {
+  const handleGenerateAkunDosen = async (id: string | number, silent = false) => {
     try {
       const res = await fetch("/api/admin/master/dosen/account", {
         method: "POST",
@@ -317,16 +320,19 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (data.success) {
         setMasterDosen(prev => prev.map(d => d.id === id ? { ...d, account: { username: data.username, password: data.password } } : d));
+        return { ok: true };
       } else {
-        alert(data.error);
+        if (!silent) alert(data.error);
+        return { ok: false, error: data.error };
       }
     } catch (e) {
       console.error(e);
-      alert("Terjadi kesalahan sistem");
+      if (!silent) alert("Terjadi kesalahan sistem");
+      return { ok: false, error: "Kesalahan sistem" };
     }
   };
 
-  const handleGenerateAkunAdmin = async (id: string) => {
+  const handleGenerateAkunAdmin = async (id: string, silent = false) => {
     try {
       const res = await fetch("/api/admin/master/admin/account", {
         method: "POST",
@@ -336,31 +342,51 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (data.success) {
         setMasterAdmin(prev => prev.map(a => a.id === id ? { ...a, account: { username: data.username, password: data.password } } : a));
+        return { ok: true };
       } else {
-        alert(data.error);
+        if (!silent) alert(data.error);
+        return { ok: false, error: data.error };
       }
     } catch (e) {
       console.error(e);
-      alert("Terjadi kesalahan sistem");
+      if (!silent) alert("Terjadi kesalahan sistem");
+      return { ok: false, error: "Kesalahan sistem" };
     }
   };
 
   const handleGenerateSemuaAkun = async () => {
+    let berhasil = 0;
+    const gagalList: string[] = [];
+
     if (activeMasterTab === "mahasiswa") {
       const usersToGenerate = masterMahasiswa.filter(m => !m.account);
       for (const m of usersToGenerate) {
-        await handleGenerateAkunMahasiswa(m.id);
+        const result = await handleGenerateAkunMahasiswa(m.id, true);
+        if (result.ok) berhasil++;
+        else gagalList.push(`${m.nim} (${m.name}): ${result.error}`);
       }
     } else if (activeMasterTab === "dosen") {
       const usersToGenerate = masterDosen.filter(d => !d.account);
       for (const d of usersToGenerate) {
-        await handleGenerateAkunDosen(d.id);
+        const result = await handleGenerateAkunDosen(d.id, true);
+        if (result.ok) berhasil++;
+        else gagalList.push(`${d.nip} (${d.name}): ${result.error}`);
       }
     } else {
       const usersToGenerate = masterAdmin.filter(a => !a.account);
       for (const a of usersToGenerate) {
-        await handleGenerateAkunAdmin(a.id);
+        const result = await handleGenerateAkunAdmin(a.id as string, true);
+        if (result.ok) berhasil++;
+        else gagalList.push(`${a.name}: ${result.error}`);
       }
+    }
+
+    // Show single summary
+    if (gagalList.length === 0) {
+      alert(`Berhasil: ${berhasil} akun berhasil digenerate.`);
+    } else {
+      const gagalMsg = gagalList.join("\n");
+      alert(`Berhasil: ${berhasil} akun.\nGagal (${gagalList.length}):\n${gagalMsg}`);
     }
   };
 

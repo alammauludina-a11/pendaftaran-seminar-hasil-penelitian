@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { moderator, kelasSeminar, pendaftaran, users, slotWaktu, periode } from "@/db/schema";
-import { eq, isNull, and, desc } from "drizzle-orm";
+import { eq, isNull, and, desc, or } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { alias } from "drizzle-orm/sqlite-core";
@@ -202,6 +202,35 @@ export async function POST(request: Request) {
     const existing = await db.select().from(moderator).where(eq(moderator.pendaftaranId, pendaftaranId));
     if (existing.length > 0) {
       return NextResponse.json({ error: "Jadwal ini sudah diambil oleh moderator lain" }, { status: 400 });
+    }
+
+    // Check for schedule conflict with their bimbingan
+    const currentUserId = session.user.id;
+    const dosenUser = await db.select().from(users).where(eq(users.id, currentUserId)).limit(1);
+    const dosenName = dosenUser[0]?.nama;
+
+    const targetPend = await db.select().from(pendaftaran).where(eq(pendaftaran.id, pendaftaranId)).limit(1);
+    if (targetPend.length === 0) {
+       return NextResponse.json({ error: "Data pendaftaran tidak ditemukan" }, { status: 404 });
+    }
+    const targetSlotId = targetPend[0].slotWaktuId;
+
+    if (targetSlotId && dosenName) {
+      const conflictBimbingan = await db.select()
+        .from(pendaftaran)
+        .where(
+          and(
+            eq(pendaftaran.slotWaktuId, targetSlotId),
+            or(
+              eq(pendaftaran.dospem1, dosenName),
+              eq(pendaftaran.dospem2, dosenName)
+            )
+          )
+        ).limit(1);
+        
+      if (conflictBimbingan.length > 0) {
+        return NextResponse.json({ error: "Anda tidak dapat menjadi moderator pada jadwal ini karena bentrok dengan jadwal bimbingan Anda di jam yang sama." }, { status: 400 });
+      }
     }
 
     await db.insert(moderator).values({

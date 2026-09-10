@@ -509,7 +509,12 @@ export default function DosenDashboard() {
                               const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                               const classesOnDate = availableKelas.filter(c => c.isoDates?.includes(isoDate));
                               const hasClasses = classesOnDate.length > 0;
-                              const hasClash = classesOnDate.length > 1;
+                              const hasClash = bimbingan.some((b: any) => {
+                                 if (!b.waktuMulai) return false;
+                                 const d = new Date(b.waktuMulai);
+                                 const bIsoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                 return bIsoDate === isoDate;
+                              });
                               const isSelected = selectedDate === isoDate;
                               const dateNum = d.getDate();
 
@@ -560,7 +565,7 @@ export default function DosenDashboard() {
                         <div className="mt-5 flex flex-col gap-2.5 text-[11px] pt-4 border-t border-slate-100">
                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#06125C] rounded-sm"></div> <span className="text-slate-500">Tanggal Terpilih</span></div>
                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-50 border border-blue-200 rounded-sm flex items-center justify-center"><div className="w-1.5 h-1.5 bg-amber-500 rounded-full"></div></div> <span className="text-slate-500">Ada Kelas (Angka = Jumlah)</span></div>
-                           <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-500 rounded-full"></div> <span className="text-slate-500">Ada Jadwal Bentrok</span></div>
+                           <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-500 rounded-full"></div> <span className="text-slate-500">Ada Jadwal Bimbingan (Rentan Bentrok)</span></div>
                         </div>
                      </div>
 

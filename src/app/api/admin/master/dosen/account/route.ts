@@ -53,7 +53,8 @@ export async function POST(request: Request) {
       nama: userRecord.nama,
       nipNim: userRecord.nipNim,
       prodi: userRecord.prodi,
-      jabatan: userRecord.jabatan
+      jabatan: userRecord.jabatan,
+      statusDosen: userRecord.statusDosen
     }).where(eq(users.email, emailToUse));
 
     return NextResponse.json({ success: true, username: generatedUsername, password: password }, { status: 200 });

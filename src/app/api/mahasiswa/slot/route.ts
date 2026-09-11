@@ -24,6 +24,7 @@ export async function GET(request: Request) {
       .select({
         slotId: pendaftaran.slotWaktuId,
         kelasSeminarId: pendaftaran.kelasSeminarId,
+        periodeId: pendaftaran.periodeId,
         dospem1: pendaftaran.dospem1,
         dospem2: pendaftaran.dospem2,
         waktuMulai: slotWaktu.waktuMulai,
@@ -38,9 +39,15 @@ export async function GET(request: Request) {
         )
       );
 
-    // Get all formed classes in the same jenis seminar  
+    // Get all formed classes grouped by periodeId
     const formedClasses = await db.select().from(kelasSeminar);
     const formedClassIds = new Set(formedClasses.map(k => k.id));
+    // Build a map: periodeId -> count of formed classes
+    const classesByPeriode = new Map<number, number>();
+    for (const k of formedClasses) {
+      if (!k.periodeId) continue;
+      classesByPeriode.set(k.periodeId, (classesByPeriode.get(k.periodeId) || 0) + 1);
+    }
 
     // Build a map: slotId -> list of registrations
     const slotRegMap = new Map<number, typeof activeRegistrations>();
@@ -84,18 +91,17 @@ export async function GET(request: Request) {
 
       let blocked = false;
       let blockedReason = "";
-      let blockedKelas = "";
 
       if (pendingClassRegs.length > 0) {
         // Slot sudah terisi, kelas belum terbentuk
+        // Find the periodeId from the pending registrations
+        const periodeIdForSlot = pendingClassRegs.find(r => r.periodeId)?.periodeId;
+        const existingClassCountForPeriode = periodeIdForSlot
+          ? (classesByPeriode.get(periodeIdForSlot) || 0)
+          : 0;
+        const nextLetter = String.fromCharCode(65 + existingClassCountForPeriode);
         blocked = true;
-        blockedKelas = (() => {
-          // Check how many classes exist for this periode to guess next class letter
-          const existingClassCount = formedClasses.length;
-          const nextLetter = String.fromCharCode(65 + existingClassCount);
-          return nextLetter;
-        })();
-        blockedReason = `Slot sudah diambil, menunggu Kelas ${blockedKelas} terbentuk`;
+        blockedReason = `Slot sudah diambil, menunggu Kelas ${nextLetter} terbentuk`;
       } else if (dospemClash) {
         blocked = true;
         blockedReason = "Dosen Pembimbing Anda sudah terjadwal di jam ini";

@@ -196,11 +196,11 @@ export default function JadwalClient({ schedules }: JadwalClientProps) {
                   Daftar jadwal {selectedJenisSeminar === "kolokium" ? "seminar kolokium" : "seminar hasil penelitian"} untuk {selectedAngkatan} yang telah disetujui dan dirilis.
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
                 <select 
                   value={sortBy} 
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl px-3 py-2.5 outline-none focus:border-[#06125C] focus:ring-1 focus:ring-[#06125C]/20 shadow-sm"
+                  className="w-full sm:w-auto bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl px-3 py-2.5 outline-none focus:border-[#06125C] focus:ring-1 focus:ring-[#06125C]/20 shadow-sm"
                 >
                   <option value="time_asc">Waktu (Terdekat)</option>
                   <option value="time_desc">Waktu (Terjauh)</option>

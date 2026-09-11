@@ -916,7 +916,7 @@ export default function MahasiswaDashboard() {
 
               <div className="grid md:grid-cols-2 gap-8">
                 {/* Bagian Waktu & Ruangan */}
-                <div className="space-y-5">
+                <div className="space-y-5 min-w-0">
                   <h3 className="font-semibold text-slate-800 border-b pb-2">Pilih Slot Jadwal <span className="text-red-500">*</span></h3>
                   
                   {/* Calendar Filter */}
@@ -987,7 +987,7 @@ export default function MahasiswaDashboard() {
                 </div>
 
                 {/* Bagian Berkas */}
-                <div className="space-y-5">
+                <div className="space-y-5 min-w-0">
                   <h3 className="font-semibold text-slate-800 border-b pb-2">Unggah Berkas</h3>
                   
                   {selectedSeminarType === "hasil_penelitian" && (

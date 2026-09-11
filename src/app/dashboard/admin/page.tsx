@@ -1875,10 +1875,10 @@ export default function AdminDashboard() {
             </div>
 
             {/* Tab Navigation (Only 3 tabs now) */}
-            <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl shadow-sm border border-slate-200">
+            <div className="flex flex-nowrap overflow-x-auto gap-2 bg-white p-2 rounded-2xl shadow-sm border border-slate-200 hide-scrollbar scroll-smooth">
               <button
                 onClick={() => setActiveTab("verifikasi")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "verifikasi"
+                className={`flex-none md:flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "verifikasi"
                   ? "bg-[#06125C] text-white shadow-md"
                   : "text-slate-600 hover:bg-slate-100 hover:text-[#06125C]"
                   }`}
@@ -1903,7 +1903,7 @@ export default function AdminDashboard() {
               </button>
               <button
                 onClick={() => setActiveTab("finalisasi")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "finalisasi"
+                className={`flex-none md:flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "finalisasi"
                   ? "bg-[#06125C] text-white shadow-md"
                   : "text-slate-600 hover:bg-slate-100 hover:text-[#06125C]"
                   }`}
@@ -1918,7 +1918,7 @@ export default function AdminDashboard() {
               </button>
               <button
                 onClick={() => setActiveTab("pengumuman")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "pengumuman"
+                className={`flex-none md:flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "pengumuman"
                   ? "bg-[#06125C] text-white shadow-md"
                   : "text-slate-600 hover:bg-slate-100 hover:text-[#06125C]"
                   }`}
@@ -1928,7 +1928,7 @@ export default function AdminDashboard() {
               </button>
               <button
                 onClick={() => setActiveTab("kelas")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "kelas"
+                className={`flex-none md:flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "kelas"
                   ? "bg-[#06125C] text-white shadow-md"
                   : "text-slate-600 hover:bg-slate-100 hover:text-[#06125C]"
                   }`}
@@ -1938,7 +1938,7 @@ export default function AdminDashboard() {
               </button>
               <button
                 onClick={() => setActiveTab("rekapitulasi")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "rekapitulasi"
+                className={`flex-none md:flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "rekapitulasi"
                   ? "bg-[#06125C] text-white shadow-md"
                   : "text-slate-600 hover:bg-slate-100 hover:text-[#06125C]"
                   }`}
@@ -2228,7 +2228,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="overflow-hidden rounded-xl border border-slate-200">
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
                     <table className="w-full text-left text-sm">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                         <tr>
@@ -2584,7 +2584,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200">
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-sm text-slate-500">

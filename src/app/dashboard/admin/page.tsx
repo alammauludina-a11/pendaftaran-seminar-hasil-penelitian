@@ -948,7 +948,7 @@ export default function AdminDashboard() {
               title="Analisis Log"
             >
               <Sparkles size={16} className="text-blue-200" />
-              <span className="text-white font-medium">Analisis Log</span>
+              <span className="hidden sm:inline text-white font-medium">Analisis Log</span>
             </button>
             <div className="hidden md:flex flex-col text-right mr-2">
               <span className="text-sm font-semibold">Administrator Seminar</span>

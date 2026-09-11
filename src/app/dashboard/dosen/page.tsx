@@ -482,7 +482,7 @@ export default function DosenDashboard() {
                   <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start mt-2">
 
                      {/* Interactive Calendar Overview */}
-                     <div className="xl:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sticky top-28">
+                     <div className="xl:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 xl:sticky xl:top-28">
                         <div className="flex items-center justify-between mb-4">
                            <h3 className="font-bold text-sm text-[#06125C]">{displayMonth}</h3>
                            <div className="flex gap-1">

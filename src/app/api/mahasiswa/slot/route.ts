@@ -94,12 +94,20 @@ export async function GET(request: Request) {
 
       if (pendingClassRegs.length > 0) {
         // Slot sudah terisi, kelas belum terbentuk
-        // Find the periodeId from the pending registrations
-        const periodeIdForSlot = pendingClassRegs.find(r => r.periodeId)?.periodeId;
-        const existingClassCountForPeriode = periodeIdForSlot
-          ? (classesByPeriode.get(periodeIdForSlot) || 0)
-          : 0;
-        const nextLetter = String.fromCharCode(65 + existingClassCountForPeriode);
+        // Find periodeId from the pending registrations
+        const periodeIdForSlot = pendingClassRegs.find(r => r.periodeId != null)?.periodeId ?? null;
+        // Find the first letter not yet used as a class name for this period
+        const existingClassNamesForPeriode = periodeIdForSlot
+          ? formedClasses.filter(k => k.periodeId === periodeIdForSlot).map(k => k.namaKelas)
+          : [];
+        let nextLetter = 'A';
+        for (let i = 0; i < 26; i++) {
+          const candidate = String.fromCharCode(65 + i);
+          if (!existingClassNamesForPeriode.includes(candidate)) {
+            nextLetter = candidate;
+            break;
+          }
+        }
         blocked = true;
         blockedReason = `Slot sudah diambil, menunggu Kelas ${nextLetter} terbentuk`;
       } else if (dospemClash) {

@@ -134,6 +134,8 @@ export default function MahasiswaDashboard() {
   const [kelasMembers, setKelasMembers] = useState<any[]>([]);
   const [isKolokiumSelesai, setIsKolokiumSelesai] = useState<boolean>(false);
   const [mhsAngkatan, setMhsAngkatan] = useState<string>("-");
+  const [selectedDospem1, setSelectedDospem1] = useState<string>("");
+  const [selectedDospem2, setSelectedDospem2] = useState<string>("");
   
   const { data: sessionData } = useSession();
   const user = {
@@ -215,9 +217,13 @@ export default function MahasiswaDashboard() {
     }
   };
 
-  const fetchRuanganData = async () => {
+  const fetchRuanganData = async (d1 = selectedDospem1, d2 = selectedDospem2) => {
     try {
-      const res = await fetch("/api/mahasiswa/slot");
+      const params = new URLSearchParams();
+      if (d1) params.set("dospem1", d1);
+      if (d2) params.set("dospem2", d2);
+      if (selectedSeminarType) params.set("jenisSeminar", selectedSeminarType);
+      const res = await fetch(`/api/mahasiswa/slot?${params.toString()}`);
       const data = await res.json();
       if (data.availableSlots) {
         setAvailableSlots(data.availableSlots);
@@ -842,6 +848,8 @@ export default function MahasiswaDashboard() {
                       <select 
                         name="dospem1_nama"
                         required
+                        value={selectedDospem1}
+                        onChange={e => { setSelectedDospem1(e.target.value); fetchRuanganData(e.target.value, selectedDospem2); }}
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#06125C]/20 focus:border-[#06125C] transition-all outline-none text-slate-700 appearance-none"
                       >
                         <option value="">Pilih Dosen Pembimbing 1</option>
@@ -857,6 +865,8 @@ export default function MahasiswaDashboard() {
                     <div className="relative">
                       <select 
                         name="dospem2_nama"
+                        value={selectedDospem2}
+                        onChange={e => { setSelectedDospem2(e.target.value); fetchRuanganData(selectedDospem1, e.target.value); }}
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#06125C]/20 focus:border-[#06125C] transition-all outline-none text-slate-700 appearance-none"
                       >
                         <option value="">Pilih Dosen Pembimbing 2 (opsional)</option>
@@ -941,20 +951,28 @@ export default function MahasiswaDashboard() {
                       filteredSlots.map((slot) => (
                         <div 
                           key={slot.id}
-                          onClick={() => setSelectedSlot(slot.id)}
-                          className={`cursor-pointer rounded-xl border p-4 transition-all flex flex-col gap-2 ${
-                            selectedSlot === slot.id 
-                              ? "border-[#06125C] bg-[#06125C]/5 ring-1 ring-[#06125C]" 
-                              : "border-slate-200 bg-slate-50 hover:border-[#06125C]/30 hover:bg-slate-100"
+                          onClick={() => !slot.blocked && setSelectedSlot(slot.id)}
+                          title={slot.blocked ? slot.blockedReason : undefined}
+                          className={`relative rounded-xl border p-4 transition-all flex flex-col gap-2 ${
+                            slot.blocked
+                              ? "cursor-not-allowed bg-slate-100 border-slate-200 opacity-60"
+                              : selectedSlot === slot.id 
+                                ? "cursor-pointer border-[#06125C] bg-[#06125C]/5 ring-1 ring-[#06125C]" 
+                                : "cursor-pointer border-slate-200 bg-slate-50 hover:border-[#06125C]/30 hover:bg-slate-100"
                           }`}
                         >
+                          {slot.blocked && (
+                            <span className="absolute top-2 right-2 text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">*</span>
+                          )}
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-sm font-bold text-slate-800 flex items-center gap-1.5"><Calendar size={14} className="text-amber-500"/> {slot.date}</span>
                           </div>
                           <div className="text-xs text-slate-600 flex items-center gap-1.5">
                             <Clock size={14} className="text-slate-400"/> {slot.time} WIB
                           </div>
-
+                          {slot.blocked && (
+                            <p className="text-[10px] text-amber-700 mt-1 leading-tight">{slot.blockedReason}</p>
+                          )}
                         </div>
                       ))
                     ) : (
@@ -965,7 +983,7 @@ export default function MahasiswaDashboard() {
                   </div>
                   {/* Hidden input to ensure form validation triggers if slot is not selected */}
                   {!selectedSlot && <input type="text" required className="opacity-0 w-0 h-0 absolute pointer-events-none" />}
-                  <p className="text-xs text-slate-500 mt-2">Slot jadwal yang ditampilkan adalah jadwal yang telah disiapkan oleh Admin.</p>
+                  <p className="text-xs text-slate-500 mt-2">Slot jadwal yang ditampilkan adalah jadwal yang telah disiapkan oleh Admin. <span className="text-amber-600 font-semibold">* Slot abu-abu tidak dapat dipilih saat ini.</span></p>
                 </div>
 
                 {/* Bagian Berkas */}

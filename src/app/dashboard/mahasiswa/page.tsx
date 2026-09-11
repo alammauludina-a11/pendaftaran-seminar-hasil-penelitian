@@ -809,7 +809,7 @@ export default function MahasiswaDashboard() {
                 </p>
               </div>
             ) : (
-            <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm relative overflow-hidden">
+            <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-4 md:p-8 border border-slate-200 shadow-sm relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-bl-[100px] pointer-events-none" />
               
               <h2 className="text-xl font-bold text-[#06125C] mb-2 flex items-center gap-2">
@@ -1005,9 +1005,9 @@ export default function MahasiswaDashboard() {
                         />
                         <div className="space-y-1 text-center pointer-events-none">
                           <UploadCloud className={`mx-auto h-8 w-8 ${fileKolokiumName ? 'text-[#06125C]' : 'text-slate-400 group-hover:text-[#06125C]'}`} />
-                          <div className="flex text-sm text-slate-600 justify-center">
-                            <span className="font-medium text-[#06125C]">{fileKolokiumName || "Upload a file"}</span>
-                            {!fileKolokiumName && <p className="pl-1">or drag and drop</p>}
+                          <div className="flex flex-col sm:flex-row text-sm text-slate-600 justify-center items-center">
+                            <span className="font-medium text-[#06125C] text-center break-all">{fileKolokiumName || "Upload a file"}</span>
+                            {!fileKolokiumName && <p className="sm:pl-1 mt-1 sm:mt-0 text-xs sm:text-sm">or drag and drop</p>}
                           </div>
                           <p className="text-xs text-slate-500">{fileKolokiumName ? "Berhasil dipilih" : "PDF up to 500 KB"}</p>
                         </div>
@@ -1029,9 +1029,9 @@ export default function MahasiswaDashboard() {
                       />
                       <div className="space-y-1 text-center pointer-events-none">
                         <UploadCloud className={`mx-auto h-8 w-8 ${fileDospemName ? 'text-[#06125C]' : 'text-slate-400 group-hover:text-[#06125C]'}`} />
-                        <div className="flex text-sm text-slate-600 justify-center">
-                          <span className="font-medium text-[#06125C]">{fileDospemName || "Upload a file"}</span>
-                          {!fileDospemName && <p className="pl-1">or drag and drop</p>}
+                        <div className="flex flex-col sm:flex-row text-sm text-slate-600 justify-center items-center">
+                          <span className="font-medium text-[#06125C] text-center break-all">{fileDospemName || "Upload a file"}</span>
+                          {!fileDospemName && <p className="sm:pl-1 mt-1 sm:mt-0 text-xs sm:text-sm">or drag and drop</p>}
                         </div>
                         <p className="text-xs text-slate-500">{fileDospemName ? "Berhasil dipilih" : "PDF up to 500 KB"}</p>
                       </div>

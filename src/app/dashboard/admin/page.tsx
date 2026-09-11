@@ -10,7 +10,7 @@ import autoTable from 'jspdf-autotable';
 import {
   LogOut, FileCheck, MapPin, Megaphone, CheckCircle2, XCircle, Eye,
   Clock, CheckSquare, X, Search, Filter, Users, Calendar, AlertCircle, Settings,
-  ArrowLeft, Plus, Trash2, LayoutDashboard, Sparkles, Loader2, UserCheck, ChevronUp, ChevronDown
+  ArrowLeft, Plus, Trash2, LayoutDashboard, Sparkles, Loader2, UserCheck, ChevronUp, ChevronDown, Menu
 } from "lucide-react";
 import DashboardAnalisis from "./DashboardAnalisis";
 import AnalisisLog from "./AnalisisLog";
@@ -267,6 +267,7 @@ export default function AdminDashboard() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [globalKelasFilter, setGlobalKelasFilter] = useState("Semua Kelas");
   const [selectedDateFilter, setSelectedDateFilter] = useState("Semua Tanggal");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Verifikasi Modal States
   const [selectedPendaftar, setSelectedPendaftar] = useState<any>(null);
@@ -925,42 +926,80 @@ export default function AdminDashboard() {
             <span className="font-semibold text-xl tracking-tight hidden sm:block">Seminar Hub - Portal Admin</span>
             <span className="font-semibold text-xl tracking-tight sm:hidden">Portal Admin</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 sm:gap-4">
+            <div className="hidden sm:flex items-center gap-4">
+              <button
+                onClick={() => { setCurrentView("master"); setActivePeriodeId(null); }}
+                className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
+                title="Data Master Pengguna"
+              >
+                <Users className="w-5 h-5 text-white/90" />
+                <span className="text-white font-medium">Master</span>
+              </button>
+              <button
+                onClick={() => { setCurrentView("analisis"); setActivePeriodeId(null); }}
+                className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
+                title="Dashboard Analisis"
+              >
+                <Sparkles className="w-5 h-5 text-white/90" />
+                <span className="text-white font-medium">Analisis</span>
+              </button>
+              <button
+                onClick={() => { setCurrentView("analisis_log"); setActivePeriodeId(null); }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors border border-white/20 ${currentView === "analisis_log" ? 'bg-white/20 shadow-inner' : 'hover:bg-white/10'}`}
+                title="Analisis Log"
+              >
+                <Sparkles size={16} className="text-blue-200" />
+                <span className="text-white font-medium">Analisis Log</span>
+              </button>
+            </div>
+            
+            {/* Mobile Menu Toggle */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+              className="sm:hidden p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors ml-1"
+            >
+              {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+
+            <div className="hidden md:flex flex-col text-right mr-2 ml-2">
+              <span className="text-sm font-semibold">Administrator Seminar</span>
+            </div>
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold border-2 border-white ml-1 sm:ml-0 text-sm sm:text-base">
+              AD
+            </div>
+            <button onClick={handleLogout} className="p-1.5 sm:p-2 hover:bg-white/10 rounded-lg transition-colors" title="Keluar">
+              <LogOut size={20} className="text-red-300" />
+            </button>
+          </div>
+        </div>
+        
+        {/* Mobile Dropdown Menu */}
+        {isMobileMenuOpen && (
+          <div className="sm:hidden bg-[#06125C] border-t border-white/10 px-6 py-4 flex flex-col gap-3 shadow-lg absolute w-full left-0 animate-in fade-in slide-in-from-top-2">
             <button
-              onClick={() => { setCurrentView("master"); setActivePeriodeId(null); }}
-              className="hidden sm:flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
-              title="Data Master Pengguna"
+              onClick={() => { setCurrentView("master"); setActivePeriodeId(null); setIsMobileMenuOpen(false); }}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors w-full"
             >
               <Users className="w-5 h-5 text-white/90" />
-              <span className="text-white font-medium">Master</span>
+              <span className="text-white font-medium">Data Master</span>
             </button>
             <button
-              onClick={() => { setCurrentView("analisis"); setActivePeriodeId(null); }}
-              className="hidden sm:flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
-              title="Dashboard Analisis"
+              onClick={() => { setCurrentView("analisis"); setActivePeriodeId(null); setIsMobileMenuOpen(false); }}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors w-full"
             >
               <Sparkles className="w-5 h-5 text-white/90" />
               <span className="text-white font-medium">Analisis</span>
             </button>
             <button
-              onClick={() => { setCurrentView("analisis_log"); setActivePeriodeId(null); }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors border border-white/20 ${currentView === "analisis_log" ? 'bg-white/20 shadow-inner' : 'hover:bg-white/10'}`}
-              title="Analisis Log"
+              onClick={() => { setCurrentView("analisis_log"); setActivePeriodeId(null); setIsMobileMenuOpen(false); }}
+              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-colors w-full border ${currentView === "analisis_log" ? 'border-white/20 bg-white/20' : 'border-transparent bg-white/10 hover:bg-white/20'}`}
             >
               <Sparkles size={16} className="text-blue-200" />
-              <span className="hidden sm:inline text-white font-medium">Analisis Log</span>
-            </button>
-            <div className="hidden md:flex flex-col text-right mr-2">
-              <span className="text-sm font-semibold">Administrator Seminar</span>
-            </div>
-            <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold border-2 border-white">
-              AD
-            </div>
-            <button onClick={handleLogout} className="p-2 hover:bg-white/10 rounded-lg transition-colors ml-2" title="Keluar">
-              <LogOut size={20} className="text-red-300" />
+              <span className="text-white font-medium">Analisis Log</span>
             </button>
           </div>
-        </div>
+        )}
       </nav>
 
       {/* Main Content */}

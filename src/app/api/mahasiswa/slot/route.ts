@@ -14,7 +14,10 @@ export async function GET(request: Request) {
     const dospem2Param = url.searchParams.get("dospem2") || "";
     const jenisSeminar = url.searchParams.get("jenisSeminar") || "kolokium";
 
-    const slots = await db.select().from(slotWaktu).where(eq(slotWaktu.tersedia, true));
+    // Fetch ALL slots — availability is now determined dynamically below, not by the tersedia flag.
+    // (The old system set tersedia=false when a slot was booked; the new system no longer does this,
+    //  but old records may still have tersedia=false, so we must not filter them out.)
+    const slots = await db.select().from(slotWaktu);
 
     // Get all active (non-rejected) registrations that have a slot, with their class info
     const activeRegistrations = await db

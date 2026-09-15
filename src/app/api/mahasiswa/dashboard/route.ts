@@ -85,7 +85,15 @@ export async function GET(request: Request) {
         const endD = new Date(r.waktuSelesai);
         const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
         dateStr = `${d.getDate().toString().padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
-        timeStr = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')} - ${endD.getHours().toString().padStart(2, '0')}:${endD.getMinutes().toString().padStart(2, '0')}`;
+        const timeFormatter = new Intl.DateTimeFormat('id-ID', {
+          timeZone: 'Asia/Jakarta',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+        const startTimeStr = timeFormatter.format(d).replace('.', ':');
+        const endTimeStr = timeFormatter.format(endD).replace('.', ':');
+        timeStr = `${startTimeStr} - ${endTimeStr}`;
       }
       
       return {
@@ -168,10 +176,18 @@ export async function GET(request: Request) {
         const d = new Date(s.waktuMulai);
         const endD = new Date(s.waktuSelesai);
         const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+        const timeFormatter = new Intl.DateTimeFormat('id-ID', {
+          timeZone: 'Asia/Jakarta',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+        const startTimeStr = timeFormatter.format(d).replace('.', ':');
+        const endTimeStr = timeFormatter.format(endD).replace('.', ':');
         slotDetail = {
           id: s.id,
           date: `${d.getDate().toString().padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`,
-          time: `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')} - ${endD.getHours().toString().padStart(2, '0')}:${endD.getMinutes().toString().padStart(2, '0')}`,
+          time: `${startTimeStr} - ${endTimeStr}`,
         };
       }
     }

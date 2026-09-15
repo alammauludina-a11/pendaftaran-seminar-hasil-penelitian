@@ -57,11 +57,15 @@ export async function GET() {
         const year = d.getFullYear();
         date = `${day} ${month} ${year}`;
         
-        const startHours = d.getHours().toString().padStart(2, '0');
-        const startMinutes = d.getMinutes().toString().padStart(2, '0');
-        const endHours = endD.getHours().toString().padStart(2, '0');
-        const endMinutes = endD.getMinutes().toString().padStart(2, '0');
-        time = `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`;
+        const timeFormatter = new Intl.DateTimeFormat('id-ID', {
+          timeZone: 'Asia/Jakarta',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+        const startTimeStr = timeFormatter.format(d).replace('.', ':');
+        const endTimeStr = timeFormatter.format(endD).replace('.', ':');
+        time = `${startTimeStr} - ${endTimeStr}`;
       }
       return {
         ...item,

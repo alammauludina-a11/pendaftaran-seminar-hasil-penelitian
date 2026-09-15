@@ -89,8 +89,14 @@ export async function GET(request: Request) {
           const endDateStr = `${endD.getDate().toString().padStart(2, '0')} ${months[endD.getMonth()]} ${endD.getFullYear()}`;
           const dateStr = startDateStr === endDateStr ? startDateStr : `${startDateStr} - ${endDateStr}`;
 
-          const minTime = `${startD.getHours().toString().padStart(2, '0')}:${startD.getMinutes().toString().padStart(2, '0')}`;
-          const maxTime = `${endD.getHours().toString().padStart(2, '0')}:${endD.getMinutes().toString().padStart(2, '0')}`;
+          const timeFormatter = new Intl.DateTimeFormat('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          });
+          const minTime = timeFormatter.format(startD).replace('.', ':');
+          const maxTime = timeFormatter.format(endD).replace('.', ':');
 
           const isoDates = Array.from(new Set(sortedStudents.map(s => {
              const d = new Date(s.waktuMulai!);
@@ -134,10 +140,18 @@ export async function GET(request: Request) {
           const endD = new Date(s.waktuSelesai!);
           const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
           const dateStr = `${startD.getDate().toString().padStart(2, '0')} ${months[startD.getMonth()]} ${startD.getFullYear()}`;
+          const timeFormatter = new Intl.DateTimeFormat('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          });
+          const startTimeStr = timeFormatter.format(startD).replace('.', ':');
+          const endTimeStr = timeFormatter.format(endD).replace('.', ':');
           return {
              ...s,
              dateStr: dateStr,
-             time: `${startD.getHours().toString().padStart(2, '0')}:${startD.getMinutes().toString().padStart(2, '0')} - ${endD.getHours().toString().padStart(2, '0')}:${endD.getMinutes().toString().padStart(2, '0')}`,
+             time: `${startTimeStr} - ${endTimeStr}`,
              isMyModeration: s.moderatorId === currentUserId,
              hasModerator: !!s.moderatorId
           };

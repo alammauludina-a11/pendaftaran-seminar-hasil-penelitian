@@ -268,6 +268,7 @@ export default function AdminDashboard() {
   const [globalKelasFilter, setGlobalKelasFilter] = useState("Semua Kelas");
   const [selectedDateFilter, setSelectedDateFilter] = useState("Semua Tanggal");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [verifikasiSort, setVerifikasiSort] = useState<{ key: 'name' | 'kelas' | 'dospem' | 'title' | 'date', order: 'asc' | 'desc' } | null>(null);
 
   // Verifikasi Modal States
   const [selectedPendaftar, setSelectedPendaftar] = useState<any>(null);
@@ -600,11 +601,24 @@ export default function AdminDashboard() {
     const matchesSearch = p.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
       p.nim.toLowerCase().includes(globalSearch.toLowerCase());
     const matchesKelas = globalKelasFilter === "Semua Kelas" || (p.kelas ? p.kelas === globalKelasFilter : globalKelasFilter === "Antrean");
-    return matchesSearch && matchesKelas;
+    const matchesDate = selectedDateFilter === "Semua Tanggal" || p.date === selectedDateFilter;
+    return matchesSearch && matchesKelas && matchesDate;
+  }).sort((a, b) => {
+    if (!verifikasiSort) return 0;
+    const { key, order } = verifikasiSort;
+    let valA = a[key] || "";
+    let valB = b[key] || "";
+    
+    // For date sorting, we might want to compare the actual parsed date, but string comparison is okay if formatted properly, 
+    // actually, let's just use string comparison for all text fields.
+    if (valA < valB) return order === 'asc' ? -1 : 1;
+    if (valA > valB) return order === 'asc' ? 1 : -1;
+    return 0;
   });
 
   const finalizedList = filteredPendaftaran.filter(p => p.isFinalized);
   const uniqueDates = Array.from(new Set(finalizedList.map(p => p.date)));
+  const uniqueAllDates = Array.from(new Set(activePendaftaran.map(p => p.date))).filter(Boolean).sort();
 
   // Handlers for Verifikasi & Finalisasi
   const handleVerifikasiClick = (item: any) => {
@@ -2164,17 +2178,50 @@ export default function AdminDashboard() {
                     <h2 className="text-xl font-bold text-[#06125C] flex items-center gap-2">
                       <FileCheck className="text-amber-500" /> Daftar Verifikasi Berkas
                     </h2>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-sm">
+                        <Calendar size={16} className="text-slate-400" />
+                        <select
+                          value={selectedDateFilter}
+                          onChange={(e) => setSelectedDateFilter(e.target.value)}
+                          className="bg-transparent border-none focus:ring-0 outline-none text-slate-700 font-medium cursor-pointer"
+                        >
+                          <option value="Semua Tanggal">Semua Tanggal</option>
+                          {uniqueAllDates.map((date, idx) => (
+                            <option key={idx} value={date}>{date}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                         <tr>
-                          <th className="px-4 py-3">Mahasiswa</th>
-                          <th className="px-4 py-3">Kelas</th>
-                          <th className="px-4 py-3">Dosen Pembimbing</th>
-                          <th className="px-4 py-3">Judul Penelitian</th>
-                          <th className="px-4 py-3">Jadwal Diajukan</th>
+                          {([
+                            { label: "Mahasiswa", key: "name" },
+                            { label: "Kelas", key: "kelas" },
+                            { label: "Dosen Pembimbing", key: "dospem" },
+                            { label: "Judul Penelitian", key: "title" },
+                            { label: "Jadwal Diajukan", key: "date" }
+                          ] as const).map(col => (
+                            <th key={col.key} className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => {
+                              if (verifikasiSort?.key === col.key) {
+                                setVerifikasiSort({ key: col.key, order: verifikasiSort.order === 'asc' ? 'desc' : 'asc' });
+                              } else {
+                                setVerifikasiSort({ key: col.key, order: 'asc' });
+                              }
+                            }}>
+                              <div className="flex items-center gap-1">
+                                {col.label}
+                                <div className="flex flex-col opacity-50">
+                                  <ChevronUp size={10} className={verifikasiSort?.key === col.key && verifikasiSort.order === 'asc' ? 'text-indigo-600 opacity-100' : ''} />
+                                  <ChevronDown size={10} className={verifikasiSort?.key === col.key && verifikasiSort.order === 'desc' ? 'text-indigo-600 opacity-100' : '-mt-1'} />
+                                </div>
+                              </div>
+                            </th>
+                          ))}
                           <th className="px-4 py-3">Ruangan</th>
                           <th className="px-4 py-3 text-center">Status</th>
                           <th className="px-4 py-3 text-center">Aksi</th>

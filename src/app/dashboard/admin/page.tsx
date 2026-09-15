@@ -2150,10 +2150,12 @@ export default function AdminDashboard() {
                                     className="bg-slate-50 border border-slate-200 focus:border-[#06125C] focus:ring-1 focus:ring-[#06125C]/20 text-xs px-3 py-1.5 rounded-lg outline-none font-medium text-slate-700 cursor-pointer"
                                   >
                                     {kelasData.filter(c => c.periodeId === activePeriodeId).map(c => {
-                                      const isTargetFull = activePendaftaran.filter(p => p.kelasSeminarId === c.id).length >= activePeriode.batasKelas;
+                                      const count = activePendaftaran.filter(p => p.kelasSeminarId === c.id).length;
+                                      const isTargetFull = count >= activePeriode.batasKelas;
+                                      const isEmpty = count === 0;
                                       return (
                                         <option key={c.id} value={c.id}>
-                                          Kelas {c.namaKelas} {isTargetFull && c.id !== currentClass?.id ? '(Penuh)' : ''}
+                                          Kelas {c.namaKelas}{isEmpty ? ' (Kosong)' : isTargetFull && c.id !== currentClass?.id ? ' (Penuh)' : ''}
                                         </option>
                                       );
                                     })}

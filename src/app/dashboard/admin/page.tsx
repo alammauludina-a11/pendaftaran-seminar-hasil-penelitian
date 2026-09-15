@@ -10,7 +10,7 @@ import autoTable from 'jspdf-autotable';
 import {
   LogOut, FileCheck, MapPin, Megaphone, CheckCircle2, XCircle, Eye,
   Clock, CheckSquare, X, Search, Filter, Users, Calendar, AlertCircle, Settings,
-  ArrowLeft, Plus, Trash2, LayoutDashboard, Sparkles, Loader2, UserCheck, ChevronUp, ChevronDown, Menu
+  ArrowLeft, Plus, Trash2, LayoutDashboard, Sparkles, Loader2, UserCheck, ChevronUp, ChevronDown, Menu, FileDown
 } from "lucide-react";
 import DashboardAnalisis from "./DashboardAnalisis";
 import AnalisisLog from "./AnalisisLog";

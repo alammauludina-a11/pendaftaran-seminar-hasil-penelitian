@@ -952,7 +952,7 @@ export default function MahasiswaDashboard() {
                     {calendarDates.length === 0 && <div className="text-sm text-slate-400">Tidak ada slot tersedia dari Admin.</div>}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 pb-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-2 pb-2">
                     {filteredSlots.length > 0 ? (
                       filteredSlots.map((slot) => (
                         <div 

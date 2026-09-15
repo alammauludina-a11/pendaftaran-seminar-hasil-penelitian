@@ -16,6 +16,7 @@ export async function GET() {
       nim: users.nipNim,
       prodi: users.prodi,
       dospem: pendaftaran.dospem1,
+      dospem2: pendaftaran.dospem2,
       title: pendaftaran.judulPenelitian,
       status: pendaftaran.statusVerifikasi,
       note: pendaftaran.catatanAdmin,

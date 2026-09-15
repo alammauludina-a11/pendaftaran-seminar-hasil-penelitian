@@ -72,6 +72,9 @@ export async function GET(request: Request) {
 
       const dateObj = new Date(s.waktuMulai);
       const isoDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+      // Filter realistically: only 08:00 to 16:50
+      if (dateObj.getHours() < 8 || dateObj.getHours() > 16) continue;
+
       const time = s.waktuSelesai
         ? `${dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} - ${new Date(s.waktuSelesai).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`
         : "";
@@ -81,6 +84,7 @@ export async function GET(request: Request) {
       uniqueKeys.add(key);
 
       const regsOnSlot = slotRegMap.get(s.id) || [];
+      const isEmpty = regsOnSlot.length === 0;
 
       // Check 1: Is there a registration on this slot where the class is NOT yet formed?
       const pendingClassRegs = regsOnSlot.filter(r => r.kelasSeminarId === null || !formedClassIds.has(r.kelasSeminarId!));
@@ -99,9 +103,7 @@ export async function GET(request: Request) {
 
       if (pendingClassRegs.length > 0) {
         // Slot sudah terisi, kelas belum terbentuk
-        // Find periodeId from the pending registrations
         const periodeIdForSlot = pendingClassRegs.find(r => r.periodeId != null)?.periodeId ?? null;
-        // Find the first letter not yet used as a class name for this period
         const existingClassNamesForPeriode = periodeIdForSlot
           ? formedClasses.filter(k => k.periodeId === periodeIdForSlot).map(k => k.namaKelas)
           : [];
@@ -129,8 +131,15 @@ export async function GET(request: Request) {
         available: !blocked,
         blocked,
         blockedReason,
+        isEmpty,
       });
     }
+
+    // Sort available slots by date and time
+    availableSlots.sort((a, b) => {
+       if (a.isoDate !== b.isoDate) return a.isoDate.localeCompare(b.isoDate);
+       return a.time.localeCompare(b.time);
+    });
 
     return NextResponse.json({ availableSlots }, { status: 200 });
   } catch (error) {

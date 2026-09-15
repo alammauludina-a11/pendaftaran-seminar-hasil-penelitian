@@ -571,58 +571,89 @@ export default function DosenDashboard() {
 
                      {/* List of Classes */}
                      <div className="xl:col-span-7 flex flex-col gap-4">
-                        {filteredClasses.length === 0 ? (
-                           <div className="bg-white p-10 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center gap-4 text-slate-500">
-                              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
-                                 <Calendar size={32} />
-                              </div>
-                              <div>
-                                 <p className="font-semibold text-slate-700">Tidak ada kelas tersedia</p>
-                                 <p className="text-sm mt-1">
-                                    {selectedDate ? "Tidak ada kelas yang membutuhkan moderator pada tanggal ini." : "Semua kelas sudah memiliki moderator, atau belum ada kelas yang terbentuk."}
-                                 </p>
-                              </div>
-                              {selectedDate && (
-                                 <button
-                                    onClick={() => setSelectedDate(null)}
-                                    className="mt-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium transition-colors"
-                                 >
-                                    Lihat Semua Tanggal
-                                 </button>
-                              )}
-                           </div>
-                        ) : (
-                           filteredClasses.map((cls) => (
-                              <div key={cls.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3 hover:border-[#06125C]/30 hover:shadow-md transition-all">
-                                 <div className="flex items-center justify-between">
-                                    <span className="bg-[#06125C]/10 text-[#06125C] text-[11px] font-bold px-2.5 py-1 rounded-full">Kelas {cls.name.replace('Kelas ', '')}</span>
+                        {(() => {
+                           // Group students in filteredClasses by date
+                           const groupedByDate: Record<string, { dateStr: string, students: any[] }> = {};
+                           let hasStudents = false;
+
+                           filteredClasses.forEach(cls => {
+                              if (cls.students) {
+                                 cls.students.forEach((student: any) => {
+                                    if (!student.waktuMulai) return;
+                                    const d = new Date(student.waktuMulai);
+                                    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                    if (selectedDate && iso !== selectedDate) return;
+                                    
+                                    if (!groupedByDate[iso]) {
+                                       groupedByDate[iso] = {
+                                          dateStr: student.dateStr,
+                                          students: []
+                                       };
+                                    }
+                                    groupedByDate[iso].students.push({
+                                       ...student,
+                                       className: cls.name
+                                    });
+                                    hasStudents = true;
+                                 });
+                              }
+                           });
+
+                           const sortedDates = Object.keys(groupedByDate).sort();
+
+                           if (!hasStudents) {
+                              return (
+                                 <div className="bg-white p-10 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center gap-4 text-slate-500">
+                                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
+                                       <Calendar size={32} />
+                                    </div>
+                                    <div>
+                                       <p className="font-semibold text-slate-700">Tidak ada jadwal tersedia</p>
+                                       <p className="text-sm mt-1">
+                                          {selectedDate ? "Tidak ada mahasiswa yang membutuhkan moderator pada tanggal ini." : "Semua mahasiswa sudah memiliki moderator, atau belum ada jadwal yang terbentuk."}
+                                       </p>
+                                    </div>
+                                    {selectedDate && (
+                                       <button
+                                          onClick={() => setSelectedDate(null)}
+                                          className="mt-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium transition-colors"
+                                       >
+                                          Lihat Semua Tanggal
+                                       </button>
+                                    )}
                                  </div>
-                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-500 text-xs">
-                                    <div className="flex items-center gap-1.5 text-slate-700 font-medium">
-                                       <Calendar size={14} />
-                                       <span>{cls.fullDate || cls.date} • {cls.time}</span>
+                              );
+                           }
+
+                           return sortedDates.map((iso) => {
+                              const group = groupedByDate[iso];
+                              // Sort students by time
+                              const sortedStudents = group.students.sort((a, b) => new Date(a.waktuMulai).getTime() - new Date(b.waktuMulai).getTime());
+
+                              return (
+                                 <div key={iso} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3 hover:border-[#06125C]/30 hover:shadow-md transition-all">
+                                    <div className="flex items-center justify-between border-b pb-3 border-slate-100">
+                                       <span className="font-bold text-[#06125C] flex items-center gap-2 text-lg">
+                                          <Calendar size={18} /> {group.dateStr}
+                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                       <MapPin size={14} />
-                                       <span>{(cls.students && cls.students[0]?.room) || "Belum ada ruangan"}</span>
-                                    </div>
-                                    <div className="flex flex-col gap-1.5 sm:col-span-2 mt-1">
-                                       <div className="flex items-center gap-1.5 text-slate-700 font-medium mb-2">
-                                          <Users size={14} />
-                                          <span>Mahasiswa dalam kelas ini:</span>
-                                       </div>
+                                    <div className="flex flex-col gap-1.5">
                                        <ul className="space-y-3">
-                                          {cls.students && cls.students.map((m: any, i: number) => (
+                                          {sortedStudents.map((m: any, i: number) => (
                                              <li key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 bg-slate-50 rounded-xl border border-slate-100 gap-3">
                                                 <div className="flex flex-col">
-                                                   <span className="font-bold text-slate-800 text-sm">{m.nama} <span className="text-slate-500 font-normal">({m.nim})</span></span>
-                                                   <span className="text-[11px] text-slate-600 mt-0.5 mb-0.5 flex items-center gap-1.5">
+                                                   <div className="flex items-center gap-2 mb-1">
+                                                      <span className="font-bold text-slate-800 text-sm">{m.nama} <span className="text-slate-500 font-normal">({m.nim})</span></span>
+                                                      <span className="bg-[#06125C]/10 text-[#06125C] text-[10px] font-bold px-2 py-0.5 rounded-full">Kelas {m.className.replace('Kelas ', '')}</span>
+                                                   </div>
+                                                   <span className="text-[11px] text-slate-600 mb-0.5 flex items-center gap-1.5">
                                                       <UserCheck size={12} className="text-slate-400 shrink-0" />
                                                       <span className="font-medium">Pembimbing:</span> {m.dospem}{m.dospem2 ? `, ${m.dospem2}` : ""}
                                                    </span>
-                                                   <span className="text-xs text-slate-500 mt-0.5 line-clamp-1" title={m.judul}>{m.judul}</span>
-                                                   <div className="flex items-center gap-2 mt-1.5">
+                                                   <span className="text-xs text-slate-500 line-clamp-1" title={m.judul}>{m.judul}</span>
+                                                   <div className="flex items-center gap-2 mt-2">
                                                       <span className="text-[10px] font-bold bg-[#06125C]/10 text-[#06125C] px-2 py-0.5 rounded-full">{m.time}</span>
+                                                      <span className="text-[10px] font-medium flex items-center gap-1 text-slate-500"><MapPin size={10}/> {m.room || "Belum ditentukan"}</span>
                                                       {m.hasModerator && (
                                                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${m.isMyModeration ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
                                                             {m.isMyModeration ? "Dimoderatori Anda" : "Sudah dipilih"}
@@ -633,21 +664,20 @@ export default function DosenDashboard() {
                                                 {!m.hasModerator && (
                                                    <button
                                                       onClick={() => handlePilihModerator(m.pendaftaranId)}
-                                                      disabled={isSubmittingModerasi || (m.dospem === dosenUser.nama || m.dospem2 === dosenUser.nama)}
-                                                      className={`shrink-0 px-3 py-1.5 rounded-lg font-semibold text-[11px] transition-colors flex items-center justify-center gap-1.5 ${(m.dospem === dosenUser.nama || m.dospem2 === dosenUser.nama) ? "bg-slate-200 text-slate-400 cursor-not-allowed" : "bg-[#06125C] hover:bg-[#06125C]/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"}`}
+                                                      disabled={isSubmittingModerasi || (m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama)}
+                                                      className={`shrink-0 px-3 py-1.5 rounded-lg font-semibold text-[11px] transition-colors flex items-center justify-center gap-1.5 ${(m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) ? "bg-slate-200 text-slate-400 cursor-not-allowed" : "bg-[#06125C] hover:bg-[#06125C]/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"}`}
                                                    >
-                                                      <ShieldCheck size={14} /> {(m.dospem === dosenUser.nama || m.dospem2 === dosenUser.nama) ? "Anda Pembimbing" : isSubmittingModerasi ? "..." : "Pilih"}
+                                                      <ShieldCheck size={14} /> {(m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) ? "Anda Pembimbing" : isSubmittingModerasi ? "..." : "Pilih"}
                                                    </button>
                                                 )}
                                              </li>
                                           ))}
                                        </ul>
                                     </div>
-
                                  </div>
-                              </div>
-                           ))
-                        )}
+                              );
+                           });
+                        })()}
                         {/* List of Available Slots */}
                         {selectedDate && (
                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4 mt-2">
@@ -655,8 +685,8 @@ export default function DosenDashboard() {
                                  <Calendar size={18} /> Slot Tersedia (Kosong) pada {new Date(selectedDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                               </h3>
                               <div className="flex flex-wrap gap-2">
-                                 {availableSlots.filter(s => s.isoDate === selectedDate).length > 0 ? (
-                                    availableSlots.filter(s => s.isoDate === selectedDate).map(slot => (
+                                 {availableSlots.filter(s => s.isoDate === selectedDate && s.isEmpty).length > 0 ? (
+                                    availableSlots.filter(s => s.isoDate === selectedDate && s.isEmpty).map(slot => (
                                        <div key={slot.id} className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
                                           <CheckCircle2 size={14} /> {slot.time}
                                        </div>

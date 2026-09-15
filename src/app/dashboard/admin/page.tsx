@@ -769,6 +769,42 @@ export default function AdminDashboard() {
     doc.save("Pengumuman_Jadwal.pdf");
   };
 
+  const handleExportKelasPDF = () => {
+    const doc = new jsPDF('portrait');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.text("Daftar Kelas Terbentuk & Mahasiswa", pageWidth / 2, 15, { align: 'center' });
+    
+    const displayList = activePendaftaran.filter(p => p.kelasSeminarId && (manajemenKelasFilter === "Semua Kelas" || p.kelasSeminarId?.toString() === manajemenKelasFilter)).sort((a, b) => {
+      if (manajemenKelasSort) {
+        const valA = a[manajemenKelasSort.key] || "";
+        const valB = b[manajemenKelasSort.key] || "";
+        if (valA < valB) return manajemenKelasSort.order === 'asc' ? -1 : 1;
+        if (valA > valB) return manajemenKelasSort.order === 'asc' ? 1 : -1;
+      }
+      const aKelas = kelasData.find(k => k.id === a.kelasSeminarId)?.namaKelas || "";
+      const bKelas = kelasData.find(k => k.id === b.kelasSeminarId)?.namaKelas || "";
+      return aKelas.localeCompare(bKelas);
+    });
+
+    autoTable(doc, {
+      startY: 20,
+      head: [['No', 'Nama Mahasiswa', 'NIM', 'Kelas Saat Ini']],
+      body: displayList.map((item: any, idx: number) => {
+        const currentClass = kelasData.find(k => k.id === item.kelasSeminarId);
+        return [
+          idx + 1,
+          item.name,
+          item.nim,
+          `Kelas ${currentClass?.namaKelas || "-"}`
+        ];
+      }),
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [6, 18, 92] }
+    });
+    
+    doc.save("Daftar_Kelas_Terbentuk.pdf");
+  };
+
   const handleBatalRilis = async (id: number) => {
     try {
       const res = await fetch(`/api/admin/pendaftaran/${id}/batal-finalisasi`, {
@@ -2130,18 +2166,26 @@ export default function AdminDashboard() {
                     <h3 className="text-lg font-bold text-[#06125C] flex items-center gap-2">
                       Daftar Kelas Terbentuk & Mahasiswa
                     </h3>
-                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-sm">
-                      <Filter size={16} className="text-slate-400" />
-                      <select
-                        value={manajemenKelasFilter}
-                        onChange={(e) => setManajemenKelasFilter(e.target.value)}
-                        className="bg-transparent border-none focus:ring-0 outline-none text-slate-700 font-medium cursor-pointer"
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleExportKelasPDF}
+                        className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors"
                       >
-                        <option value="Semua Kelas">Semua Kelas</option>
-                        {kelasData.filter(k => k.periodeId === activePeriodeId).sort((a,b) => a.namaKelas.localeCompare(b.namaKelas)).map(c => (
-                          <option key={c.id} value={c.id.toString()}>Kelas {c.namaKelas}</option>
-                        ))}
-                      </select>
+                        <FileDown size={16} /> Export PDF
+                      </button>
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-sm">
+                        <Filter size={16} className="text-slate-400" />
+                        <select
+                          value={manajemenKelasFilter}
+                          onChange={(e) => setManajemenKelasFilter(e.target.value)}
+                          className="bg-transparent border-none focus:ring-0 outline-none text-slate-700 font-medium cursor-pointer"
+                        >
+                          <option value="Semua Kelas">Semua Kelas</option>
+                          {kelasData.filter(k => k.periodeId === activePeriodeId).sort((a,b) => a.namaKelas.localeCompare(b.namaKelas)).map(c => (
+                            <option key={c.id} value={c.id.toString()}>Kelas {c.namaKelas}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
                   <div className="overflow-x-auto">
@@ -2149,8 +2193,26 @@ export default function AdminDashboard() {
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                         <tr>
                           <th className="px-4 py-3 text-center">No</th>
-                          <th className="px-4 py-3">Nama Mahasiswa</th>
-                          <th className="px-4 py-3">NIM</th>
+                          {([
+                            { label: "Nama Mahasiswa", key: "name" },
+                            { label: "NIM", key: "nim" }
+                          ] as const).map(col => (
+                            <th key={col.key} className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => {
+                              if (manajemenKelasSort?.key === col.key) {
+                                setManajemenKelasSort({ key: col.key, order: manajemenKelasSort.order === 'asc' ? 'desc' : 'asc' });
+                              } else {
+                                setManajemenKelasSort({ key: col.key, order: 'asc' });
+                              }
+                            }}>
+                              <div className="flex items-center gap-1">
+                                {col.label}
+                                <div className="flex flex-col opacity-50">
+                                  <ChevronUp size={10} className={manajemenKelasSort?.key === col.key && manajemenKelasSort.order === 'asc' ? 'text-indigo-600 opacity-100' : ''} />
+                                  <ChevronDown size={10} className={manajemenKelasSort?.key === col.key && manajemenKelasSort.order === 'desc' ? 'text-indigo-600 opacity-100' : '-mt-1'} />
+                                </div>
+                              </div>
+                            </th>
+                          ))}
                           <th className="px-4 py-3">Kelas Saat Ini</th>
                           <th className="px-4 py-3 text-center">Pindah Ke</th>
                         </tr>
@@ -2164,6 +2226,12 @@ export default function AdminDashboard() {
                           </tr>
                         ) : (
                           activePendaftaran.filter(p => p.kelasSeminarId && (manajemenKelasFilter === "Semua Kelas" || p.kelasSeminarId?.toString() === manajemenKelasFilter)).sort((a, b) => {
+                            if (manajemenKelasSort) {
+                              const valA = a[manajemenKelasSort.key] || "";
+                              const valB = b[manajemenKelasSort.key] || "";
+                              if (valA < valB) return manajemenKelasSort.order === 'asc' ? -1 : 1;
+                              if (valA > valB) return manajemenKelasSort.order === 'asc' ? 1 : -1;
+                            }
                             const aKelas = kelasData.find(k => k.id === a.kelasSeminarId)?.namaKelas || "";
                             const bKelas = kelasData.find(k => k.id === b.kelasSeminarId)?.namaKelas || "";
                             return aKelas.localeCompare(bKelas);

@@ -2109,6 +2109,22 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mt-2">
+                  {kelasData.filter(k => k.periodeId === activePeriodeId).sort((a,b) => a.namaKelas.localeCompare(b.namaKelas)).map(c => {
+                    const count = activePendaftaran.filter(p => p.kelasSeminarId === c.id).length;
+                    const isFull = count >= (activePeriode?.batasKelas || 31);
+                    return (
+                      <div key={c.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                        <span className="text-sm font-bold text-slate-500 mb-1">Kelas {c.namaKelas}</span>
+                        <div className="flex items-end gap-1">
+                          <span className={`text-2xl font-black ${count === 0 ? 'text-slate-300' : isFull ? 'text-red-500' : 'text-[#06125C]'}`}>{count}</span>
+                          <span className="text-xs text-slate-400 font-medium mb-1">/ {activePeriode?.batasKelas || 31}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
                 <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm mt-2">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                     <h3 className="text-lg font-bold text-[#06125C] flex items-center gap-2">

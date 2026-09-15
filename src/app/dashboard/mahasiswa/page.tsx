@@ -240,6 +240,9 @@ export default function MahasiswaDashboard() {
       const dates = [];
       const uniqueAvailableDates = new Set(availableSlots.map(s => s.isoDate));
       
+      const now = new Date();
+      const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      
       let current = new Date(start);
       let limit = 0;
       while (current <= end && limit < 200) {
@@ -251,7 +254,7 @@ export default function MahasiswaDashboard() {
           tanggal: dateStr,
           hari: hariStr,
           isoDate: currentIso,
-          isAvailable: true // Make all dates in the active period selectable
+          isAvailable: currentIso >= todayIso // Past dates are disabled
         });
         
         current.setDate(current.getDate() + 1);
@@ -268,6 +271,9 @@ export default function MahasiswaDashboard() {
       }
     } else if (availableSlots.length > 0) {
       // Fallback
+      const now = new Date();
+      const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      
       const uniqueDatesMap = new Map();
       availableSlots.forEach((s: any) => {
         if (!uniqueDatesMap.has(s.date)) {
@@ -275,7 +281,7 @@ export default function MahasiswaDashboard() {
             tanggal: s.date,
             hari: s.hari,
             isoDate: s.isoDate,
-            isAvailable: true
+            isAvailable: s.isoDate >= todayIso // Past dates are disabled
           });
         }
       });

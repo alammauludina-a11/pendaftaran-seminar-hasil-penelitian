@@ -94,20 +94,8 @@ export async function GET(request: Request) {
 
       if (pendingClassRegs.length > 0) {
         // Slot sudah terisi, kelas belum terbentuk
-        const periodeIdForSlot = pendingClassRegs.find(r => r.periodeId != null)?.periodeId ?? null;
-        const existingClassNamesForPeriode = periodeIdForSlot
-          ? formedClasses.filter(k => k.periodeId === periodeIdForSlot).map(k => k.namaKelas)
-          : [];
-        let nextLetter = 'A';
-        for (let i = 0; i < 26; i++) {
-          const candidate = String.fromCharCode(65 + i);
-          if (!existingClassNamesForPeriode.includes(candidate)) {
-            nextLetter = candidate;
-            break;
-          }
-        }
         blocked = true;
-        blockedReason = `Slot sudah diambil, menunggu Kelas ${nextLetter} terbentuk`;
+        blockedReason = "Slot sudah diambil, menunggu Kelas terbentuk";
       } else if (dospemClash) {
         blocked = true;
         blockedReason = "Dosen Pembimbing Anda sudah terjadwal di jam ini";

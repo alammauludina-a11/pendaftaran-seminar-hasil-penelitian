@@ -21,8 +21,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "User already has an account" }, { status: 400 });
     }
 
-    // Generate a unique username
-    const firstName = (userRecord.name || userRecord.nama || "").split(" ")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
+    // Generate a unique username by finding the first name that isn't a title
+    const fullNameClean = (userRecord.name || userRecord.nama || "").toLowerCase().replace(/[^a-z0-9\s]/g, "");
+    const nameParts = fullNameClean.split(/\s+/);
+    const titles = ["prof", "dr", "drg", "ir", "drs", "dra", "h", "hj", "ns", "apt", "kh", "st", "mt", "msc", "ss", "sh"];
+    
+    let firstName = "";
+    for (const part of nameParts) {
+      if (!titles.includes(part) && part.length > 1) {
+        firstName = part;
+        break;
+      }
+    }
+    
     let baseUsername = firstName || "user";
     let counter = 123;
     let generatedUsername = `${baseUsername}_${counter}`;

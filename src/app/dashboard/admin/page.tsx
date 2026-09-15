@@ -269,6 +269,7 @@ export default function AdminDashboard() {
   const [selectedDateFilter, setSelectedDateFilter] = useState("Semua Tanggal");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [verifikasiSort, setVerifikasiSort] = useState<{ key: 'name' | 'kelas' | 'dospem' | 'title' | 'date', order: 'asc' | 'desc' } | null>(null);
+  const [manajemenKelasFilter, setManajemenKelasFilter] = useState("Semua Kelas");
 
   // Verifikasi Modal States
   const [selectedPendaftar, setSelectedPendaftar] = useState<any>(null);
@@ -2109,9 +2110,24 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm mt-2">
-                  <h3 className="text-lg font-bold text-[#06125C] mb-4 flex items-center gap-2">
-                    Daftar Kelas Terbentuk & Mahasiswa
-                  </h3>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                    <h3 className="text-lg font-bold text-[#06125C] flex items-center gap-2">
+                      Daftar Kelas Terbentuk & Mahasiswa
+                    </h3>
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-sm">
+                      <Filter size={16} className="text-slate-400" />
+                      <select
+                        value={manajemenKelasFilter}
+                        onChange={(e) => setManajemenKelasFilter(e.target.value)}
+                        className="bg-transparent border-none focus:ring-0 outline-none text-slate-700 font-medium cursor-pointer"
+                      >
+                        <option value="Semua Kelas">Semua Kelas</option>
+                        {kelasData.filter(k => k.periodeId === activePeriodeId).sort((a,b) => a.namaKelas.localeCompare(b.namaKelas)).map(c => (
+                          <option key={c.id} value={c.id.toString()}>Kelas {c.namaKelas}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
@@ -2131,7 +2147,7 @@ export default function AdminDashboard() {
                             </td>
                           </tr>
                         ) : (
-                          activePendaftaran.filter(p => p.kelasSeminarId).sort((a, b) => {
+                          activePendaftaran.filter(p => p.kelasSeminarId && (manajemenKelasFilter === "Semua Kelas" || p.kelasSeminarId?.toString() === manajemenKelasFilter)).sort((a, b) => {
                             const aKelas = kelasData.find(k => k.id === a.kelasSeminarId)?.namaKelas || "";
                             const bKelas = kelasData.find(k => k.id === b.kelasSeminarId)?.namaKelas || "";
                             return aKelas.localeCompare(bKelas);

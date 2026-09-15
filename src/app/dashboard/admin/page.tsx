@@ -773,7 +773,6 @@ export default function AdminDashboard() {
   const handleExportKelasPDF = () => {
     const doc = new jsPDF('portrait');
     const pageWidth = doc.internal.pageSize.getWidth();
-    doc.text("Daftar Kelas Terbentuk & Mahasiswa", pageWidth / 2, 15, { align: 'center' });
     
     const displayList = activePendaftaran.filter(p => p.kelasSeminarId && (manajemenKelasFilter === "Semua Kelas" || p.kelasSeminarId?.toString() === manajemenKelasFilter)).sort((a, b) => {
       if (manajemenKelasSort) {
@@ -786,6 +785,16 @@ export default function AdminDashboard() {
       const bKelas = kelasData.find(k => k.id === b.kelasSeminarId)?.namaKelas || "";
       return aKelas.localeCompare(bKelas);
     });
+
+    const uniqueClasses = Array.from(new Set(displayList.map((item: any) => kelasData.find(k => k.id === item.kelasSeminarId)?.namaKelas).filter(Boolean))).sort();
+    const classRange = uniqueClasses.length > 1 ? `${uniqueClasses[0]}-${uniqueClasses[uniqueClasses.length - 1]}` : uniqueClasses.length === 1 ? uniqueClasses[0] : '';
+    
+    const seminarType = activePeriode?.jenisSeminar === 'kolokium' ? 'Kolokium' : 'Hasil Penelitian';
+    const angkatan = activePeriode?.angkatan || '';
+    
+    const titleText = `Daftar Kelas ${classRange ? classRange + ' ' : ''}Seminar ${seminarType} AKN ${angkatan}`.trim();
+    
+    doc.text(titleText, pageWidth / 2, 15, { align: 'center' });
 
     autoTable(doc, {
       startY: 20,
@@ -803,7 +812,8 @@ export default function AdminDashboard() {
       headStyles: { fillColor: [6, 18, 92] }
     });
     
-    doc.save("Daftar_Kelas_Terbentuk.pdf");
+    const filename = `Daftar_Kelas_${classRange ? classRange + '_' : ''}Seminar_${seminarType}_AKN_${angkatan}.pdf`.replace(/\s+/g, '_');
+    doc.save(filename);
   };
 
   const handleBatalRilis = async (id: number) => {

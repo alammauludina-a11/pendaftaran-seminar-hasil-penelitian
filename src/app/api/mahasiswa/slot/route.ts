@@ -71,12 +71,14 @@ export async function GET(request: Request) {
       if (!s.waktuMulai) continue;
 
       const dateObj = new Date(s.waktuMulai);
-      const isoDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
-      // Filter realistically: only 08:00 to 16:50
-      if (dateObj.getHours() < 8 || dateObj.getHours() > 16) continue;
+      const isoDate = dateObj.toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
+      
+      // Filter realistically: only 08:00 to 16:50 (in WIB)
+      const hourWIB = parseInt(dateObj.toLocaleTimeString('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Jakarta' }), 10);
+      if (hourWIB < 8 || hourWIB > 16) continue;
 
       const time = s.waktuSelesai
-        ? `${dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} - ${new Date(s.waktuSelesai).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`
+        ? `${dateObj.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })} - ${new Date(s.waktuSelesai).toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })}`
         : "";
 
       const key = `${isoDate}_${time}`;
@@ -125,8 +127,8 @@ export async function GET(request: Request) {
       availableSlots.push({
         id: s.id,
         isoDate,
-        date: dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-        hari: dateObj.toLocaleDateString('id-ID', { weekday: 'long' }),
+        date: dateObj.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric' }),
+        hari: dateObj.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long' }),
         time,
         available: !blocked,
         blocked,

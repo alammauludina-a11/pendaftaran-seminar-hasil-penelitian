@@ -3012,9 +3012,15 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                   <div className="col-span-2">
-                    <p className="text-slate-500">Dosen Pembimbing</p>
+                    <p className="text-slate-500">Dosen Pembimbing 1</p>
                     <p className="font-medium text-slate-800">{selectedPendaftar.dospem}</p>
                   </div>
+                  {selectedPendaftar.dospem2 && (
+                    <div className="col-span-2">
+                      <p className="text-slate-500">Dosen Pembimbing 2</p>
+                      <p className="font-medium text-slate-800">{selectedPendaftar.dospem2}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-slate-500">Jadwal Dipilih</p>
                     <p className="font-medium text-slate-800">{selectedPendaftar.date} • {selectedPendaftar.time}</p>

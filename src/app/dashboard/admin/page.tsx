@@ -270,6 +270,7 @@ export default function AdminDashboard() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [verifikasiSort, setVerifikasiSort] = useState<{ key: 'name' | 'kelas' | 'dospem' | 'title' | 'date', order: 'asc' | 'desc' } | null>(null);
   const [manajemenKelasFilter, setManajemenKelasFilter] = useState("Semua Kelas");
+  const [manajemenKelasSort, setManajemenKelasSort] = useState<{ key: 'name' | 'nim', order: 'asc' | 'desc' } | null>(null);
 
   // Verifikasi Modal States
   const [selectedPendaftar, setSelectedPendaftar] = useState<any>(null);

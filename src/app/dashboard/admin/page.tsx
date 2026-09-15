@@ -791,8 +791,9 @@ export default function AdminDashboard() {
     
     const seminarType = activePeriode?.jenisSeminar === 'kolokium' ? 'Kolokium' : 'Hasil Penelitian';
     const angkatan = activePeriode?.angkatan || '';
+    const angkatanText = angkatan.toUpperCase().includes('AKN') ? angkatan : `AKN ${angkatan}`;
     
-    const titleText = `Daftar Kelas ${classRange ? classRange + ' ' : ''}Seminar ${seminarType} AKN ${angkatan}`.trim();
+    const titleText = `Daftar Kelas ${classRange ? classRange + ' ' : ''}Seminar ${seminarType} ${angkatanText}`.trim();
     
     doc.text(titleText, pageWidth / 2, 15, { align: 'center' });
 
@@ -812,7 +813,7 @@ export default function AdminDashboard() {
       headStyles: { fillColor: [6, 18, 92] }
     });
     
-    const filename = `Daftar_Kelas_${classRange ? classRange + '_' : ''}Seminar_${seminarType}_AKN_${angkatan}.pdf`.replace(/\s+/g, '_');
+    const filename = `Daftar_Kelas_${classRange ? classRange + '_' : ''}Seminar_${seminarType}_${angkatanText}.pdf`.replace(/\s+/g, '_');
     doc.save(filename);
   };
 

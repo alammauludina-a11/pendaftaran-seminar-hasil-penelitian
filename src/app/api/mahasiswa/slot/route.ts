@@ -39,20 +39,9 @@ export async function GET(request: Request) {
         )
       );
 
-    // Get all formed classes that have at least 1 student assigned.
-    // We exclude empty classes (kuotaTerisi = 0 or classes with no actual pendaftaran records)
-    // to avoid "ghost" empty classes affecting the next class letter calculation.
     const allClasses = await db.select().from(kelasSeminar);
-    // Only count classes that actually have students assigned in pendaftaran table
-    const classStudentCounts = new Map<number, number>();
-    for (const reg of activeRegistrations) {
-      if (reg.kelasSeminarId) {
-        classStudentCounts.set(reg.kelasSeminarId, (classStudentCounts.get(reg.kelasSeminarId) || 0) + 1);
-      }
-    }
-    // A class is "real" only if it has at least 1 student
-    const formedClasses = allClasses.filter(k => (classStudentCounts.get(k.id) || 0) > 0);
-    const formedClassIds = new Set(formedClasses.map(k => k.id));
+    const formedClasses = allClasses;
+    const formedClassIds = new Set(allClasses.map(k => k.id));
 
     // Build a map: slotId -> list of registrations
     const slotRegMap = new Map<number, typeof activeRegistrations>();

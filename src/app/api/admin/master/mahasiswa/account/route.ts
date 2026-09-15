@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     // Generate a unique username by finding the first name that isn't a title
     const fullNameClean = (userRecord.name || userRecord.nama || "").toLowerCase().replace(/[^a-z0-9\s]/g, "");
     const nameParts = fullNameClean.split(/\s+/);
-    const titles = ["prof", "dr", "drg", "ir", "drs", "dra", "h", "hj", "ns", "apt", "kh", "st", "mt", "msc", "ss", "sh"];
+    const titles = ["prof", "dr", "drg", "ir", "drs", "dra", "h", "hj", "ns", "apt", "kh", "st", "mt", "msc", "ss", "sh", "mr", "ms", "mrs", "raden", "rr"];
     
     let firstName = "";
     for (const part of nameParts) {

@@ -2352,7 +2352,10 @@ export default function AdminDashboard() {
                               {item.kelas ? `Kelas ${item.kelas.replace('Kelas ', '')}` : '-'}
                             </td>
                             <td className="px-4 py-4 text-slate-700 font-medium">
-                              {item.dospem}
+                              <div className="flex flex-col gap-1 text-sm">
+                                <span>1. {item.dospem}</span>
+                                {item.dospem2 && <span>2. {item.dospem2}</span>}
+                              </div>
                             </td>
                             <td className="px-4 py-4 max-w-[250px]">
                               <div className="truncate font-medium text-slate-800" title={item.title}>{item.title}</div>
@@ -2459,7 +2462,10 @@ export default function AdminDashboard() {
                               </div>
                             </td>
                             <td className="px-4 py-4 text-slate-700 font-medium text-sm">
-                              {item.dospem}
+                              <div className="flex flex-col gap-1">
+                                <span>1. {item.dospem}</span>
+                                {item.dospem2 && <span>2. {item.dospem2}</span>}
+                              </div>
                             </td>
                             <td className="px-4 py-4 text-slate-700 font-medium text-sm">
                               <select
@@ -2823,8 +2829,11 @@ export default function AdminDashboard() {
                               <td className="p-4 text-slate-700 font-medium">
                                 {item.kelas ? `Kelas ${item.kelas.replace('Kelas ', '')}` : '-'}
                               </td>
-                              <td className="p-4 text-slate-700 font-medium">
-                                {item.dospem}
+                              <td className="p-4 text-slate-700 font-medium text-sm">
+                                <div className="flex flex-col gap-1">
+                                  <span>1. {item.dospem}</span>
+                                  {item.dospem2 && <span>2. {item.dospem2}</span>}
+                                </div>
                               </td>
                               <td className="p-4">
                                 <div className="text-sm font-medium text-slate-800">{item.date} • {item.time}</div>

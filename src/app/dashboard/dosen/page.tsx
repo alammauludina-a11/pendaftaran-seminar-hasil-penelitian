@@ -452,6 +452,33 @@ export default function DosenDashboard() {
                      </div>
                   </div>
 
+                  {/* List of Available Slots (Moved to Left Column) */}
+                  {selectedDate && (
+                     <div className="flex flex-col gap-4">
+                        <h2 className="text-xl font-bold text-[#06125C] flex items-center gap-2">
+                           <Calendar className="text-emerald-500" /> Slot Tersedia (Kosong)
+                        </h2>
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                           <p className="text-sm font-medium text-slate-500 border-b border-slate-100 pb-3">
+                              {new Date(selectedDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                           </p>
+                           <div className="flex flex-wrap gap-2">
+                              {availableSlots.filter(s => s.isoDate === selectedDate && s.isEmpty).length > 0 ? (
+                                 availableSlots.filter(s => s.isoDate === selectedDate && s.isEmpty).map(slot => (
+                                    <div key={slot.id} className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all hover:bg-emerald-100">
+                                       <CheckCircle2 size={14} /> {slot.time}
+                                    </div>
+                                 ))
+                              ) : (
+                                 <div className="bg-slate-50 border border-slate-200 border-dashed w-full p-4 rounded-xl text-center">
+                                    <p className="text-sm text-slate-500 italic">Tidak ada slot waktu kosong pada tanggal ini.</p>
+                                 </div>
+                              )}
+                           </div>
+                        </div>
+                     </div>
+                  )}
+
                </div>
 
                {/* Pilih Kelas Moderator (Right column, takes 2/3) */}
@@ -678,25 +705,7 @@ export default function DosenDashboard() {
                               );
                            });
                         })()}
-                        {/* List of Available Slots */}
-                        {selectedDate && (
-                           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4 mt-2">
-                              <h3 className="font-bold text-[#06125C] flex items-center gap-2">
-                                 <Calendar size={18} /> Slot Tersedia (Kosong) pada {new Date(selectedDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                              </h3>
-                              <div className="flex flex-wrap gap-2">
-                                 {availableSlots.filter(s => s.isoDate === selectedDate && s.isEmpty).length > 0 ? (
-                                    availableSlots.filter(s => s.isoDate === selectedDate && s.isEmpty).map(slot => (
-                                       <div key={slot.id} className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
-                                          <CheckCircle2 size={14} /> {slot.time}
-                                       </div>
-                                    ))
-                                 ) : (
-                                    <p className="text-sm text-slate-500 italic">Tidak ada slot waktu kosong pada tanggal ini.</p>
-                                 )}
-                              </div>
-                           </div>
-                        )}
+
                      </div>
 
                   </div>

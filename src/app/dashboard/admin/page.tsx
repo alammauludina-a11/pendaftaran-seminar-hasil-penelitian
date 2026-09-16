@@ -2115,15 +2115,15 @@ export default function AdminDashboard() {
                 <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
                   <h3 className="text-lg font-bold text-slate-800 mb-4">Mahasiswa dalam Antrean</h3>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm whitespace-nowrap">
+                    <table className="w-full text-left text-sm">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                         <tr>
-                          <th className="px-4 py-3 text-center">No</th>
-                          <th className="px-4 py-3">Nama</th>
-                          <th className="px-4 py-3">NIM</th>
-                          <th className="px-4 py-3">Judul Penelitian</th>
-                          <th className="px-4 py-3 text-center">Status</th>
-                          <th className="px-4 py-3 text-center">Aksi</th>
+                          <th className="px-4 py-3 text-center w-[5%]">No</th>
+                          <th className="px-4 py-3 w-[15%]">Nama</th>
+                          <th className="px-4 py-3 w-[15%]">NIM</th>
+                          <th className="px-4 py-3 w-[30%]">Judul Penelitian</th>
+                          <th className="px-4 py-3 text-center w-[20%]">Status</th>
+                          <th className="px-4 py-3 text-center w-[15%]">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -2321,17 +2321,17 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm whitespace-nowrap">
+                    <table className="w-full text-left text-sm">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                         <tr>
                           {([
-                            { label: "Mahasiswa", key: "name" },
-                            { label: "Kelas", key: "kelas" },
-                            { label: "Dosen Pembimbing", key: "dospem" },
-                            { label: "Judul Penelitian", key: "title" },
-                            { label: "Jadwal Diajukan", key: "date" }
+                            { label: "Mahasiswa", key: "name", width: "w-[15%]" },
+                            { label: "Kelas", key: "kelas", width: "w-[8%] whitespace-nowrap" },
+                            { label: "Dosen Pembimbing", key: "dospem", width: "w-[18%]" },
+                            { label: "Judul Penelitian", key: "title", width: "w-[22%]" },
+                            { label: "Jadwal Diajukan", key: "date", width: "w-[12%] whitespace-nowrap" }
                           ] as const).map(col => (
-                            <th key={col.key} className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => {
+                            <th key={col.key} className={`px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors ${col.width}`} onClick={() => {
                               if (verifikasiSort?.key === col.key) {
                                 setVerifikasiSort({ key: col.key, order: verifikasiSort.order === 'asc' ? 'desc' : 'asc' });
                               } else {
@@ -2347,9 +2347,9 @@ export default function AdminDashboard() {
                               </div>
                             </th>
                           ))}
-                          <th className="px-4 py-3">Ruangan</th>
-                          <th className="px-4 py-3 text-center">Status</th>
-                          <th className="px-4 py-3 text-center">Aksi</th>
+                          <th className="px-4 py-3 w-[12%]">Ruangan</th>
+                          <th className="px-4 py-3 text-center w-[8%]">Status</th>
+                          <th className="px-4 py-3 text-center w-[5%]">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">

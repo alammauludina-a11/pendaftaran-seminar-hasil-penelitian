@@ -462,16 +462,17 @@ export default function DosenDashboard() {
                            <p className="text-sm font-medium text-slate-500 border-b border-slate-100 pb-3">
                               {new Date(selectedDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                            </p>
-                           <div className="flex flex-wrap gap-2">
+                           <div className="grid grid-cols-2 gap-2.5">
                               {availableSlots.filter(s => s.isoDate === selectedDate && s.isEmpty).length > 0 ? (
                                  availableSlots.filter(s => s.isoDate === selectedDate && s.isEmpty).map(slot => (
-                                    <div key={slot.id} className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all hover:bg-emerald-100">
-                                       <CheckCircle2 size={14} /> {slot.time}
+                                    <div key={slot.id} className="bg-white border border-slate-200 text-slate-600 px-2 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center transition-all hover:border-[#06125C] hover:text-[#06125C] hover:shadow-sm hover:bg-slate-50 cursor-default">
+                                       {slot.time}
                                     </div>
                                  ))
                               ) : (
-                                 <div className="bg-slate-50 border border-slate-200 border-dashed w-full p-4 rounded-xl text-center">
-                                    <p className="text-sm text-slate-500 italic">Tidak ada slot waktu kosong pada tanggal ini.</p>
+                                 <div className="col-span-2 bg-slate-50 border border-slate-200 border-dashed w-full p-5 rounded-xl text-center flex flex-col items-center justify-center gap-2">
+                                    <Clock size={24} className="text-slate-300" />
+                                    <p className="text-sm text-slate-500 italic">Tidak ada slot kosong</p>
                                  </div>
                               )}
                            </div>

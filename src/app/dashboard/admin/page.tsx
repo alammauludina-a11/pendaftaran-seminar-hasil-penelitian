@@ -1194,7 +1194,7 @@ export default function AdminDashboard() {
                 onClick={handleCreateNewPeriode}
                 className="bg-[#06125C] hover:bg-[#06125C]/90 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center gap-2"
               >
-                <Plus size={18} /> Buat Periode Baru
+                <Plus size={18} /> Buat Periode {selectedSeminarType === "kolokium" ? "Kolokium" : "Hasil Penelitian"}
               </button>
             </div>
 
@@ -1268,7 +1268,9 @@ export default function AdminDashboard() {
                 <ArrowLeft size={20} />
               </button>
               <div>
-                <h1 className="text-2xl font-extrabold text-[#06125C]">Pengaturan Periode</h1>
+                <h1 className="text-2xl font-extrabold text-[#06125C]">
+                  Pengaturan Periode {activePeriode.jenisSeminar === 'kolokium' ? 'Seminar Kolokium' : 'Seminar Hasil Penelitian'}
+                </h1>
                 <p className="text-sm text-slate-500">Konfigurasi tanggal dan aturan kelas untuk angkatan {activePeriode.angkatan}.</p>
               </div>
             </div>
@@ -1555,8 +1557,8 @@ export default function AdminDashboard() {
               </div>
 
               <div className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <div className="relative">
+                <div className="flex justify-between items-center gap-4 mb-6 overflow-x-auto w-full pb-2">
+                  <div className="relative shrink-0">
                     <Search size={18} className="absolute left-3 top-3 text-slate-400" />
                     <input
                       type="text"
@@ -1566,7 +1568,7 @@ export default function AdminDashboard() {
                       className="pl-10 pr-4 py-2 bg-slate-50 rounded-xl border border-slate-200 text-sm w-64 outline-none"
                     />
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 shrink-0">
                     {selectedMasterIds.length > 0 && (
                       <button
                         onClick={handleBulkDeleteMasterData}

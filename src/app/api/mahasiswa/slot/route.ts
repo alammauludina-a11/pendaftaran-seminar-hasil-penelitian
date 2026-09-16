@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { slotWaktu, pendaftaran, kelasSeminar } from "@/db/schema";
+import { slotWaktu, pendaftaran, kelasSeminar, moderator, users } from "@/db/schema";
 import { eq, isNotNull, ne, and, isNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
     const slots = await db.select().from(slotWaktu);
 
     // Get all active (non-rejected) registrations that have a slot, with their class info
+    const dosenUsers = alias(users, "dosenUsers");
     const activeRegistrations = await db
       .select({
         slotId: pendaftaran.slotWaktuId,
@@ -29,9 +31,12 @@ export async function GET(request: Request) {
         dospem2: pendaftaran.dospem2,
         waktuMulai: slotWaktu.waktuMulai,
         jenisSeminar: pendaftaran.jenisSeminar,
+        moderatorName: dosenUsers.nama,
       })
       .from(pendaftaran)
       .innerJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
+      .leftJoin(moderator, eq(pendaftaran.id, moderator.pendaftaranId))
+      .leftJoin(dosenUsers, eq(moderator.dosenId, dosenUsers.id))
       .where(
         and(
           isNotNull(pendaftaran.slotWaktuId),
@@ -81,11 +86,13 @@ export async function GET(request: Request) {
       const pendingClassRegs = regsOnSlot.filter(r => r.kelasSeminarId === null || !formedClassIds.has(r.kelasSeminarId!));
       
       // Check 2: Does current student's dospem clash with anyone already on this slot?
+      // A clash happens if the student's dospem1 or dospem2 is already acting as dospem1, dospem2, or moderator on that slot.
       let dospemClash = false;
       if (dospem1Param && regsOnSlot.length > 0) {
         dospemClash = regsOnSlot.some(r => 
           (r.dospem1 && (r.dospem1 === dospem1Param || r.dospem1 === dospem2Param)) ||
-          (r.dospem2 && (r.dospem2 === dospem1Param || r.dospem2 === dospem2Param))
+          (r.dospem2 && (r.dospem2 === dospem1Param || r.dospem2 === dospem2Param)) ||
+          (r.moderatorName && (r.moderatorName === dospem1Param || r.moderatorName === dospem2Param))
         );
       }
 

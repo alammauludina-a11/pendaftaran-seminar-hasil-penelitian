@@ -3056,7 +3056,7 @@ export default function AdminDashboard() {
                 <h4 className="text-sm font-bold text-slate-700 mb-3">Dokumen Terlampir</h4>
                 <div className="space-y-3">
                   {/* Dokumen 1: Bukti Forum Kolokium (Hanya untuk Hasil Penelitian) */}
-                  {activePeriode.jenisSeminar === 'hasil_penelitian' && (
+                  {activePeriode?.jenisSeminar === 'hasil_penelitian' && (
                     <div className="flex items-center justify-between p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className={`p-2 rounded-lg ${selectedPendaftar.fileBuktiKolokium ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-400'}`}>

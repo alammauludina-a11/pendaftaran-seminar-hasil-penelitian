@@ -184,8 +184,9 @@ export default function DosenDashboard() {
 
    // Pre-compute lists for Modals
    const futureModerasiStudentsRaw = myModerasi
-      .filter(m => m.isFuture || m.isToday)
-      .flatMap(m => (m.students || []).filter((s: any) => s.isMyModeration).map((s: any) => ({ ...s, classData: m })));
+      .flatMap(m => (m.students || [])
+         .filter((s: any) => s.isMyModeration && (s.isFuture || s.isToday))
+         .map((s: any) => ({ ...s, classData: m })));
 
    const futureModerasiStudents = [...futureModerasiStudentsRaw].sort((a: any, b: any) => {
       if (!sortConfigModerasi) return 0;
@@ -207,8 +208,9 @@ export default function DosenDashboard() {
    });
 
    const pastModerasiStudents = myModerasi
-      .filter(m => m.isPast)
-      .flatMap(m => (m.students || []).filter((s: any) => s.isMyModeration).map((s: any) => ({ ...s, classData: m })));
+      .flatMap(m => (m.students || [])
+         .filter((s: any) => s.isMyModeration && s.isPast)
+         .map((s: any) => ({ ...s, classData: m })));
 
    const bimbinganMendatangRaw = bimbingan.filter(b => b.isFuture || b.isToday);
    const bimbinganMendatang = [...bimbinganMendatangRaw].sort((a: any, b: any) => {
@@ -423,18 +425,19 @@ export default function DosenDashboard() {
                         <Monitor className="text-blue-500" /> Memoderatori Hari Ini
                      </h2>
                      <div className="flex flex-col gap-4">
-                        {myModerasi.filter(m => m.isToday).length === 0 ? (
+                        {futureModerasiStudentsRaw.filter((s: any) => s.isToday).length === 0 ? (
                            <div className="bg-slate-50 border border-slate-200 border-dashed p-6 rounded-2xl text-center text-slate-500 flex flex-col items-center justify-center">
                               <Calendar size={32} className="text-slate-300 mb-2" />
-                              <p className="text-sm">Tidak ada kelas untuk dimoderatori pada hari ini.</p>
+                              <p className="text-sm">Tidak ada jadwal untuk dimoderatori pada hari ini.</p>
                            </div>
                         ) : (
-                           myModerasi.filter(m => m.isToday).map((item, idx) => (
-                              <div key={item.moderatorId} className="bg-[#06125C] text-white p-5 rounded-2xl shadow-md relative overflow-hidden group">
+                           futureModerasiStudentsRaw.filter((s: any) => s.isToday).map((item: any, idx) => (
+                              <div key={idx} className="bg-[#06125C] text-white p-5 rounded-2xl shadow-md relative overflow-hidden group">
                                  <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-xl pointer-events-none" />
                                  <div className="space-y-3 relative z-10">
                                     <div className="flex flex-col">
-                                       <span className="font-bold text-lg">{item.namaKelas}</span>
+                                       <span className="font-bold text-lg">{item.nama}</span>
+                                       <span className="text-xs text-blue-200">{item.nim}</span>
                                     </div>
                                     <hr className="border-white/20" />
                                     <div className="flex items-center gap-3">
@@ -443,7 +446,7 @@ export default function DosenDashboard() {
                                     </div>
                                     <div className="flex items-center gap-3">
                                        <MapPin size={18} className="text-blue-300" />
-                                       <span className="text-sm font-medium">Lihat detail untuk ruangan</span>
+                                       <span className="text-sm font-medium">{item.room || "Ruangan belum ditentukan"}</span>
                                     </div>
                                  </div>
                               </div>

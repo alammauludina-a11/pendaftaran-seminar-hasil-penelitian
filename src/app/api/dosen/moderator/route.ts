@@ -148,12 +148,31 @@ export async function GET(request: Request) {
           });
           const startTimeStr = timeFormatter.format(startD).replace('.', ':');
           const endTimeStr = timeFormatter.format(endD).replace('.', ':');
+          
+          let sIsPast = false;
+          let sIsToday = false;
+          let sIsFuture = false;
+          const now = new Date();
+          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const startOfClass = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate());
+
+          if (now.getTime() > endD.getTime()) {
+            sIsPast = true;
+          } else if (startOfClass.getTime() === startOfToday.getTime()) {
+            sIsToday = true;
+          } else {
+            sIsFuture = true;
+          }
+
           return {
              ...s,
              dateStr: dateStr,
              time: `${startTimeStr} - ${endTimeStr}`,
              isMyModeration: s.moderatorId === currentUserId,
-             hasModerator: !!s.moderatorId
+             hasModerator: !!s.moderatorId,
+             isPast: sIsPast,
+             isToday: sIsToday,
+             isFuture: sIsFuture,
           };
         });
 

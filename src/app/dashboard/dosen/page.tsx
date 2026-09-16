@@ -377,8 +377,8 @@ export default function DosenDashboard() {
                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-               {/* Jadwal Saya (Left column, takes 1/3) */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+               {/* Jadwal Saya (Left column, takes 1/4) */}
                <div className="lg:col-span-1 flex flex-col gap-8">
 
                   {/* Jadwal Bimbingan Hari Ini */}
@@ -481,8 +481,8 @@ export default function DosenDashboard() {
 
                </div>
 
-               {/* Pilih Kelas Moderator (Right column, takes 2/3) */}
-               <div className="lg:col-span-2 flex flex-col gap-4">
+               {/* Pilih Kelas Moderator (Right column, takes 3/4) */}
+               <div className="lg:col-span-3 flex flex-col gap-4">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end flex-wrap gap-4">
                      <div className="space-y-1">
                         <h2 className="text-xl font-bold text-[#06125C] flex items-center gap-2">

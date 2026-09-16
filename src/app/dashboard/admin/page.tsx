@@ -3055,36 +3055,38 @@ export default function AdminDashboard() {
               <div>
                 <h4 className="text-sm font-bold text-slate-700 mb-3">Dokumen Terlampir</h4>
                 <div className="space-y-3">
-                  {/* Dokumen 1: Bukti Forum Kolokium */}
-                  <div className="flex items-center justify-between p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${selectedPendaftar.fileBuktiKolokium ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-400'}`}>
-                        <FileCheck size={16} />
+                  {/* Dokumen 1: Bukti Forum Kolokium (Hanya untuk Hasil Penelitian) */}
+                  {activePeriode.jenisSeminar === 'hasil_penelitian' && (
+                    <div className="flex items-center justify-between p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${selectedPendaftar.fileBuktiKolokium ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-400'}`}>
+                          <FileCheck size={16} />
+                        </div>
+                        <div>
+                          <p className={`text-sm font-semibold ${selectedPendaftar.fileBuktiKolokium ? 'text-slate-800' : 'text-slate-400 italic'}`}>
+                            Bukti_Forum_Kolokium.pdf
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {selectedPendaftar.fileBuktiKolokium ? 'Tersedia' : 'Tidak dilampirkan'}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className={`text-sm font-semibold ${selectedPendaftar.fileBuktiKolokium ? 'text-slate-800' : 'text-slate-400 italic'}`}>
-                          Bukti_Forum_Kolokium.pdf
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {selectedPendaftar.fileBuktiKolokium ? 'Tersedia' : 'Tidak dilampirkan'}
-                        </p>
-                      </div>
+                      {selectedPendaftar.fileBuktiKolokium ? (
+                        <a 
+                          href={selectedPendaftar.fileBuktiKolokium} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-[#06125C] bg-blue-50 hover:bg-blue-100 p-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        >
+                          <Eye size={16} /> Lihat
+                        </a>
+                      ) : (
+                        <button disabled className="text-slate-400 bg-slate-100 p-2 rounded-lg text-sm font-medium flex items-center gap-2 cursor-not-allowed">
+                          <Eye size={16} /> Lihat
+                        </button>
+                      )}
                     </div>
-                    {selectedPendaftar.fileBuktiKolokium ? (
-                      <a 
-                        href={selectedPendaftar.fileBuktiKolokium} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-[#06125C] bg-blue-50 hover:bg-blue-100 p-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                      >
-                        <Eye size={16} /> Lihat
-                      </a>
-                    ) : (
-                      <button disabled className="text-slate-400 bg-slate-100 p-2 rounded-lg text-sm font-medium flex items-center gap-2 cursor-not-allowed">
-                        <Eye size={16} /> Lihat
-                      </button>
-                    )}
-                  </div>
+                  )}
 
                   {/* Dokumen 2: Persetujuan Dospem */}
                   <div className="flex items-center justify-between p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">

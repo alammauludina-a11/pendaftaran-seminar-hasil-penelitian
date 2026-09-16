@@ -37,6 +37,7 @@ export async function GET() {
       fileApprovalDospem: pendaftaran.fileApprovalDospem,
       konsentrasi: pendaftaran.konsentrasi,
       tanggalKolokium: pendaftaran.tanggalKolokium,
+      jenisSeminar: pendaftaran.jenisSeminar,
     })
     .from(pendaftaran)
     .leftJoin(users, eq(pendaftaran.userId, users.id))

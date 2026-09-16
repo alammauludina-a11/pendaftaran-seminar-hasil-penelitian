@@ -59,16 +59,136 @@ Sistem dibangun menggunakan ekosistem Next.js modern:
 - **Authentication**: Better Auth.
 - **Export/Report**: SheetJS (XLSX) untuk Excel, jsPDF & autoTable untuk PDF.
 
-## 5. Actual Database Schema (Drizzle ORM)
-Terdapat penyesuaian dari skema PRD awal untuk mendukung arsitektur *per-student moderation* dan *multi-seminar*:
+## 5. Architecture & Flow Diagram
+```mermaid
+sequenceDiagram
+    participant M as Mahasiswa
+    participant S as System (Next.js)
+    participant D as Database (SQLite)
+    participant A as Admin
+    participant Do as Dosen
 
-- **`users`**: Menyimpan kredensial Better Auth dan role (`mahasiswa`, `dosen`, `admin`), NIP/NIM, serta data master lainnya.
-- **`periode`**: Menyimpan sesi pendaftaran. Ada field tambahan `jenis_seminar` (Kolokium / Hasil Penelitian) dan batas kelas.
-- **`pendaftaran`**: Menyimpan semua atribut form mahasiswa: `jenis_seminar`, `judul_penelitian`, `dospem1`, `dospem2`, referensi `file_bukti_kolokium`, `file_approval_dospem`, status verifikasi, status ruangan, dan catatan admin.
-- **`kelas_seminar`**: Menampung mahasiswa yang sudah dikelompokkan oleh admin.
-- **`moderator`**: Tabel transisi moderasi. **Uniknya**, relasi mengarah ke `pendaftaran_id` (bukan `kelas_seminar_id`), yang memungkinkan Dosen A memoderatori Mahasiswa 1, dan Dosen B memoderatori Mahasiswa 2 di ruang/kelas yang sama.
-- **`files`**: Tabel khusus untuk menyimpan *base64 string* dokumen yang diupload, menyelesaikan isu persisten berkas pada arsitektur *serverless*.
-- Tabel Better Auth: `session`, `account`, `verification`.
+    M->>S: Login & pilih slot/tanggal pendaftaran + upload berkas
+    S->>D: Simpan pendaftaran sesuai jenis seminar (Kolokium/Hasil)
+    A->>S: Login ke dashboard verifikasi admin
+    A->>D: Ambil daftar pendaftaran (menunggu verifikasi)
+    A->>S: Setujui/tolak + input catatan
+    S->>D: Update status pendaftaran
+    A->>S: Pilih mahasiswa yang disetujui -> Bentuk Kelas / Plot Ruangan
+    S->>D: Masukkan pendaftaran ke dalam kelas_seminar & assign ruangan
+    Do->>S: Login & buka tab 'Pilih Mahasiswa' (Dosen Moderator)
+    Do->>S: Pilih mahasiswa tertentu untuk dimoderasi
+    S->>D: Simpan dosen ke tabel moderator (per pendaftaran)
+    A->>S: Lakukan Finalisasi jadwal
+    A->>S: Klik "Umumkan" (Release)
+    S->>D: Update is_released = true pada pendaftaran terkait
+    M->>S: Lihat pengumuman & jadwal final
+    Do->>S: Lihat jadwal menguji (moderator) dan bimbingan hari ini
+```
+
+## 6. Actual Database Schema (Drizzle ORM)
+Terdapat penyesuaian dari skema PRD awal untuk mendukung arsitektur *per-student moderation*, *multi-seminar*, dan otentikasi Better Auth:
+
+```mermaid
+erDiagram
+    USERS {
+        string id PK
+        string email
+        string password_hash
+        enum role "mahasiswa | dosen | admin"
+        string nama
+        string nip_nim
+        string prodi
+        string angkatan
+        string jabatan
+        string status_dosen
+    }
+    PERIODE {
+        int id PK
+        enum jenis_seminar "kolokium | hasil_penelitian"
+        string angkatan
+        string start_date
+        string end_date
+        string registration_end_date
+        boolean is_open
+        int batas_kelas
+        boolean is_draft
+    }
+    SLOT_WAKTU {
+        int id PK
+        datetime waktu_mulai
+        datetime waktu_selesai
+        boolean tersedia
+    }
+    PENDAFTARAN {
+        int id PK
+        enum jenis_seminar "kolokium | hasil_penelitian"
+        string user_id FK
+        int periode_id FK
+        int slot_waktu_id FK
+        int kelas_seminar_id FK
+        string judul_penelitian
+        string dospem1
+        string dospem2
+        string tanggal_kolokium
+        string file_bukti_kolokium
+        string file_approval_dospem
+        enum status_verifikasi "menunggu | disetujui | ditolak"
+        string ruangan_disetujui
+        string ruangan_diajukan
+        string pembahas
+        boolean is_finalized
+        boolean is_released
+    }
+    KELAS_SEMINAR {
+        int id PK
+        string nama_kelas
+        int periode_id FK
+        string date
+        string room
+        int kuota_terisi
+        int kapasitas_max
+    }
+    MODERATOR {
+        int id PK
+        int pendaftaran_id FK "Unique"
+        string dosen_id FK
+        enum assigned_by_role "admin | dosen"
+    }
+    FILES {
+        string id PK
+        string name
+        string mime_type
+        text data "Base64"
+    }
+    SESSION {
+        string id PK
+        string user_id FK
+        string token
+    }
+    ACCOUNT {
+        string id PK
+        string user_id FK
+        string provider_id
+    }
+
+    USERS ||--o{ PENDAFTARAN : "melakukan"
+    USERS ||--o{ MODERATOR : "menjadi"
+    USERS ||--o{ SESSION : "memiliki"
+    USERS ||--o{ ACCOUNT : "autentikasi"
+    PERIODE ||--o{ PENDAFTARAN : "memiliki"
+    PERIODE ||--o{ KELAS_SEMINAR : "terdiri dari"
+    SLOT_WAKTU ||--o{ PENDAFTARAN : "dipilih pada"
+    KELAS_SEMINAR ||--o{ PENDAFTARAN : "berisi peserta"
+    PENDAFTARAN ||--|| MODERATOR : "dimoderasi oleh"
+```
+
+**Keterangan Kolom dan Keputusan Desain:**
+- **`periode`**: Ditambahkan kolom `jenis_seminar` untuk memisahkan siklus pendaftaran Kolokium dan Hasil Penelitian. `is_draft` digunakan saat admin sedang mempersiapkan pengaturan.
+- **`pendaftaran`**: Menyimpan semua detail form pendaftar secara flat. Field dokumen hanya menyimpan referensi, sedangkan file fisiknya tersimpan sebagai Base64 di tabel `files`. `is_finalized` dan `is_released` menandai tahapan akhir proses admin.
+- **`moderator`**: Tabel transisi moderasi. **Uniknya**, relasi mengarah secara *unique* ke `pendaftaran_id` (bukan `kelas_seminar_id`), yang memungkinkan sistem mengakomodasi real case di mana Dosen A memoderatori Mahasiswa 1, dan Dosen B memoderatori Mahasiswa 2 di ruang/kelas yang sama.
+- **`files`**: Tabel khusus untuk menyimpan *base64 string* dokumen yang diupload, menyelesaikan isu file hilang (*ephemeral filesystem*) jika di-*deploy* pada arsitektur *serverless* seperti Coolify atau Vercel.
+- **Tabel Better Auth**: `session`, `account`, dan `verification` ditangani langsung oleh sistem Better Auth.
 
 ---
-*Dokumen ini merupakan pembaruan (V2) dari PRD awal berdasarkan pengembangan sistem aktual hingga saat ini.*
+*Dokumen ini merupakan pembaruan (V2) dari PRD awal berdasarkan *source code* aktual dari pengembangan sistem hingga saat ini.*

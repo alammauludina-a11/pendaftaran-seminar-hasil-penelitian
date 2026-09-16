@@ -37,11 +37,14 @@ export async function autoGenerateSlots(startDateStr: string, endDateStr: string
         for (let hour = 8; hour <= 16; hour++) {
           if (hour === 12) continue;
 
-          const slotStart = new Date(current);
-          slotStart.setHours(hour, 0, 0, 0);
-          
-          const slotEnd = new Date(current);
-          slotEnd.setHours(hour, 50, 0, 0);
+          const y = current.getFullYear();
+          const m = current.getMonth();
+          const d = current.getDate();
+
+          // Construct exact time in WIB (UTC+7)
+          // `hour - 7` converts the intended WIB hour to the correct UTC hour
+          const slotStart = new Date(Date.UTC(y, m, d, hour - 7, 0, 0, 0));
+          const slotEnd = new Date(Date.UTC(y, m, d, hour - 7, 50, 0, 0));
 
           if (!slotExists(slotStart)) {
             slotsToInsert.push({

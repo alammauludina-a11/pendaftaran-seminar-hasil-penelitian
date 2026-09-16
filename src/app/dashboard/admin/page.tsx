@@ -213,13 +213,7 @@ export default function AdminDashboard() {
 
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(() => {
-      fetchData(true);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+
 
   const fetchData = async (silent = false) => {
     try {
@@ -258,6 +252,23 @@ export default function AdminDashboard() {
   const [selectedSeminarType, setSelectedSeminarType] = useState<"kolokium" | "hasil_penelitian" | null>(null);
   const [activeMasterTab, setActiveMasterTab] = useState<"mahasiswa" | "dosen" | "admin">("mahasiswa");
   const [activePeriodeId, setActivePeriodeId] = useState<number | null>(null);
+
+  // Use a ref to track currentView inside the interval closure
+  const currentViewRef = useRef(currentView);
+  useEffect(() => {
+    currentViewRef.current = currentView;
+  }, [currentView]);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(() => {
+      // Pause polling if the user is in the settings view, otherwise their local edits are overwritten
+      if (currentViewRef.current !== "pengaturan") {
+        fetchData(true);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Tab State inside Manajemen
   const [activeTab, setActiveTab] = useState<"verifikasi" | "finalisasi" | "pembahas" | "pengumuman" | "kelas" | "rekapitulasi">("verifikasi");

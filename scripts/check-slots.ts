@@ -15,6 +15,7 @@ async function main() {
   .limit(10);
 
   for (const r of regs) {
+    if (!r.waktuMulai) continue;
     const d = new Date(r.waktuMulai);
     console.log(`id:${r.id} ISO:${r.waktuMulai} UTCh:${d.getUTCHours()} localH:${d.getHours()} WIB:${new Intl.DateTimeFormat('id-ID', {timeZone:'Asia/Jakarta', hour:'2-digit', minute:'2-digit', hour12:false}).format(d)}`);
   }

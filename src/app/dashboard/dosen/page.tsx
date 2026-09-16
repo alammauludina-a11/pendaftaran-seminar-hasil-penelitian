@@ -507,7 +507,7 @@ export default function DosenDashboard() {
                   </div>
 
                   {/* Split Layout: Calendar (Left) & List (Right) */}
-                  <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start mt-2">
+                  <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start mt-2 flex-1">
 
                      {/* Interactive Calendar Overview */}
                      <div className="xl:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 xl:sticky xl:top-28">

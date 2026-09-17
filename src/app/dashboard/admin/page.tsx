@@ -212,6 +212,8 @@ export default function AdminDashboard() {
   const [masterAdmin, setMasterAdmin] = useState<any[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
+  // Ref to pause polling while a moderator update is in-flight
+  const isPendingModeratorUpdateRef = useRef(false);
 
 
 
@@ -262,8 +264,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchData();
     const interval = setInterval(() => {
-      // Pause polling if the user is in the settings view, otherwise their local edits are overwritten
-      if (currentViewRef.current !== "pengaturan") {
+      // Pause polling if the user is in the settings view or a moderator update is in-flight
+      if (currentViewRef.current !== "pengaturan" && !isPendingModeratorUpdateRef.current) {
         fetchData(true);
       }
     }, 5000);
@@ -2497,7 +2499,11 @@ export default function AdminDashboard() {
                                 onChange={async (e) => {
                                   const newValue = e.target.value;
                                   const dosenId = newValue || null;
-                                  const selectedDosen = masterDosen.find(d => d.id === dosenId);
+                                  // d.id may be a number, stringify both sides to be safe
+                                  const selectedDosen = masterDosen.find(d => String(d.id) === String(dosenId));
+
+                                  // Block polling while this update is in-flight so the optimistic update isn't overwritten
+                                  isPendingModeratorUpdateRef.current = true;
 
                                   // Optimistic update
                                   setPendaftaran(prev => prev.map(p => p.id === item.id ? { ...p, moderatorId: dosenId, moderator: selectedDosen ? selectedDosen.name : null, moderatorAssignedByRole: 'admin' } : p));
@@ -2511,6 +2517,9 @@ export default function AdminDashboard() {
                                     });
                                   } catch (err) {
                                     console.error("Gagal menyimpan moderator:", err);
+                                  } finally {
+                                    // Allow polling again after the API call completes
+                                    isPendingModeratorUpdateRef.current = false;
                                   }
                                 }}
                                 className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#06125C]/20 w-full font-medium text-[#06125C]"

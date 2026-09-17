@@ -130,7 +130,23 @@ export async function POST(request: Request) {
       }
 
       const kolokium = riwayatKolokium[0];
-      finalTanggalKolokium = kolokium.kelasDate || kolokium.tanggalKolokiumInput || "-";
+      // Prefer waktuMulai (most accurate), then kelasDate (YYYY-MM-DD), then stored tanggalKolokium
+      if (kolokium.waktuMulai) {
+        const d = new Date(kolokium.waktuMulai);
+        const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        finalTanggalKolokium = `${d.getDate().toString().padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
+      } else if (kolokium.kelasDate) {
+        // kelasDate is YYYY-MM-DD — parse safely without timezone issues
+        const parts = kolokium.kelasDate.split("-");
+        if (parts.length === 3) {
+          const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+          finalTanggalKolokium = `${parseInt(parts[2])} ${months[parseInt(parts[1]) - 1]} ${parts[0]}`;
+        } else {
+          finalTanggalKolokium = kolokium.kelasDate;
+        }
+      } else {
+        finalTanggalKolokium = kolokium.tanggalKolokiumInput || "-";
+      }
     }
 
     // Check if already registered in this period

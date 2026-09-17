@@ -746,12 +746,7 @@ export default function MahasiswaDashboard() {
                           <div>
                             <p className="text-slate-500 mb-1">Tanggal Kolokium</p>
                             <p className="font-semibold text-slate-800">
-                              {(() => {
-                                const val = pendaftaranDetails.tanggalKolokium;
-                                if (!val || val === "-" || val === "Invalid Date") return "-";
-                                const d = new Date(val);
-                                return isNaN(d.getTime()) ? val : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-                              })()}
+                              {riwayatTanggalKolokium || "-"}
                             </p>
                           </div>
                         )}

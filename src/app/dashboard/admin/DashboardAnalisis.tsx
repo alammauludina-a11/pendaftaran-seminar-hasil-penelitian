@@ -109,7 +109,11 @@ export default function DashboardAnalisis() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Gagal mendapatkan analisis");
+        // Handle both string error and nested {error: {message}} shapes
+        const errMsg = typeof data.error === 'string'
+          ? data.error
+          : data.error?.message || "Gagal mendapatkan analisis";
+        throw new Error(errMsg);
       }
       setAiAnalysisTitles(data.titles);
     } catch (err: any) {
@@ -297,7 +301,17 @@ export default function DashboardAnalisis() {
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-start gap-3 mb-4">
               <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-              <div className="text-sm">{error}</div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold mb-1">Gagal Menghasilkan Analisis</p>
+                <p className="text-sm">{error}</p>
+                <button
+                  onClick={generateAIAnalysis}
+                  disabled={isGenerating}
+                  className="mt-2 text-xs font-semibold underline hover:no-underline disabled:opacity-50"
+                >
+                  Coba lagi
+                </button>
+              </div>
             </div>
           )}
 

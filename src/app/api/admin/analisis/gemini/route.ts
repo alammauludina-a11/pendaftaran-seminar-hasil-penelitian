@@ -1,6 +1,39 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function generateWithRetry(ai: GoogleGenAI, prompt: string, maxRetries = 3): Promise<string> {
+  let lastError: any;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+        }
+      });
+      const resultText = response.text;
+      if (!resultText) throw new Error("Empty response from Gemini");
+      return resultText;
+    } catch (err: any) {
+      lastError = err;
+      const isRetryable = err?.status === 503 || err?.code === 503 ||
+        (err?.message && (err.message.includes('503') || err.message.includes('UNAVAILABLE') || err.message.includes('high demand')));
+      
+      if (isRetryable && attempt < maxRetries) {
+        const delay = attempt * 2000; // 2s, 4s
+        console.warn(`Gemini 503 on attempt ${attempt}, retrying in ${delay}ms...`);
+        await sleep(delay);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError;
+}
+
 export async function POST(request: Request) {
   try {
     const data = await request.json();
@@ -40,24 +73,33 @@ Format response harus tepat dalam bentuk JSON murni dengan format seperti ini:
 }
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      }
-    });
-
-    const resultText = response.text;
-    if (!resultText) {
-      throw new Error("Empty response from Gemini");
-    }
-
+    const resultText = await generateWithRetry(ai, prompt);
     const parsed = JSON.parse(resultText);
     
     return NextResponse.json(parsed);
   } catch (error: any) {
     console.error('Gemini API Error:', error);
-    return NextResponse.json({ error: error.message || 'Terjadi kesalahan saat menghubungi Gemini API' }, { status: 500 });
+    
+    // Extract a user-friendly message from various error shapes
+    let friendlyMessage = 'Terjadi kesalahan saat menghubungi Gemini API.';
+    
+    const rawMessage: string = error?.message || '';
+    const errorObj = error?.error || error;
+    const code = errorObj?.code || error?.status;
+    const status = errorObj?.status || '';
+    
+    if (code === 503 || status === 'UNAVAILABLE' || rawMessage.includes('503') || rawMessage.includes('UNAVAILABLE') || rawMessage.includes('high demand')) {
+      friendlyMessage = 'Server AI sedang mengalami beban tinggi. Silakan coba lagi dalam beberapa saat.';
+    } else if (code === 429 || status === 'RESOURCE_EXHAUSTED' || rawMessage.includes('429') || rawMessage.includes('quota')) {
+      friendlyMessage = 'Batas penggunaan API Gemini tercapai. Silakan coba lagi nanti.';
+    } else if (code === 400 || status === 'INVALID_ARGUMENT') {
+      friendlyMessage = 'Permintaan tidak valid. Pastikan data yang dikirim sudah benar.';
+    } else if (rawMessage.includes('API key') || rawMessage.includes('GEMINI_API_KEY')) {
+      friendlyMessage = 'API Key Gemini tidak valid atau belum dikonfigurasi.';
+    } else if (rawMessage) {
+      friendlyMessage = rawMessage;
+    }
+    
+    return NextResponse.json({ error: friendlyMessage }, { status: 500 });
   }
 }

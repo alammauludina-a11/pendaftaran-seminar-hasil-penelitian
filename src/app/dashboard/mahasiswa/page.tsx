@@ -748,7 +748,7 @@ export default function MahasiswaDashboard() {
                             <p className="font-semibold text-slate-800">
                               {(() => {
                                 const val = pendaftaranDetails.tanggalKolokium;
-                                if (!val || val === "-") return "-";
+                                if (!val || val === "-" || val === "Invalid Date") return "-";
                                 const d = new Date(val);
                                 return isNaN(d.getTime()) ? val : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
                               })()}

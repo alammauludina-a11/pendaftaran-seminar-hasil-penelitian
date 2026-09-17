@@ -3030,7 +3030,7 @@ export default function AdminDashboard() {
                     <p className="font-medium text-slate-800">
                       {(() => {
                         const val = selectedPendaftar.tanggalKolokium;
-                        if (!val || val === "-") return "-";
+                        if (!val || val === "-" || val === "Invalid Date") return "-";
                         const d = new Date(val);
                         return isNaN(d.getTime()) ? val : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
                       })()}

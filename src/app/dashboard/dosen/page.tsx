@@ -692,10 +692,10 @@ export default function DosenDashboard() {
                                                       )}
                                                    </div>
                                                 </div>
-                                                {!m.hasModerator && (
+                                                {(!m.hasModerator || (m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama)) && (
                                                    <button
                                                       onClick={() => handlePilihModerator(m.pendaftaranId)}
-                                                      disabled={isSubmittingModerasi || (m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama)}
+                                                      disabled={isSubmittingModerasi || (m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) || m.hasModerator}
                                                       className={`shrink-0 px-3 py-1.5 rounded-lg font-semibold text-[11px] transition-colors flex items-center justify-center gap-1.5 ${(m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) ? "bg-slate-200 text-slate-400 cursor-not-allowed" : "bg-[#06125C] hover:bg-[#06125C]/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"}`}
                                                    >
                                                       <ShieldCheck size={14} /> {(m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) ? "Anda Pembimbing" : isSubmittingModerasi ? "..." : "Pilih"}

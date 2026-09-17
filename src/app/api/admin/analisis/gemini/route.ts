@@ -15,18 +15,24 @@ export async function POST(request: Request) {
     const ai = new GoogleGenAI({ apiKey });
     
     const prompt = `
-Anda adalah seorang konsultan akademik yang sedang memberikan ringkasan kepada pimpinan kampus. Berikut adalah daftar judul penelitian terakhir dari para mahasiswa:
-
-${JSON.stringify(data.titles, null, 2)}
+Anda adalah asisten yang membantu admin program studi membaca pola umum dari daftar judul tugas akhir mahasiswa berikut. Ini BUKAN alat pengukuran kemiripan yang presisi — tugas Anda hanya memberikan observasi kualitatif awal yang bisa jadi bahan diskusi lebih lanjut oleh manusia.
 
 Jika daftar judul di atas kosong (tidak ada data), berikan respons (di dalam field "titles") dengan persis kalimat ini: "Belum ada mahasiswa yang selesai Seminar Hasil Penelitian, sehingga analisis judul belum bisa dilakukan." dan JANGAN berikan analisis lainnya.
 
-Jika daftar judul tidak kosong, buatlah analisis (maksimal 3 paragraf) dengan bahasa Indonesia yang santai, lugas, dan sangat mudah dipahami (hindari bahasa akademis yang terlalu kaku).
+Jika daftar judul tidak kosong, buatlah ringkasan (maksimal 3 paragraf) dengan bahasa Indonesia yang santai, lugas, dan mudah dipahami (hindari bahasa akademis yang kaku).
 
-Di dalam analisis ini, Anda WAJIB memberikan KUANTIFIKASI (seperti perkiraan persentase atau jumlah) untuk menggambarkan hal-hal berikut:
-1. Sejauh mana tingkat kesamaan atau kemiripan dari judul-judul tersebut (misalnya: "Sekitar 40% mahasiswa masih mengambil topik yang serupa...").
-2. Seberapa banyak judul yang dianggap sangat unik atau memiliki inovasi baru.
-3. Sebutkan 1 atau 2 tren topik utama yang paling mendominasi.
+Dalam ringkasan ini, sampaikan:
+1. Apakah ada beberapa judul yang tampak mengangkat tema atau topik serupa, dan sebutkan tema tersebut secara umum (tanpa menyebut angka atau persentase pasti, karena Anda tidak melakukan perhitungan kemiripan numerik apa pun).
+2. Judul-judul mana yang terlihat menonjol karena pendekatan atau topiknya berbeda dari mayoritas.
+3. 1–2 tren topik yang paling sering muncul, dijelaskan secara deskriptif.
+
+ATURAN PENTING:
+- JANGAN menyebutkan angka, persentase, atau perkiraan kuantitatif apa pun (misalnya "40% mahasiswa...", "sekitar 5 judul..."), karena Anda hanya membaca judul secara tekstual, bukan menghitung kemiripan secara matematis. Gunakan kata seperti "beberapa", "sebagian kecil", "cukup banyak" jika perlu menggambarkan proporsi secara kasar.
+- Jangan mengklaim kepastian ("judul A dan B pasti mirip") — gunakan bahasa dugaan ("judul A dan B tampak membahas topik yang berdekatan").
+- Fokus pada pola tema/topik, bukan kesamaan struktur kalimat atau gaya penulisan judul.
+
+Daftar judul:
+${JSON.stringify(data.titles, null, 2)}
 
 Format response harus tepat dalam bentuk JSON murni dengan format seperti ini:
 {

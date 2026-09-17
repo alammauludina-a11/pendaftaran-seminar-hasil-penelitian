@@ -2510,13 +2510,21 @@ export default function AdminDashboard() {
 
                                   // DB Update
                                   try {
-                                    await fetch(`/api/admin/pendaftaran/${item.id}/moderator`, {
+                                    const res = await fetch(`/api/admin/pendaftaran/${item.id}/moderator`, {
                                       method: "PUT",
                                       headers: { "Content-Type": "application/json" },
                                       body: JSON.stringify({ dosenId })
                                     });
+                                    if (!res.ok) {
+                                      const errData = await res.json();
+                                      // Rollback on error
+                                      setPendaftaran(prev => prev.map(p => p.id === item.id ? { ...p, moderatorId: item.moderatorId, moderator: item.moderator, moderatorAssignedByRole: item.moderatorAssignedByRole } : p));
+                                      alert(errData.error || "Gagal menyimpan moderator.");
+                                    }
                                   } catch (err) {
                                     console.error("Gagal menyimpan moderator:", err);
+                                    // Rollback on network error
+                                    setPendaftaran(prev => prev.map(p => p.id === item.id ? { ...p, moderatorId: item.moderatorId, moderator: item.moderator, moderatorAssignedByRole: item.moderatorAssignedByRole } : p));
                                   } finally {
                                     // Allow polling again after the API call completes
                                     isPendingModeratorUpdateRef.current = false;
@@ -2525,9 +2533,14 @@ export default function AdminDashboard() {
                                 className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#06125C]/20 w-full font-medium text-[#06125C]"
                               >
                                 <option value="">-- Pilih Moderator --</option>
-                                {masterDosen.map(d => (
-                                  <option key={d.id} value={d.id}>{d.name}</option>
-                                ))}
+                                {masterDosen.map(d => {
+                                  const isSupervisor = d.name === item.dospem || d.name === item.dospem2;
+                                  return (
+                                    <option key={d.id} value={d.id} disabled={isSupervisor}>
+                                      {d.name}{isSupervisor ? " (Pembimbing — tidak bisa dipilih)" : ""}
+                                    </option>
+                                  );
+                                })}
                               </select>
                               {item.moderatorId && (
                                 <div className="text-[10px] text-indigo-500 mt-1 flex items-center gap-1 font-semibold">

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { pendaftaran, kelasSeminar, moderator } from "@/db/schema";
+import { pendaftaran, kelasSeminar, moderator, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+
 
 export async function PUT(
   request: Request,
@@ -33,6 +34,13 @@ export async function PUT(
       // Remove moderator
       await db.delete(moderator).where(eq(moderator.pendaftaranId, pend.id));
     } else {
+      // Validate: the selected dosen must not be the supervisor of this student
+      const dosenUser = await db.select({ nama: users.nama }).from(users).where(eq(users.id, dosenId)).limit(1);
+      const dosenName = dosenUser[0]?.nama;
+      if (dosenName && (pend.dospem1 === dosenName || pend.dospem2 === dosenName)) {
+        return NextResponse.json({ error: "Dosen pembimbing tidak dapat dijadikan moderator untuk mahasiswanya sendiri." }, { status: 400 });
+      }
+
       // Update or insert moderator
       const existing = await db.select().from(moderator).where(eq(moderator.pendaftaranId, pend.id));
       if (existing.length > 0) {

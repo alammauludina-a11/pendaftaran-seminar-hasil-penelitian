@@ -611,8 +611,11 @@ export default function AdminDashboard() {
   const uniqueAngkatan = Array.from(new Set(masterMahasiswa.map(m => m.angkatan).filter(Boolean))).sort();
 
   const filteredPendaftaran = activePendaftaran.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(globalSearch.toLowerCase()) ||
-      p.nim.toLowerCase().includes(globalSearch.toLowerCase());
+    const searchLower = globalSearch.toLowerCase();
+    const matchesSearch = p.name.toLowerCase().includes(searchLower) ||
+      p.nim.toLowerCase().includes(searchLower) ||
+      (p.dospem && p.dospem.toLowerCase().includes(searchLower)) ||
+      (p.dospem2 && p.dospem2.toLowerCase().includes(searchLower));
     const matchesKelas = globalKelasFilter === "Semua Kelas" || (p.kelas ? p.kelas === globalKelasFilter : globalKelasFilter === "Antrean");
     const matchesDate = selectedDateFilter === "Semua Tanggal" || p.date === selectedDateFilter;
     return matchesSearch && matchesKelas && matchesDate;
@@ -1973,7 +1976,7 @@ export default function AdminDashboard() {
                 <Search size={18} className="text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Cari nama atau NIM/NPM mahasiswa..."
+                  placeholder="Cari nama/NIM mahasiswa atau nama dosen..."
                   value={globalSearch}
                   onChange={(e) => setGlobalSearch(e.target.value)}
                   className="bg-transparent text-sm outline-none w-full text-slate-700"

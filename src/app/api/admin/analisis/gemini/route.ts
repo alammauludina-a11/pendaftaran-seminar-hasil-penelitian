@@ -8,7 +8,7 @@ async function generateWithRetry(ai: GoogleGenAI, prompt: string, maxRetries = 3
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-3.6-flash',
         contents: prompt,
         config: {
           responseMimeType: "application/json",

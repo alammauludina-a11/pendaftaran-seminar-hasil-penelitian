@@ -195,8 +195,8 @@ export async function GET(request: Request) {
       })
     );
 
-    // Available Kelas: any class that has AT LEAST ONE student without a moderator
-    const availableKelas = classesDetails.filter(c => c.students.some((s: any) => !s.hasModerator));
+    // Available Kelas: show all classes so lecturers can see the schedule even if fully moderated
+    const availableKelas = classesDetails;
     
     // My Moderasi: any class where the user moderates AT LEAST ONE student.
     const myModerasi = classesDetails.filter(c => c.userModeratesClass);

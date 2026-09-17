@@ -1876,7 +1876,12 @@ export default function AdminDashboard() {
                 <ArrowLeft size={20} />
               </button>
               <div>
-                <h1 className="text-2xl font-extrabold text-[#06125C]">Kelola Pendaftaran Mahasiswa</h1>
+                <h1 className="text-2xl font-extrabold text-[#06125C]">
+                  Kelola Pendaftaran Mahasiswa
+                  <span className="ml-2 text-sm font-semibold text-white bg-[#06125C] border border-[#06125C]/30 px-2.5 py-1 rounded-lg">
+                    {activePeriode.jenisSeminar === "kolokium" ? "Seminar Kolokium" : "Seminar Hasil Penelitian"}
+                  </span>
+                </h1>
                 <p className="text-sm text-slate-500">Angkatan {activePeriode.angkatan}</p>
               </div>
             </div>

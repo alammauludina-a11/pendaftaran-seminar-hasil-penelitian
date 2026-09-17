@@ -1399,8 +1399,17 @@ export default function MahasiswaDashboard() {
                           {item.kelas && item.kelas !== '-' ? `Kelas ${item.kelas.replace('Kelas ', '')}` : <span className="text-slate-400 italic font-normal">Belum diatur</span>}
                         </td>
                         <td className="p-4 align-top">
-                           <div className="text-sm text-slate-700 flex items-center gap-2 font-medium">
-                             <UserCircle size={14} className="text-slate-400 shrink-0" /> <span className="line-clamp-2">{item.dospem || <span className="text-slate-400 italic font-normal">Belum diatur</span>}</span>
+                           <div className="text-sm text-slate-700 flex flex-col gap-1 font-medium">
+                             <div className="flex items-start gap-2">
+                               <UserCircle size={14} className="text-slate-400 shrink-0 mt-0.5" /> 
+                               <span className="line-clamp-2">1. {item.dospem || <span className="text-slate-400 italic font-normal">Belum diatur</span>}</span>
+                             </div>
+                             {item.dospem2 && (
+                               <div className="flex items-start gap-2">
+                                 <UserCircle size={14} className="text-slate-400 shrink-0 mt-0.5 opacity-0" /> 
+                                 <span className="line-clamp-2">2. {item.dospem2}</span>
+                               </div>
+                             )}
                            </div>
                         </td>
                         <td className="p-4 align-top whitespace-nowrap">

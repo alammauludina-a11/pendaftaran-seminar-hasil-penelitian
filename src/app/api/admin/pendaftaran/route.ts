@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { pendaftaran, users, slotWaktu, kelasSeminar, moderator as moderatorTable } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +11,7 @@ export async function GET() {
     const dosenUsers = alias(users, "dosenUsers");
     const data = await db.select({
       id: pendaftaran.id,
+      userId: pendaftaran.userId,
       periodeId: pendaftaran.periodeId,
       name: users.nama,
       nim: users.nipNim,
@@ -46,7 +47,50 @@ export async function GET() {
     .leftJoin(moderatorTable, eq(pendaftaran.id, moderatorTable.pendaftaranId))
     .leftJoin(dosenUsers, eq(moderatorTable.dosenId, dosenUsers.id));
 
-    // Format date and time
+    const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+    const monthsShort = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+
+    // For hasil_penelitian rows, look up the real kolokium date from the student's approved kolokium slot
+    const hasilUserIds = [...new Set(
+      data.filter(r => r.jenisSeminar === "hasil_penelitian" && r.userId).map(r => r.userId)
+    )];
+
+    const kolokiumDateMap: Record<string, string> = {};
+    for (const userId of hasilUserIds) {
+      const kolokiumRows = await db.select({
+        waktuMulai: slotWaktu.waktuMulai,
+        kelasDate: kelasSeminar.date,
+        tanggalKolokiumInput: pendaftaran.tanggalKolokium,
+      })
+      .from(pendaftaran)
+      .leftJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
+      .leftJoin(kelasSeminar, eq(pendaftaran.kelasSeminarId, kelasSeminar.id))
+      .where(and(
+        eq(pendaftaran.userId, userId),
+        eq(pendaftaran.jenisSeminar, "kolokium"),
+        eq(pendaftaran.statusVerifikasi, "disetujui")
+      ))
+      .limit(1);
+
+      if (kolokiumRows.length > 0) {
+        const k = kolokiumRows[0];
+        if (k.waktuMulai) {
+          const d = new Date(k.waktuMulai);
+          kolokiumDateMap[userId] = `${d.getDate().toString().padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
+        } else if (k.kelasDate) {
+          const parts = k.kelasDate.split("-");
+          if (parts.length === 3) {
+            kolokiumDateMap[userId] = `${parseInt(parts[2])} ${months[parseInt(parts[1]) - 1]} ${parts[0]}`;
+          } else {
+            kolokiumDateMap[userId] = k.kelasDate;
+          }
+        } else if (k.tanggalKolokiumInput && k.tanggalKolokiumInput !== "Invalid Date") {
+          kolokiumDateMap[userId] = k.tanggalKolokiumInput;
+        }
+      }
+    }
+
+    // Format date and time + resolve tanggal kolokium
     const formattedData = data.map(item => {
       let date = "-";
       let time = "-";
@@ -54,8 +98,7 @@ export async function GET() {
         const d = new Date(item.waktuMulai);
         const endD = new Date(item.waktuSelesai);
         const day = d.getDate().toString().padStart(2, '0');
-        const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
-        const month = months[d.getMonth()];
+        const month = monthsShort[d.getMonth()];
         const year = d.getFullYear();
         date = `${day} ${month} ${year}`;
         
@@ -69,10 +112,21 @@ export async function GET() {
         const endTimeStr = timeFormatter.format(endD).replace('.', ':');
         time = `${startTimeStr} - ${endTimeStr}`;
       }
+
+      // Resolve tanggal kolokium from actual kolokium registration (for hasil_penelitian)
+      let resolvedTanggalKolokium = item.tanggalKolokium;
+      if (item.jenisSeminar === "hasil_penelitian" && item.userId && kolokiumDateMap[item.userId]) {
+        resolvedTanggalKolokium = kolokiumDateMap[item.userId];
+      }
+      if (!resolvedTanggalKolokium || resolvedTanggalKolokium === "Invalid Date") {
+        resolvedTanggalKolokium = "-";
+      }
+
       return {
         ...item,
         date,
-        time
+        time,
+        tanggalKolokium: resolvedTanggalKolokium,
       };
     });
 

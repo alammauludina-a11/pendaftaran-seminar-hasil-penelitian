@@ -273,6 +273,7 @@ export default function AdminDashboard() {
   // Tab State inside Manajemen
   const [activeTab, setActiveTab] = useState<"verifikasi" | "finalisasi" | "pembahas" | "pengumuman" | "kelas" | "rekapitulasi">("verifikasi");
   const [rekapSort, setRekapSort] = useState<{ key: 'name' | 'moderatorCount' | 'pembimbingCount', order: 'asc' | 'desc' }>({ key: 'name', order: 'asc' });
+  const [rekapSearch, setRekapSearch] = useState("");
 
   // Filter States inside Manajemen
   const [globalSearch, setGlobalSearch] = useState("");
@@ -555,7 +556,9 @@ export default function AdminDashboard() {
   // Filter Pendaftaran (Hanya untuk periode aktif, dengan global search & kelas filter)
   const activePendaftaran = pendaftaran.filter(p => p.periodeId === activePeriodeId);
 
-  const rekapitulasiData = [...masterDosen].map(dosen => {
+  const rekapitulasiData = [...masterDosen]
+    .filter(d => !rekapSearch || d.name.toLowerCase().includes(rekapSearch.toLowerCase()))
+    .map(dosen => {
     const moderatorCount = activePendaftaran.filter(p => p.moderator === dosen.name || (p.moderator && p.moderator.includes(dosen.name))).length;
     const pembimbingCount = activePendaftaran.filter(p => p.dospem && p.dospem.includes(dosen.name)).length;
     return { ...dosen, moderatorCount, pembimbingCount };
@@ -2930,6 +2933,18 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   
+                  {/* Search Bar for Rekapitulasi */}
+                  <div className="flex items-center gap-3 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-[#06125C]/20 transition-all mb-6 w-full sm:max-w-md">
+                    <Search size={18} className="text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Cari nama dosen..."
+                      value={rekapSearch}
+                      onChange={(e) => setRekapSearch(e.target.value)}
+                      className="bg-transparent text-sm outline-none w-full text-slate-700"
+                    />
+                  </div>
+
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm whitespace-nowrap border-collapse">
                       <thead className="bg-slate-50 border-y border-slate-200 text-slate-600 font-semibold select-none">

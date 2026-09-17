@@ -14,6 +14,7 @@ export default function AnalisisLog() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [selectedUserHistory, setSelectedUserHistory] = useState<any | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -160,7 +161,11 @@ export default function AnalisisLog() {
               <tbody className="divide-y divide-slate-100">
                 {filteredUsers.length > 0 ? (
                   filteredUsers.map((u: any) => (
-                    <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
+                    <tr 
+                      key={u.id} 
+                      onClick={() => setSelectedUserHistory(u)}
+                      className="hover:bg-indigo-50/50 cursor-pointer transition-colors"
+                    >
                       <td className="px-6 py-4">
                         <div className="font-bold text-slate-800">{u.nama}</div>
                         <div className="text-xs text-slate-500">{u.nipNim}</div>
@@ -193,6 +198,53 @@ export default function AnalisisLog() {
           </div>
         </div>
       </div>
+
+      {/* History Modal */}
+      {selectedUserHistory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedUserHistory(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="font-bold text-slate-800 text-lg">Riwayat Login</h3>
+                <p className="text-sm text-slate-500">{selectedUserHistory.nama}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedUserHistory(null)} 
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 hover:text-slate-700 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto p-2">
+              {selectedUserHistory.history && selectedUserHistory.history.length > 0 ? (
+                <ul className="divide-y divide-slate-100">
+                  {selectedUserHistory.history.map((dateStr: string, idx: number) => {
+                    const date = new Date(dateStr);
+                    return (
+                      <li key={idx} className="px-5 py-3 hover:bg-slate-50 flex items-center justify-between rounded-xl">
+                        <span className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]">
+                            {selectedUserHistory.history.length - idx}
+                          </span>
+                          Login ke-{selectedUserHistory.history.length - idx}
+                        </span>
+                        <span className="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">
+                          {date.toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="p-8 text-center flex flex-col items-center justify-center">
+                  <Clock className="w-10 h-10 text-slate-300 mb-3" />
+                  <p className="text-slate-500 font-medium">Tidak ada riwayat detail</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

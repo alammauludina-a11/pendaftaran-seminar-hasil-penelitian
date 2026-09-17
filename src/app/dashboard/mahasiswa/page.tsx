@@ -111,6 +111,8 @@ export default function MahasiswaDashboard() {
   // States for Pengumuman Filter
   const [pengumumanSearch, setPengumumanSearch] = useState("");
   const [pengumumanKelasFilter, setPengumumanKelasFilter] = useState("Semua Kelas");
+  const [pengumumanTanggalFilter, setPengumumanTanggalFilter] = useState("Semua Tanggal");
+  const [pengumumanSort, setPengumumanSort] = useState("asc");
 
   // State for Ubah Password
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -303,7 +305,16 @@ export default function MahasiswaDashboard() {
     const matchSearch = item.mahasiswa.toLowerCase().includes(pengumumanSearch.toLowerCase()) || 
                         item.pembahas.toLowerCase().includes(pengumumanSearch.toLowerCase());
     const matchKelas = pengumumanKelasFilter === "Semua Kelas" || item.kelas === pengumumanKelasFilter;
-    return matchSearch && matchKelas;
+    const matchTanggal = pengumumanTanggalFilter === "Semua Tanggal" || item.tanggal === pengumumanTanggalFilter;
+    return matchSearch && matchKelas && matchTanggal;
+  }).sort((a, b) => {
+    if (a.isSelf && !b.isSelf) return -1;
+    if (!a.isSelf && b.isSelf) return 1;
+
+    const timeA = a.waktuMulai ? new Date(a.waktuMulai).getTime() : 0;
+    const timeB = b.waktuMulai ? new Date(b.waktuMulai).getTime() : 0;
+    
+    return pengumumanSort === "asc" ? timeA - timeB : timeB - timeA;
   });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1340,8 +1351,8 @@ export default function MahasiswaDashboard() {
                     className="bg-transparent text-sm outline-none w-full text-slate-700"
                   />
                 </div>
-                <div className="flex items-center gap-3">
-                  <Filter size={18} className="text-slate-400" />
+                <div className="flex flex-wrap items-center gap-3">
+                  <Filter size={18} className="text-slate-400 hidden sm:block" />
                   <select 
                     value={pengumumanKelasFilter}
                     onChange={(e) => setPengumumanKelasFilter(e.target.value)}
@@ -1351,6 +1362,26 @@ export default function MahasiswaDashboard() {
                     {Array.from(new Set(pengumuman.map(p => p.kelas))).filter(k => k !== "-").sort().map(k => (
                       <option key={k} value={k}>{k}</option>
                     ))}
+                  </select>
+
+                  <select 
+                    value={pengumumanTanggalFilter}
+                    onChange={(e) => setPengumumanTanggalFilter(e.target.value)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-[#06125C]/20 outline-none text-sm font-medium min-w-[160px]"
+                  >
+                    <option value="Semua Tanggal">Semua Tanggal</option>
+                    {Array.from(new Set(pengumuman.map(p => p.tanggal))).filter(t => t !== "-").sort().map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+
+                  <select 
+                    value={pengumumanSort}
+                    onChange={(e) => setPengumumanSort(e.target.value)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-[#06125C]/20 outline-none text-sm font-medium min-w-[160px]"
+                  >
+                    <option value="asc">Terawal ke Terbaru</option>
+                    <option value="desc">Terbaru ke Terawal</option>
                   </select>
                 </div>
               </div>

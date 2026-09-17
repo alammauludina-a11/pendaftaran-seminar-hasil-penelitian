@@ -3028,9 +3028,12 @@ export default function AdminDashboard() {
                   <div>
                     <p className="text-slate-500">Tanggal Kolokium</p>
                     <p className="font-medium text-slate-800">
-                      {selectedPendaftar.tanggalKolokium 
-                        ? new Date(selectedPendaftar.tanggalKolokium).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-                        : "-"}
+                      {(() => {
+                        const val = selectedPendaftar.tanggalKolokium;
+                        if (!val || val === "-") return "-";
+                        const d = new Date(val);
+                        return isNaN(d.getTime()) ? val : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                      })()}
                     </p>
                   </div>
                   <div className="col-span-2">

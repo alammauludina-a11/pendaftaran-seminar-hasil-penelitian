@@ -10,7 +10,7 @@ import { Sparkles, Loader2, AlertCircle, Clock, Lightbulb, Layers, Filter } from
 const COLORS = ["#3B82F6", "#8B5CF6", "#F59E0B", "#10B981", "#EF4444", "#EC4899", "#06B6D4"];
 const DURATION_LABELS = ["< 1 Bulan", "1 - 3 Bulan", "3 - 6 Bulan", "> 6 Bulan"];
 
-export default function DashboardAnalisis() {
+export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
   const [aiAnalysisTitles, setAiAnalysisTitles] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,9 +159,16 @@ export default function DashboardAnalisis() {
     <div className="space-y-6">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Dashboard Analisis</h2>
-          <p className="text-slate-500 text-sm mt-1">Pantau tren angkatan dan wawasan akademik.</p>
+        <div className="flex items-center gap-4">
+          {onBack && (
+            <button onClick={onBack} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+          )}
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">Dashboard Analisis</h2>
+            <p className="text-slate-500 text-sm mt-1">Pantau tren angkatan dan wawasan akademik.</p>
+          </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           {/* Angkatan Filter Dropdown */}

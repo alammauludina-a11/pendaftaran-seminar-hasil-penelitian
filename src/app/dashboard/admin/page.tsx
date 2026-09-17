@@ -1092,14 +1092,14 @@ export default function AdminDashboard() {
             ======================================================= */}
         {currentView === "analisis" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <DashboardAnalisis />
+            <DashboardAnalisis onBack={() => setCurrentView("visual_awal")} />
           </div>
         )}
 
         {/* VIEW 6: ANALISIS LOG */}
         {currentView === "analisis_log" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <AnalisisLog />
+            <AnalisisLog onBack={() => setCurrentView("visual_awal")} />
           </div>
         )}
 

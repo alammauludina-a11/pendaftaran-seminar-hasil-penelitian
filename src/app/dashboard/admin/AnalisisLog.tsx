@@ -9,7 +9,7 @@ import { Loader2, Users, UserCheck, User, Clock, AlertCircle } from "lucide-reac
 
 const COLORS = ["#3B82F6", "#10B981"]; // Blue for Mahasiswa, Green for Dosen
 
-export default function AnalisisLog() {
+export default function AnalisisLog({ onBack }: { onBack?: () => void }) {
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,9 +69,16 @@ export default function AnalisisLog() {
 
   return (
     <div className="space-y-6">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-[#06125C] mb-2">Analisis Log Aktivitas</h2>
-        <p className="text-slate-500">Pantau aktivitas login pengguna di dalam sistem Seminar Hub.</p>
+      <div className="mb-8 flex items-center gap-4">
+        {onBack && (
+          <button onClick={onBack} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+        )}
+        <div>
+          <h2 className="text-2xl font-bold text-[#06125C] mb-2">Analisis Log Aktivitas</h2>
+          <p className="text-slate-500">Pantau aktivitas login pengguna di dalam sistem Seminar Hub.</p>
+        </div>
       </div>
 
       {/* Stats Cards */}

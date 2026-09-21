@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, account } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -13,18 +13,38 @@ export async function GET() {
     }
 
     const adminData = await db
-      .select()
+      .select({
+         id: users.id,
+         name: users.nama,
+         username: users.username,
+         accountCreatedAt: account.createdAt,
+         accountUpdatedAt: account.updatedAt,
+      })
       .from(users)
+      .leftJoin(account, eq(users.id, account.userId))
       .where(eq(users.role, "admin"));
 
-    const formattedData = adminData.map((a) => ({
-      id: a.id,
-      name: a.nama,
-      account: a.username ? { username: a.username, password: "password123" } : null,
-    }));
+    const formattedData = adminData.map((a) => {
+      let isPasswordChanged = false;
+      if (a.accountCreatedAt && a.accountUpdatedAt) {
+        const diff = Math.abs(a.accountUpdatedAt.getTime() - a.accountCreatedAt.getTime());
+        isPasswordChanged = diff > 5000;
+      }
+      
+      return {
+        id: a.id,
+        name: a.name,
+        account: a.username ? { 
+            username: a.username, 
+            password: isPasswordChanged ? null : "password123",
+            isPasswordChanged
+        } : null,
+      };
+    });
 
     return NextResponse.json({ admin: formattedData }, { status: 200 });
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Failed to fetch data" }, { status: 500 });
   }
 }

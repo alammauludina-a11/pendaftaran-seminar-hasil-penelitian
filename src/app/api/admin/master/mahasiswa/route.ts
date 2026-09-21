@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, account } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -13,22 +13,46 @@ export async function GET() {
     }
 
     const mahasiswaData = await db
-      .select()
+      .select({
+         id: users.id,
+         nim: users.nipNim,
+         name: users.nama,
+         angkatan: users.angkatan,
+         prodi: users.prodi,
+         status: users.statusAktif,
+         username: users.username,
+         accountCreatedAt: account.createdAt,
+         accountUpdatedAt: account.updatedAt,
+      })
       .from(users)
+      .leftJoin(account, eq(users.id, account.userId))
       .where(eq(users.role, "mahasiswa"));
 
-    const formattedData = mahasiswaData.map((m) => ({
-      id: m.id,
-      nim: m.nipNim,
-      name: m.nama,
-      angkatan: m.angkatan || "",
-      prodi: m.prodi || "Akuntansi",
-      status: m.statusAktif || "Aktif",
-      account: m.username ? { username: m.username, password: "password123" } : null,
-    }));
+    const formattedData = mahasiswaData.map((m) => {
+      let isPasswordChanged = false;
+      if (m.accountCreatedAt && m.accountUpdatedAt) {
+        // If difference is more than 5 seconds, consider it changed
+        const diff = Math.abs(m.accountUpdatedAt.getTime() - m.accountCreatedAt.getTime());
+        isPasswordChanged = diff > 5000; 
+      }
+      return {
+        id: m.id,
+        nim: m.nim,
+        name: m.name,
+        angkatan: m.angkatan || "",
+        prodi: m.prodi || "Akuntansi",
+        status: m.status || "Aktif",
+        account: m.username ? { 
+            username: m.username, 
+            password: isPasswordChanged ? null : "password123",
+            isPasswordChanged
+        } : null,
+      };
+    });
 
     return NextResponse.json({ mahasiswa: formattedData }, { status: 200 });
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Failed to fetch data" }, { status: 500 });
   }
 }

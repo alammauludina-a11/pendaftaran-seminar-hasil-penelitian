@@ -562,7 +562,7 @@ export default function AdminDashboard() {
     .filter(d => !rekapSearch || d.name.toLowerCase().includes(rekapSearch.toLowerCase()))
     .map(dosen => {
     const moderatorCount = activePendaftaran.filter(p => p.moderator === dosen.name || (p.moderator && p.moderator.includes(dosen.name))).length;
-    const pembimbingCount = activePendaftaran.filter(p => p.dospem && p.dospem.includes(dosen.name)).length;
+    const pembimbingCount = activePendaftaran.filter(p => (p.dospem && p.dospem.includes(dosen.name)) || (p.dospem2 && p.dospem2.includes(dosen.name))).length;
     return { ...dosen, moderatorCount, pembimbingCount };
   }).sort((a, b) => {
     let valA = (a as any)[rekapSort.key];
@@ -751,7 +751,7 @@ export default function AdminDashboard() {
       Mahasiswa: `${item.name} (${item.nim})`,
       Judul: item.title,
       Kelas: item.kelas,
-      DosenPembimbing: item.dospem,
+      DosenPembimbing: item.dospem2 ? `1. ${item.dospem}\n2. ${item.dospem2}` : item.dospem,
       Waktu: `${item.date} • ${item.time}`,
       Ruangan: item.room,
       Moderator: item.moderator,
@@ -776,7 +776,7 @@ export default function AdminDashboard() {
       body: sortedData.map((item: any) => [
         `${item.name}\n${item.nim}`,
         item.kelas || '-',
-        item.dospem || '-',
+        item.dospem2 ? `1. ${item.dospem}\n2. ${item.dospem2}` : (item.dospem || '-'),
         `${item.date}\n${item.time}`,
         item.room || '-',
         item.moderator || '-',
@@ -1710,7 +1710,11 @@ export default function AdminDashboard() {
                                 </div>
                                 <div className="flex items-center gap-2 text-xs">
                                   <span className="text-slate-500 w-12">Pass:</span>
-                                  <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">{m.account.password}</span>
+                                  {m.account.isPasswordChanged ? (
+                                    <span className="font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Telah Diubah</span>
+                                  ) : (
+                                    <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">{m.account.password}</span>
+                                  )}
                                 </div>
                               </div>
                             ) : (
@@ -1768,7 +1772,11 @@ export default function AdminDashboard() {
                                 </div>
                                 <div className="flex items-center gap-2 text-xs">
                                   <span className="text-slate-500 w-12">Pass:</span>
-                                  <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">{d.account.password}</span>
+                                  {d.account.isPasswordChanged ? (
+                                    <span className="font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Telah Diubah</span>
+                                  ) : (
+                                    <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">{d.account.password}</span>
+                                  )}
                                 </div>
                               </div>
                             ) : (
@@ -1820,7 +1828,11 @@ export default function AdminDashboard() {
                                 </div>
                                 <div className="flex items-center gap-2 text-xs">
                                   <span className="text-slate-500 w-12">Pass:</span>
-                                  <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">{a.account.password}</span>
+                                  {a.account.isPasswordChanged ? (
+                                    <span className="font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Telah Diubah</span>
+                                  ) : (
+                                    <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">{a.account.password}</span>
+                                  )}
                                 </div>
                               </div>
                             ) : (
@@ -2695,7 +2707,12 @@ export default function AdminDashboard() {
                                       <div className="font-semibold text-slate-800">{p.name}</div>
                                       <div className="text-xs text-slate-500">{p.nim}</div>
                                     </td>
-                                    <td className="px-4 py-4 text-slate-600">{p.dospem}</td>
+                                    <td className="px-4 py-4 text-slate-600">
+                                      <div className="flex flex-col gap-1 text-xs">
+                                        <span>1. {p.dospem}</span>
+                                        {p.dospem2 && <span>2. {p.dospem2}</span>}
+                                      </div>
+                                    </td>
                                     <td className="px-4 py-4">
                                       <div className="flex flex-col gap-2">
                                         {currentPembahas.map((pembVal: string, idx: number) => (
@@ -2728,7 +2745,7 @@ export default function AdminDashboard() {
                                               <option value="">-- Pilih Pembahas --</option>
                                               {classPendaftaran.filter(c => c.id !== p.id).map(c => {
                                                 const value = `${c.name} (${c.nim})`;
-                                                const isSameDospem = c.dospem === p.dospem;
+                                                const isSameDospem = [c.dospem, c.dospem2].some(d => d && (d === p.dospem || d === p.dospem2));
                                                 const isAlreadyAssigned = assignedPembahasList.filter(x => x === value).length >= 2 && pembVal !== value;
 
                                                 return (

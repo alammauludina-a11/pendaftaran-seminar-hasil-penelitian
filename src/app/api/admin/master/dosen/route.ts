@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, account } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -12,20 +12,47 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const dosenData = await db.select().from(users).where(eq(users.role, "dosen"));
+    const dosenData = await db
+      .select({
+         id: users.id,
+         nip: users.nipNim,
+         name: users.nama,
+         prodi: users.prodi,
+         jabatan: users.jabatan,
+         statusDosen: users.statusDosen,
+         username: users.username,
+         accountCreatedAt: account.createdAt,
+         accountUpdatedAt: account.updatedAt,
+      })
+      .from(users)
+      .leftJoin(account, eq(users.id, account.userId))
+      .where(eq(users.role, "dosen"));
 
-    const formattedData = dosenData.map((d) => ({
-      id: d.id,
-      nip: d.nipNim,
-      name: d.nama,
-      prodi: d.prodi || "Informatika",
-      jabatan: d.jabatan || "Dosen",
-      statusDosen: d.statusDosen || "Dosen Tetap",
-      account: d.username ? { username: d.username, password: "password123" } : null,
-    }));
+    const formattedData = dosenData.map((d) => {
+      let isPasswordChanged = false;
+      if (d.accountCreatedAt && d.accountUpdatedAt) {
+        const diff = Math.abs(d.accountUpdatedAt.getTime() - d.accountCreatedAt.getTime());
+        isPasswordChanged = diff > 5000;
+      }
+      
+      return {
+        id: d.id,
+        nip: d.nip,
+        name: d.name,
+        prodi: d.prodi || "Informatika",
+        jabatan: d.jabatan || "Dosen",
+        statusDosen: d.statusDosen || "Dosen Tetap",
+        account: d.username ? { 
+            username: d.username, 
+            password: isPasswordChanged ? null : "password123",
+            isPasswordChanged
+        } : null,
+      };
+    });
 
     return NextResponse.json({ dosen: formattedData }, { status: 200 });
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Failed to fetch data" }, { status: 500 });
   }
 }

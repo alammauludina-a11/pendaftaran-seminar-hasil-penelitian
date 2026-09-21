@@ -89,6 +89,8 @@ export const moderator = sqliteTable("moderator", {
   dosenId: text("dosen_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   dipilihPada: integer("dipilih_pada", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   assignedByRole: text("assigned_by_role", { enum: ["admin", "dosen"] }).notNull().default("dosen"),
+  batalStatus: text("batal_status", { enum: ["menunggu", "disetujui", "ditolak"] }),
+  batalReason: text("batal_reason"),
 });
 
 export const pengumuman = sqliteTable("pengumuman", {
@@ -118,6 +120,7 @@ export const account = sqliteTable("account", {
   idToken: text("id_token"),
   expiresAt: integer("expires_at", { mode: "timestamp" }),
   password: text("password"),
+  plainPassword: text("plain_password"),
   createdAt: integer("created_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });

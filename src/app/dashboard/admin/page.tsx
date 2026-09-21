@@ -10,7 +10,7 @@ import autoTable from 'jspdf-autotable';
 import {
   LogOut, FileCheck, MapPin, Megaphone, CheckCircle2, XCircle, Eye,
   Clock, CheckSquare, X, Search, Filter, Users, Calendar, AlertCircle, Settings,
-  ArrowLeft, Plus, Trash2, LayoutDashboard, Sparkles, Loader2, UserCheck, ChevronUp, ChevronDown, Menu, FileDown
+  ArrowLeft, Plus, Trash2, LayoutDashboard, Sparkles, Loader2, UserCheck, ChevronUp, ChevronDown, Menu, FileDown, Ban
 } from "lucide-react";
 import DashboardAnalisis from "./DashboardAnalisis";
 import AnalisisLog from "./AnalisisLog";
@@ -66,7 +66,7 @@ const mockPendaftaranData = [
   { id: 6, periodeId: 1, name: "Fitriani", nim: "J3C119006", prodi: "Teknik Komputer", dospem: "Dr. Andi Setiawan, M.Kom", title: "Rancang Bangun E-Commerce", status: "disetujui", date: "26 Okt 2026", time: "13:00 - 13:50", room: "Ruang Sidang 2", moderator: "Dr. Budi Haryanto, M.T", note: "", isFinalized: true, isReleased: false, pembahas: "" },
   { id: 7, periodeId: 2, name: "Joko Anwar", nim: "J3C118001", prodi: "Informatika", dospem: "Dr. Budi Haryanto, M.T", title: "Implementasi Sistem Cloud", status: "disetujui", date: "15 Apr 2026", time: "10:00 - 10:50", room: "Ruang Sidang 2", moderator: "Dr. Rina, M.Kom", note: "", isFinalized: true, isReleased: true, pembahas: "" }
 ];
-type Account = { username: string; password: string; } | null;
+type Account = { username: string; password: string | null; isPasswordChanged?: boolean; } | null;
 
 type MahasiswaData = {
   id: string | number;
@@ -681,6 +681,38 @@ export default function AdminDashboard() {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleBatalModerator = async (pendaftaranId: number, action: "setujui" | "tolak") => {
+    try {
+      const res = await fetch(`/api/admin/pendaftaran/${pendaftaranId}/batal-moderator`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (action === "setujui") {
+          // Remove moderator from state
+          setPendaftaran(prev => prev.map(p => p.id === pendaftaranId
+            ? { ...p, moderatorId: null, moderator: null, moderatorAssignedByRole: null, moderatorBatalStatus: null }
+            : p
+          ));
+        } else {
+          // Update batal status to "ditolak"
+          setPendaftaran(prev => prev.map(p => p.id === pendaftaranId
+            ? { ...p, moderatorBatalStatus: "ditolak" }
+            : p
+          ));
+        }
+        alert(data.message);
+      } else {
+        alert(data.error || "Gagal memproses pengajuan.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Terjadi kesalahan.");
     }
   };
 
@@ -1710,11 +1742,12 @@ export default function AdminDashboard() {
                                 </div>
                                 <div className="flex items-center gap-2 text-xs">
                                   <span className="text-slate-500 w-12">Pass:</span>
-                                  {m.account.isPasswordChanged ? (
-                                    <span className="font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Telah Diubah</span>
-                                  ) : (
+                                  <div className="flex items-center gap-2">
                                     <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">{m.account.password}</span>
-                                  )}
+                                    {m.account.isPasswordChanged && (
+                                      <span className="font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Telah Diubah</span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             ) : (
@@ -1772,11 +1805,12 @@ export default function AdminDashboard() {
                                 </div>
                                 <div className="flex items-center gap-2 text-xs">
                                   <span className="text-slate-500 w-12">Pass:</span>
-                                  {d.account.isPasswordChanged ? (
-                                    <span className="font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Telah Diubah</span>
-                                  ) : (
+                                  <div className="flex items-center gap-2">
                                     <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">{d.account.password}</span>
-                                  )}
+                                    {d.account.isPasswordChanged && (
+                                      <span className="font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Telah Diubah</span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             ) : (
@@ -1828,11 +1862,12 @@ export default function AdminDashboard() {
                                 </div>
                                 <div className="flex items-center gap-2 text-xs">
                                   <span className="text-slate-500 w-12">Pass:</span>
-                                  {a.account.isPasswordChanged ? (
-                                    <span className="font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Telah Diubah</span>
-                                  ) : (
+                                  <div className="flex items-center gap-2">
                                     <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">{a.account.password}</span>
-                                  )}
+                                    {a.account.isPasswordChanged && (
+                                      <span className="font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Telah Diubah</span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             ) : (
@@ -2053,6 +2088,11 @@ export default function AdminDashboard() {
                 {filteredPendaftaran.filter(p => p.status === 'disetujui' && p.room && !p.isFinalized).length > 0 && (
                   <span className="ml-1 bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
                     {filteredPendaftaran.filter(p => p.status === 'disetujui' && p.room && !p.isFinalized).length}
+                  </span>
+                )}
+                {filteredPendaftaran.filter(p => (p as any).moderatorBatalStatus === 'menunggu').length > 0 && (
+                  <span className="ml-0.5 bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                    <Ban size={8}/> {filteredPendaftaran.filter(p => (p as any).moderatorBatalStatus === 'menunggu').length}
                   </span>
                 )}
               </button>
@@ -2557,6 +2597,33 @@ export default function AdminDashboard() {
                               {item.moderatorId && (
                                 <div className="text-[10px] text-indigo-500 mt-1 flex items-center gap-1 font-semibold">
                                   <UserCheck size={10} /> Terpilih {item.moderatorAssignedByRole === 'dosen' ? '(Dipilih oleh Dosen)' : '(Dipilih oleh Admin)'}
+                                </div>
+                              )}
+                              {/* Batal Moderator Request */}
+                              {(item as any).moderatorBatalStatus === "menunggu" && (
+                                <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded-xl flex flex-col gap-2">
+                                  <div className="flex items-center gap-1 text-[10px] font-bold text-orange-700">
+                                    <Ban size={10} /> Dosen Ajukan Batal Moderasi
+                                  </div>
+                                  <div className="flex gap-1.5">
+                                    <button
+                                      onClick={() => handleBatalModerator(item.id, "setujui")}
+                                      className="flex-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg transition-colors"
+                                    >
+                                      ✓ Setujui
+                                    </button>
+                                    <button
+                                      onClick={() => handleBatalModerator(item.id, "tolak")}
+                                      className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-lg transition-colors"
+                                    >
+                                      ✗ Tolak
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              {(item as any).moderatorBatalStatus === "ditolak" && (
+                                <div className="mt-1 text-[10px] text-red-500 font-semibold flex items-center gap-1">
+                                  <XCircle size={10} /> Batal ditolak (dosen tetap moderator)
                                 </div>
                               )}
                             </td>

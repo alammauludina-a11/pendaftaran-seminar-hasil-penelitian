@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { authClient, changePassword } from "../../../lib/auth-client";
 import { useSession } from "../../../lib/auth-client";
 import { useState, useEffect } from "react";
-import { Users, Monitor, ShieldCheck, Calendar, ArrowRight, LogOut, CheckCircle2, Clock, MapPin, Search, UserCheck, AlertCircle, Filter, ChevronLeft, ChevronRight, X, BookOpen, Lock, ArrowUpDown } from "lucide-react";
+import { Users, Monitor, ShieldCheck, Calendar, ArrowRight, LogOut, CheckCircle2, Clock, MapPin, Search, UserCheck, AlertCircle, Filter, ChevronLeft, ChevronRight, X, BookOpen, Lock, ArrowUpDown, XCircle, Ban } from "lucide-react";
 
 export default function DosenDashboard() {
    const router = useRouter();
@@ -57,6 +57,12 @@ export default function DosenDashboard() {
          setPasswordStatus("error");
          setPasswordError(res.error.message || "Gagal mengubah password.");
        } else {
+         await fetch("/api/user/save-plain-password", {
+           method: "POST",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({ plainPassword: newPassword }),
+         });
+         
          setPasswordStatus("success");
          setTimeout(() => {
            setShowPasswordModal(false);
@@ -173,6 +179,31 @@ export default function DosenDashboard() {
          alert("Terjadi kesalahan.");
       } finally {
          setIsSubmittingModerasi(false);
+      }
+   };
+
+   const [isBatalLoading, setIsBatalLoading] = useState<Record<string|number, boolean>>({});
+
+   const handleAjukanBatal = async (pendaftaranId: string | number, action: "ajukan" | "batalkan_pengajuan") => {
+      try {
+         setIsBatalLoading(prev => ({ ...prev, [pendaftaranId]: true }));
+         const res = await fetch("/api/dosen/moderator/batal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pendaftaranId, action })
+         });
+         const data = await res.json();
+         if (res.ok) {
+            alert(data.message);
+            fetchModerator(selectedPeriodeId);
+         } else {
+            alert(data.error);
+         }
+      } catch (e) {
+         console.error(e);
+         alert("Terjadi kesalahan.");
+      } finally {
+         setIsBatalLoading(prev => ({ ...prev, [pendaftaranId]: false }));
       }
    };
 
@@ -688,21 +719,62 @@ export default function DosenDashboard() {
                                                       <span className="text-[10px] font-bold bg-[#06125C]/10 text-[#06125C] px-2 py-0.5 rounded-full">{m.time}</span>
                                                       <span className="text-[10px] font-medium flex items-center gap-1 text-slate-500"><MapPin size={10}/> {m.room || "Belum ditentukan"}</span>
                                                       {m.hasModerator && (
-                                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${m.isMyModeration ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
-                                                            {m.isMyModeration ? "Dimoderatori Anda" : "Sudah dipilih"}
-                                                         </span>
+                                                         <>
+                                                           {m.isMyModeration ? (
+                                                             <>
+                                                               {(!m.batalStatus || m.batalStatus === "ditolak") && (
+                                                                 <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                                                   Dimoderatori Anda
+                                                                 </span>
+                                                               )}
+                                                               {m.batalStatus === "menunggu" && (
+                                                                 <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                   <Clock size={9}/> Menunggu Persetujuan
+                                                                 </span>
+                                                               )}
+                                                               {m.batalStatus === "ditolak" && (
+                                                                 <span className="bg-red-100 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                   <XCircle size={9}/> Batal Ditolak
+                                                                 </span>
+                                                               )}
+                                                             </>
+                                                           ) : (
+                                                             <span className="bg-slate-200 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">Sudah dipilih</span>
+                                                           )}
+                                                         </>
                                                       )}
                                                    </div>
                                                 </div>
-                                                {(!m.hasModerator || (m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama)) && (
-                                                   <button
+                                                {/* Action area */}
+                                                <div className="flex flex-col gap-1.5 shrink-0">
+                                                  {(!m.hasModerator || (m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama)) && (
+                                                    <button
                                                       onClick={() => handlePilihModerator(m.pendaftaranId)}
                                                       disabled={isSubmittingModerasi || (m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) || m.hasModerator}
                                                       className={`shrink-0 px-3 py-1.5 rounded-lg font-semibold text-[11px] transition-colors flex items-center justify-center gap-1.5 ${(m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) ? "bg-slate-200 text-slate-400 cursor-not-allowed" : "bg-[#06125C] hover:bg-[#06125C]/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"}`}
-                                                   >
+                                                    >
                                                       <ShieldCheck size={14} /> {(m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) ? "Anda Pembimbing" : isSubmittingModerasi ? "..." : "Pilih"}
-                                                   </button>
-                                                )}
+                                                    </button>
+                                                  )}
+                                                  {m.isMyModeration && (!m.batalStatus || m.batalStatus === "ditolak") && (
+                                                    <button
+                                                      onClick={() => handleAjukanBatal(m.pendaftaranId, "ajukan")}
+                                                      disabled={!!isBatalLoading[m.pendaftaranId]}
+                                                      className="shrink-0 px-3 py-1.5 rounded-lg font-semibold text-[11px] transition-colors flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 shadow-sm disabled:opacity-50"
+                                                    >
+                                                      <Ban size={12} /> {isBatalLoading[m.pendaftaranId] ? "..." : "Ajukan Batal"}
+                                                    </button>
+                                                  )}
+                                                  {m.isMyModeration && m.batalStatus === "menunggu" && (
+                                                    <button
+                                                      onClick={() => handleAjukanBatal(m.pendaftaranId, "batalkan_pengajuan")}
+                                                      disabled={!!isBatalLoading[m.pendaftaranId]}
+                                                      className="shrink-0 px-3 py-1.5 rounded-lg font-semibold text-[11px] transition-colors flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-500 border border-slate-200 shadow-sm disabled:opacity-50"
+                                                    >
+                                                      <X size={12} /> {isBatalLoading[m.pendaftaranId] ? "..." : "Tarik Pengajuan"}
+                                                    </button>
+                                                  )}
+                                                </div>
                                              </li>
                                           ))}
                                        </ul>

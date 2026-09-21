@@ -62,6 +62,7 @@ export async function POST(request: Request) {
       providerId: "credential",
       userId: userRecord.id,
       password: hashedPassword,
+      plainPassword: password,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

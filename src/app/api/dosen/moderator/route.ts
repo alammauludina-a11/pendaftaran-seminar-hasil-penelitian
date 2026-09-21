@@ -57,7 +57,9 @@ export async function GET(request: Request) {
           waktuMulai: slotWaktu.waktuMulai,
           waktuSelesai: slotWaktu.waktuSelesai,
           moderatorId: moderator.dosenId,
+          moderatorRecordId: moderator.id,
           moderatorName: dosenUsers.nama,
+          batalStatus: moderator.batalStatus,
         })
           .from(pendaftaran)
           .leftJoin(users, eq(pendaftaran.userId, users.id))
@@ -170,6 +172,7 @@ export async function GET(request: Request) {
              time: `${startTimeStr} - ${endTimeStr}`,
              isMyModeration: s.moderatorId === currentUserId,
              hasModerator: !!s.moderatorId,
+             batalStatus: s.moderatorId === currentUserId ? s.batalStatus : null,
              isPast: sIsPast,
              isToday: sIsToday,
              isFuture: sIsFuture,

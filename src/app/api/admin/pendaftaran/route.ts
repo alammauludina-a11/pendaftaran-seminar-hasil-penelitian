@@ -29,6 +29,7 @@ export async function GET() {
       moderator: dosenUsers.nama,
       moderatorId: dosenUsers.id,
       moderatorAssignedByRole: moderatorTable.assignedByRole,
+      moderatorBatalStatus: moderatorTable.batalStatus,
       pembahas: pendaftaran.pembahas,
       waktuMulai: slotWaktu.waktuMulai,
       waktuSelesai: slotWaktu.waktuSelesai,

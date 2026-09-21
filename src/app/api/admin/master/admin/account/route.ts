@@ -51,12 +51,14 @@ export async function POST(request: Request) {
     }).where(eq(users.id, id));
 
     // Insert an account row for credential login
+    const userRecord = user;
     await db.insert(account).values({
       id: crypto.randomUUID(),
-      accountId: user.id,
+      accountId: userRecord.id,
       providerId: "credential",
-      userId: user.id,
+      userId: userRecord.id,
       password: hashedPassword,
+      plainPassword: password,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

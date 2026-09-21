@@ -52,6 +52,12 @@ export default function MahasiswaDashboard() {
         setPasswordStatus("error");
         setPasswordError(res.error.message || "Gagal mengubah password.");
       } else {
+        await fetch("/api/user/save-plain-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plainPassword: newPassword }),
+        });
+        
         setPasswordStatus("success");
         setTimeout(() => {
           setShowPasswordModal(false);

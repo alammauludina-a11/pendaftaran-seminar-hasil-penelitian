@@ -19,6 +19,7 @@ export async function GET() {
          username: users.username,
          accountCreatedAt: account.createdAt,
          accountUpdatedAt: account.updatedAt,
+         accountPlainPassword: account.plainPassword,
       })
       .from(users)
       .leftJoin(account, eq(users.id, account.userId))
@@ -36,7 +37,7 @@ export async function GET() {
         name: a.name,
         account: a.username ? { 
             username: a.username, 
-            password: isPasswordChanged ? null : "password123",
+            password: a.accountPlainPassword || "password123",
             isPasswordChanged
         } : null,
       };

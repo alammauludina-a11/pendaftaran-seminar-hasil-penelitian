@@ -756,7 +756,7 @@ export default function DosenDashboard() {
                                                       <ShieldCheck size={14} /> {(m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) ? "Anda Pembimbing" : isSubmittingModerasi ? "..." : "Pilih"}
                                                     </button>
                                                   )}
-                                                  {m.isMyModeration && (!m.batalStatus || m.batalStatus === "ditolak") && (
+                                                  {m.isMyModeration && !m.isPast && (!m.batalStatus || m.batalStatus === "ditolak") && (
                                                     <button
                                                       onClick={() => handleAjukanBatal(m.pendaftaranId, "ajukan")}
                                                       disabled={!!isBatalLoading[m.pendaftaranId]}
@@ -765,7 +765,7 @@ export default function DosenDashboard() {
                                                       <Ban size={12} /> {isBatalLoading[m.pendaftaranId] ? "..." : "Ajukan Batal"}
                                                     </button>
                                                   )}
-                                                  {m.isMyModeration && m.batalStatus === "menunggu" && (
+                                                  {m.isMyModeration && !m.isPast && m.batalStatus === "menunggu" && (
                                                     <button
                                                       onClick={() => handleAjukanBatal(m.pendaftaranId, "batalkan_pengajuan")}
                                                       disabled={!!isBatalLoading[m.pendaftaranId]}

@@ -108,8 +108,16 @@ export default function DosenDashboard() {
    }, [selectedPeriodeId]);
 
    useEffect(() => {
-      fetchAvailableSlots();
-   }, []);
+      if (activePeriode?.startDate) {
+         setCurrentMonth(new Date(activePeriode.startDate));
+      }
+      // Re-fetch available slots whenever activePeriode changes
+      if (activePeriode?.jenisSeminar) {
+         fetchAvailableSlots(activePeriode.jenisSeminar);
+      } else {
+         fetchAvailableSlots();
+      }
+   }, [activePeriode]);
 
    const fetchData = async (periodeId?: string | null, silent = false) => {
       try {
@@ -142,9 +150,12 @@ export default function DosenDashboard() {
       }
    };
 
-   const fetchAvailableSlots = async () => {
+   const fetchAvailableSlots = async (jenisSeminar?: string) => {
       try {
-         const res = await fetch("/api/mahasiswa/slot");
+         const url = jenisSeminar
+            ? `/api/mahasiswa/slot?jenisSeminar=${jenisSeminar}`
+            : "/api/mahasiswa/slot";
+         const res = await fetch(url);
          const data = await res.json();
          setAvailableSlots(data.availableSlots || []);
       } catch (e) {
@@ -152,11 +163,6 @@ export default function DosenDashboard() {
       }
    };
 
-   useEffect(() => {
-      if (activePeriode?.startDate) {
-         setCurrentMonth(new Date(activePeriode.startDate));
-      }
-   }, [activePeriode]);
 
    const handlePilihModerator = async (pendaftaranId: string | number) => {
       try {
@@ -499,10 +505,13 @@ export default function DosenDashboard() {
                               {new Date(selectedDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                            </p>
                            <div className="grid grid-cols-2 gap-2.5">
-                              {availableSlots.filter(s => s.isoDate === selectedDate && s.isEmpty).length > 0 ? (
-                                 availableSlots.filter(s => s.isoDate === selectedDate && s.isEmpty).map(slot => (
-                                    <div key={slot.id} className="bg-white border border-slate-200 text-slate-600 px-2 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center transition-all hover:border-[#06125C] hover:text-[#06125C] hover:shadow-sm hover:bg-slate-50 cursor-default">
-                                       {slot.time}
+                              {availableSlots.filter(s => s.isoDate === selectedDate && (s.isEmpty || s.allHaveClass)).length > 0 ? (
+                                 availableSlots.filter(s => s.isoDate === selectedDate && (s.isEmpty || s.allHaveClass)).map(slot => (
+                                    <div key={slot.id} className="bg-white border border-slate-200 text-slate-600 px-2 py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-0.5 transition-all hover:border-[#06125C] hover:text-[#06125C] hover:shadow-sm hover:bg-slate-50 cursor-default">
+                                       <span>{slot.time}</span>
+                                       {slot.allHaveClass && (
+                                          <span className="text-[9px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">Ada kelas</span>
+                                       )}
                                     </div>
                                  ))
                               ) : (

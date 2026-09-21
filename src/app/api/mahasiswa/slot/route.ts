@@ -82,14 +82,15 @@ export async function GET(request: Request) {
       const regsOnSlot = slotRegMap.get(s.id) || [];
       const isEmpty = regsOnSlot.length === 0;
 
-      // Check 1: Is there a registration on this slot where the class is NOT yet formed?
+      // Only block if there are registrations that don't have a class yet (pending class formation)
+      // If all regs already have a formed class, the slot is still usable (mahasiswa can join the existing class)
       const pendingClassRegs = regsOnSlot.filter(r => r.kelasSeminarId === null || !formedClassIds.has(r.kelasSeminarId!));
-      
-      // Check 2: Does current student's dospem clash with anyone already on this slot?
-      // A clash happens if the student's dospem1 or dospem2 is already acting as dospem1, dospem2, or moderator on that slot.
+      const allHaveClass = regsOnSlot.length > 0 && pendingClassRegs.length === 0;
+
+      // Check dospem clash only among registrations matching current jenisSeminar
       let dospemClash = false;
       if (dospem1Param && regsOnSlot.length > 0) {
-        dospemClash = regsOnSlot.some(r => 
+        dospemClash = regsOnSlot.some(r =>
           (r.dospem1 && (r.dospem1 === dospem1Param || r.dospem1 === dospem2Param)) ||
           (r.dospem2 && (r.dospem2 === dospem1Param || r.dospem2 === dospem2Param)) ||
           (r.moderatorName && (r.moderatorName === dospem1Param || r.moderatorName === dospem2Param))
@@ -100,7 +101,7 @@ export async function GET(request: Request) {
       let blockedReason = "";
 
       if (pendingClassRegs.length > 0) {
-        // Slot sudah terisi, kelas belum terbentuk
+        // Slot has unclassed registrations → blocked, waiting for class to form
         blocked = true;
         blockedReason = "Slot sudah diambil, menunggu Kelas terbentuk";
       } else if (dospemClash) {
@@ -118,6 +119,7 @@ export async function GET(request: Request) {
         blocked,
         blockedReason,
         isEmpty,
+        allHaveClass, // slot has registrations but all have a formed class → usable
       });
     }
 

@@ -268,24 +268,24 @@ export default function DosenDashboard() {
       <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-[#06125C]/20 flex flex-col">
          {/* Navigation */}
          <nav className="w-full z-50 bg-[#06125C] text-white shadow-md sticky top-0">
-            <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-               <div className="flex items-center gap-3">
-                  <div className="h-12 bg-white rounded-lg p-1 shadow-inner flex items-center justify-center">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
+               <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 sm:h-12 sm:w-12 bg-white rounded-lg p-1 shadow-inner flex items-center justify-center shrink-0">
                      <img
                         src="/logo.png"
                         alt="Logo SV IPB"
                         className="h-full w-auto object-contain"
                      />
                   </div>
-                  <span className="font-semibold text-xl tracking-tight hidden sm:block">Seminar Hub - Portal Dosen</span>
-                  <span className="font-semibold text-xl tracking-tight sm:hidden">Portal Dosen</span>
+                  <span className="font-semibold text-lg sm:text-xl tracking-tight hidden md:block whitespace-nowrap">Seminar Hub - Portal Dosen</span>
+                  <span className="font-semibold text-lg sm:text-xl tracking-tight md:hidden whitespace-nowrap truncate">Portal Dosen</span>
                </div>
-               <div className="flex items-center gap-4">
+               <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                   {allPeriode.length > 0 && (
                      <select
                         value={selectedPeriodeId || ""}
                         onChange={(e) => setSelectedPeriodeId(e.target.value)}
-                        className="bg-white/10 text-white text-sm rounded-lg px-3 py-2 outline-none border border-white/20 hover:bg-white/20 transition-colors focus:ring-2 focus:ring-white/50 cursor-pointer hidden md:block"
+                        className="bg-white/10 text-white text-sm rounded-lg px-2 sm:px-3 py-2 outline-none border border-white/20 hover:bg-white/20 transition-colors focus:ring-2 focus:ring-white/50 cursor-pointer hidden md:block max-w-[150px] lg:max-w-xs truncate"
                      >
                         {allPeriode.filter(p => !p.isDraft).map(p => {
                            const sd = p.startDate ? new Date(p.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'short'}) : '';
@@ -300,21 +300,23 @@ export default function DosenDashboard() {
                         })}
                      </select>
                   )}
-                  <div className="hidden md:flex flex-col text-right mr-2">
-                     <span className="text-sm font-semibold">{dosenUser.nama}</span>
-                     <span className="text-xs text-blue-200">NIP: {dosenUser.nip}</span>
+                  <div className="hidden lg:flex flex-col text-right mr-2">
+                     <span className="text-sm font-semibold whitespace-nowrap">{dosenUser.nama}</span>
+                     <span className="text-xs text-blue-200 whitespace-nowrap">NIP: {dosenUser.nip}</span>
                   </div>
-                  <div className="h-10 w-10 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold border-2 border-white">
+                  <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-amber-500 flex items-center justify-center text-white text-sm sm:text-base font-bold border-2 border-white shrink-0">
                      {dosenUser.nama.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                   </div>
-                  <button onClick={() => setShowPasswordModal(true)} className="p-2 hover:bg-white/10 rounded-lg transition-colors ml-2 flex items-center gap-2" title="Ubah Password">
-                     <Lock size={20} className="text-white" />
-                     <span className="hidden sm:inline font-medium">Ubah Password</span>
-                  </button>
-                  <button onClick={handleLogout} className="p-2 hover:bg-white/10 rounded-lg transition-colors ml-2 flex items-center gap-2" title="Keluar">
-                     <LogOut size={20} className="text-red-300" />
-                     <span className="hidden sm:inline font-medium text-red-300">Keluar</span>
-                  </button>
+                  <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-2 border-l border-white/20 pl-2 sm:pl-4">
+                     <button onClick={() => setShowPasswordModal(true)} className="p-2 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2" title="Ubah Password">
+                        <Lock size={18} className="text-white sm:w-5 sm:h-5" />
+                        <span className="hidden lg:inline font-medium whitespace-nowrap">Ubah Password</span>
+                     </button>
+                     <button onClick={handleLogout} className="p-2 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2" title="Keluar">
+                        <LogOut size={18} className="text-red-300 sm:w-5 sm:h-5" />
+                        <span className="hidden lg:inline font-medium text-red-300 whitespace-nowrap">Keluar</span>
+                     </button>
+                  </div>
                </div>
             </div>
          </nav>

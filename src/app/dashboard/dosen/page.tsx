@@ -505,12 +505,14 @@ export default function DosenDashboard() {
                               {new Date(selectedDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                            </p>
                            <div className="grid grid-cols-2 gap-2.5">
-                              {availableSlots.filter(s => s.isoDate === selectedDate && (s.isEmpty || s.allHaveClass)).length > 0 ? (
-                                 availableSlots.filter(s => s.isoDate === selectedDate && (s.isEmpty || s.allHaveClass)).map(slot => (
-                                    <div key={slot.id} className="bg-white border border-slate-200 text-slate-600 px-2 py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-0.5 transition-all hover:border-[#06125C] hover:text-[#06125C] hover:shadow-sm hover:bg-slate-50 cursor-default">
+                              {availableSlots.filter(s => s.isoDate === selectedDate && (s.isEmpty || s.hasPendingClass)).length > 0 ? (
+                                 availableSlots.filter(s => s.isoDate === selectedDate && (s.isEmpty || s.hasPendingClass)).map(slot => (
+                                    <div key={slot.id} className="bg-white border border-slate-200 text-slate-600 px-2 py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-0.5 transition-all hover:border-[#06125C] hover:text-[#06125C] hover:shadow-sm hover:bg-slate-50 cursor-default text-center">
                                        <span>{slot.time}</span>
-                                       {slot.allHaveClass && (
-                                          <span className="text-[9px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">Ada kelas</span>
+                                       {slot.hasPendingClass && (
+                                          <span className="text-[9px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full mt-0.5 leading-tight">
+                                             Slot terambil, menunggu kelas terbentuk
+                                          </span>
                                        )}
                                     </div>
                                  ))

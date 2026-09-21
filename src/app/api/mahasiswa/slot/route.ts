@@ -79,18 +79,20 @@ export async function GET(request: Request) {
       if (uniqueKeys.has(key)) continue;
       uniqueKeys.add(key);
 
-      const regsOnSlot = slotRegMap.get(s.id) || [];
-      const isEmpty = regsOnSlot.length === 0;
+      const allRegsOnSlot = slotRegMap.get(s.id) || [];
+      const currentSeminarRegs = allRegsOnSlot.filter(r => r.jenisSeminar === jenisSeminar);
+      
+      const isEmpty = currentSeminarRegs.length === 0;
 
-      // Only block if there are registrations that don't have a class yet (pending class formation)
-      // If all regs already have a formed class, the slot is still usable (mahasiswa can join the existing class)
-      const pendingClassRegs = regsOnSlot.filter(r => r.kelasSeminarId === null || !formedClassIds.has(r.kelasSeminarId!));
-      const allHaveClass = regsOnSlot.length > 0 && pendingClassRegs.length === 0;
+      // Check pending class formation only for the current seminar type
+      const pendingClassRegs = currentSeminarRegs.filter(r => r.kelasSeminarId === null || !formedClassIds.has(r.kelasSeminarId!));
+      const hasPendingClass = pendingClassRegs.length > 0;
+      const allHaveClass = currentSeminarRegs.length > 0 && pendingClassRegs.length === 0;
 
-      // Check dospem clash only among registrations matching current jenisSeminar
+      // Check dospem clash among ALL registrations (Kolokium & Hasil) because a lecturer can't be in two places at once
       let dospemClash = false;
-      if (dospem1Param && regsOnSlot.length > 0) {
-        dospemClash = regsOnSlot.some(r =>
+      if (dospem1Param && allRegsOnSlot.length > 0) {
+        dospemClash = allRegsOnSlot.some(r =>
           (r.dospem1 && (r.dospem1 === dospem1Param || r.dospem1 === dospem2Param)) ||
           (r.dospem2 && (r.dospem2 === dospem1Param || r.dospem2 === dospem2Param)) ||
           (r.moderatorName && (r.moderatorName === dospem1Param || r.moderatorName === dospem2Param))
@@ -100,8 +102,7 @@ export async function GET(request: Request) {
       let blocked = false;
       let blockedReason = "";
 
-      if (pendingClassRegs.length > 0) {
-        // Slot has unclassed registrations → blocked, waiting for class to form
+      if (hasPendingClass) {
         blocked = true;
         blockedReason = "Slot sudah diambil, menunggu Kelas terbentuk";
       } else if (dospemClash) {
@@ -119,7 +120,8 @@ export async function GET(request: Request) {
         blocked,
         blockedReason,
         isEmpty,
-        allHaveClass, // slot has registrations but all have a formed class → usable
+        allHaveClass,
+        hasPendingClass,
       });
     }
 

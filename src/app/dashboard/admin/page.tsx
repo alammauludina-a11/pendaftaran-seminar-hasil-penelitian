@@ -205,21 +205,44 @@ export default function AdminDashboard() {
   };
 
   const [periodes, setPeriodes] = useState<PeriodeData[]>([]);
-  const [pendaftaran, setPendaftaran] = useState<any[]>([]);
+  const [pendaftaran, setPendaftaranState] = useState<any[]>([]);
   const [kelasData, setKelasData] = useState<any[]>([]);
   const [masterMahasiswa, setMasterMahasiswa] = useState<MahasiswaData[]>([]);
   const [masterDosen, setMasterDosen] = useState<DosenData[]>([]);
   const [masterAdmin, setMasterAdmin] = useState<any[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
-  // Ref to pause polling while a moderator update is in-flight
-  const isPendingModeratorUpdateRef = useRef(false);
+
+  // Guards so background polling never overwrites local (optimistic) edits with stale server data:
+  // - dataVersionRef changes on every local pendaftaran edit and after every write finishes;
+  //   a fetch that started before such a change discards its pendaftaran result.
+  // - pendingWritesRef counts writes still in-flight; polling is skipped while > 0.
+  const dataVersionRef = useRef(0);
+  const pendingWritesRef = useRef(0);
+
+  // Local edits go through this wrapper so in-flight polls know their data is outdated
+  const setPendaftaran: typeof setPendaftaranState = (update) => {
+    dataVersionRef.current++;
+    setPendaftaranState(update);
+  };
+
+  // Wrap a write request (PUT/POST) so polling pauses until it has been saved
+  const trackWrite = async <T,>(request: Promise<T>): Promise<T> => {
+    pendingWritesRef.current++;
+    try {
+      return await request;
+    } finally {
+      pendingWritesRef.current--;
+      dataVersionRef.current++;
+    }
+  };
 
 
 
   const fetchData = async (silent = false) => {
     try {
       if (!silent) setIsLoading(true);
+      const startVersion = dataVersionRef.current;
       // Each request updates its own state as soon as it resolves, so fast data
       // (e.g. the periode list) is not blocked by slower endpoints.
       const load = (url: string, apply: (data: any) => void) =>
@@ -233,7 +256,11 @@ export default function AdminDashboard() {
         load("/api/admin/master/mahasiswa", (d) => setMasterMahasiswa(d.mahasiswa || [])),
         load("/api/admin/master/dosen", (d) => setMasterDosen(d.dosen || [])),
         load("/api/admin/master/admin", (d) => setMasterAdmin(d.admin || [])),
-        load("/api/admin/pendaftaran", (d) => setPendaftaran(d.pendaftaran || [])),
+        load("/api/admin/pendaftaran", (d) => {
+          // Skip stale data if the admin edited something (or a write was in-flight) while this request ran
+          if (dataVersionRef.current !== startVersion || pendingWritesRef.current > 0) return;
+          setPendaftaranState(d.pendaftaran || []);
+        }),
         load("/api/admin/kelas", (d) => setKelasData(d.kelas || [])),
       ]);
     } catch (e) {
@@ -259,7 +286,7 @@ export default function AdminDashboard() {
     fetchData();
     const interval = setInterval(() => {
       // Pause polling if the user is in the settings view or a moderator update is in-flight
-      if (currentViewRef.current !== "pengaturan" && !isPendingModeratorUpdateRef.current) {
+      if (currentViewRef.current !== "pengaturan" && pendingWritesRef.current === 0) {
         fetchData(true);
       }
     }, 30000);
@@ -530,11 +557,11 @@ export default function AdminDashboard() {
     // DB Update
     try {
       for (const assignment of newAssignments) {
-        await fetch(`/api/admin/pendaftaran/${assignment.id}/pembahas`, {
+        await trackWrite(fetch(`/api/admin/pendaftaran/${assignment.id}/pembahas`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ pembahas: assignment.pembahas }),
-        });
+        }));
       }
     } catch (e) {
       console.error("Gagal generate pembahas:", e);
@@ -2548,19 +2575,17 @@ export default function AdminDashboard() {
                                   // d.id may be a number, stringify both sides to be safe
                                   const selectedDosen = masterDosen.find(d => String(d.id) === String(dosenId));
 
-                                  // Block polling while this update is in-flight so the optimistic update isn't overwritten
-                                  isPendingModeratorUpdateRef.current = true;
-
                                   // Optimistic update
                                   setPendaftaran(prev => prev.map(p => p.id === item.id ? { ...p, moderatorId: dosenId, moderator: selectedDosen ? selectedDosen.name : null, moderatorAssignedByRole: 'admin' } : p));
 
                                   // DB Update
                                   try {
-                                    const res = await fetch(`/api/admin/pendaftaran/${item.id}/moderator`, {
+                                    // trackWrite pauses polling until saved so the optimistic update isn't overwritten
+                                    const res = await trackWrite(fetch(`/api/admin/pendaftaran/${item.id}/moderator`, {
                                       method: "PUT",
                                       headers: { "Content-Type": "application/json" },
                                       body: JSON.stringify({ dosenId })
-                                    });
+                                    }));
                                     if (!res.ok) {
                                       const errData = await res.json();
                                       // Rollback on error
@@ -2571,9 +2596,6 @@ export default function AdminDashboard() {
                                     console.error("Gagal menyimpan moderator:", err);
                                     // Rollback on network error
                                     setPendaftaran(prev => prev.map(p => p.id === item.id ? { ...p, moderatorId: item.moderatorId, moderator: item.moderator, moderatorAssignedByRole: item.moderatorAssignedByRole } : p));
-                                  } finally {
-                                    // Allow polling again after the API call completes
-                                    isPendingModeratorUpdateRef.current = false;
                                   }
                                 }}
                                 className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#06125C]/20 w-full font-medium text-[#06125C]"
@@ -2792,11 +2814,11 @@ export default function AdminDashboard() {
                                                 
                                                 // Persist to DB
                                                 try {
-                                                  await fetch(`/api/admin/pendaftaran/${p.id}/pembahas`, {
+                                                  await trackWrite(fetch(`/api/admin/pendaftaran/${p.id}/pembahas`, {
                                                     method: "PUT",
                                                     headers: { "Content-Type": "application/json" },
                                                     body: JSON.stringify({ pembahas: newPembahasStr }),
-                                                  });
+                                                  }));
                                                 } catch (err) {
                                                   console.error("Gagal menyimpan pembahas:", err);
                                                 }
@@ -2824,11 +2846,11 @@ export default function AdminDashboard() {
                                                   const newPembahasStr = newArr.filter(Boolean).join(',');
                                                   setPendaftaran(prev => prev.map(item => item.id === p.id ? { ...item, pembahas: newPembahasStr } : item));
                                                   try {
-                                                    await fetch(`/api/admin/pendaftaran/${p.id}/pembahas`, {
+                                                    await trackWrite(fetch(`/api/admin/pendaftaran/${p.id}/pembahas`, {
                                                       method: "PUT",
                                                       headers: { "Content-Type": "application/json" },
                                                       body: JSON.stringify({ pembahas: newPembahasStr }),
-                                                    });
+                                                    }));
                                                   } catch (err) {
                                                     console.error("Gagal menyimpan pembahas:", err);
                                                   }
@@ -2847,11 +2869,11 @@ export default function AdminDashboard() {
                                               const newPembahasStr = [...currentPembahas, ""].join(',');
                                               setPendaftaran(prev => prev.map(item => item.id === p.id ? { ...item, pembahas: newPembahasStr } : item));
                                               try {
-                                                await fetch(`/api/admin/pendaftaran/${p.id}/pembahas`, {
+                                                await trackWrite(fetch(`/api/admin/pendaftaran/${p.id}/pembahas`, {
                                                   method: "PUT",
                                                   headers: { "Content-Type": "application/json" },
                                                   body: JSON.stringify({ pembahas: newPembahasStr }),
-                                                });
+                                                }));
                                               } catch (err) {
                                                 console.error("Gagal menyimpan pembahas:", err);
                                               }

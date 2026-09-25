@@ -303,7 +303,7 @@ export default function AdminDashboard() {
   const [globalKelasFilter, setGlobalKelasFilter] = useState("Semua Kelas");
   const [selectedDateFilter, setSelectedDateFilter] = useState("Semua Tanggal");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [verifikasiSort, setVerifikasiSort] = useState<{ key: 'name' | 'kelas' | 'dospem' | 'title' | 'date', order: 'asc' | 'desc' } | null>(null);
+  const [verifikasiSort, setVerifikasiSort] = useState<{ key: 'name' | 'kelas' | 'dospem' | 'title' | 'konsentrasi' | 'date', order: 'asc' | 'desc' } | null>(null);
   const [manajemenKelasFilter, setManajemenKelasFilter] = useState("Semua Kelas");
   const [manajemenKelasSort, setManajemenKelasSort] = useState<{ key: 'name' | 'nim', order: 'asc' | 'desc' } | null>(null);
 
@@ -529,6 +529,24 @@ export default function AdminDashboard() {
     }
   };
 
+  // Save a manually edited pembahas; on failure reload the real data so the screen never shows unsaved values
+  const savePembahas = async (pendaftaranId: number, pembahasStr: string) => {
+    try {
+      const res = await trackWrite(fetch(`/api/admin/pendaftaran/${pendaftaranId}/pembahas`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pembahas: pembahasStr }),
+      }));
+      if (res.ok) return;
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Pembahas gagal disimpan. Silakan coba lagi.");
+    } catch (err) {
+      console.error("Gagal menyimpan pembahas:", err);
+      alert("Pembahas gagal disimpan. Periksa koneksi lalu coba lagi.");
+    }
+    fetchData(true);
+  };
+
   const handleGeneratePembahas = async (classStudents: any[]) => {
     // Sort to group by dospem, maximizing distance between same dospem
     const sortedStudents = [...classStudents].sort((a, b) => (a.dospem || "").localeCompare(b.dospem || ""));
@@ -545,6 +563,14 @@ export default function AdminDashboard() {
       }
     }
 
+    if (newAssignments.length === 0) {
+      alert("Pembahas tidak dapat dibuat: kelas ini membutuhkan minimal 2 mahasiswa.");
+      return;
+    }
+
+    // Remember the current values so the optimistic update can be rolled back on failure
+    const previous = new Map(classStudents.map(s => [s.id, s.pembahas]));
+
     // Optimistic update
     setPendaftaran(prev => {
       let next = [...prev];
@@ -554,18 +580,21 @@ export default function AdminDashboard() {
       return next;
     });
 
-    // DB Update
+    // DB Update: the whole class is saved in one atomic request (all or nothing)
     try {
-      for (const assignment of newAssignments) {
-        await trackWrite(fetch(`/api/admin/pendaftaran/${assignment.id}/pembahas`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pembahas: assignment.pembahas }),
-        }));
+      const res = await trackWrite(fetch(`/api/admin/pendaftaran/pembahas-batch`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignments: newAssignments }),
+      }));
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
       }
     } catch (e) {
       console.error("Gagal generate pembahas:", e);
-      alert("Sebagian atau seluruh data gagal disimpan ke server");
+      setPendaftaran(prev => prev.map(p => previous.has(p.id) ? { ...p, pembahas: previous.get(p.id) } : p));
+      alert(`Pembahas gagal disimpan, tidak ada data yang berubah. Silakan coba lagi.\n${e instanceof Error ? e.message : ""}`);
     }
   };
 
@@ -2413,11 +2442,12 @@ export default function AdminDashboard() {
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                         <tr>
                           {([
-                            { label: "Mahasiswa", key: "name", width: "w-[15%]" },
-                            { label: "Kelas", key: "kelas", width: "w-[8%] whitespace-nowrap" },
-                            { label: "Dosen Pembimbing", key: "dospem", width: "w-[18%]" },
-                            { label: "Judul Penelitian", key: "title", width: "w-[22%]" },
-                            { label: "Jadwal Diajukan", key: "date", width: "w-[12%] whitespace-nowrap" }
+                            { label: "Mahasiswa", key: "name", width: "w-[14%]" },
+                            { label: "Kelas", key: "kelas", width: "w-[7%] whitespace-nowrap" },
+                            { label: "Dosen Pembimbing", key: "dospem", width: "w-[15%]" },
+                            { label: "Judul Penelitian", key: "title", width: "w-[20%]" },
+                            { label: "Konsentrasi", key: "konsentrasi", width: "w-[11%]" },
+                            { label: "Jadwal Diajukan", key: "date", width: "w-[11%] whitespace-nowrap" }
                           ] as const).map(col => (
                             <th key={col.key} className={`px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors ${col.width}`} onClick={() => {
                               if (verifikasiSort?.key === col.key) {
@@ -2435,8 +2465,8 @@ export default function AdminDashboard() {
                               </div>
                             </th>
                           ))}
-                          <th className="px-4 py-3 w-[12%]">Ruangan</th>
-                          <th className="px-4 py-3 text-center w-[8%]">Status</th>
+                          <th className="px-4 py-3 w-[10%]">Ruangan</th>
+                          <th className="px-4 py-3 text-center w-[7%]">Status</th>
                           <th className="px-4 py-3 text-center w-[5%]">Aksi</th>
                         </tr>
                       </thead>
@@ -2457,7 +2487,16 @@ export default function AdminDashboard() {
                               </div>
                             </td>
                             <td className="px-4 py-4 max-w-[250px]">
-                              <div className="truncate font-medium text-slate-800" title={item.title}>{item.title}</div>
+                              <div className="line-clamp-2 font-medium text-slate-800" title={item.title}>{item.title}</div>
+                            </td>
+                            <td className="px-4 py-4">
+                              {item.konsentrasi ? (
+                                <span className="inline-block bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-medium px-2 py-1 rounded-md leading-snug">
+                                  {item.konsentrasi}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-xs">-</span>
+                              )}
                             </td>
                             <td className="px-4 py-4 text-slate-600 whitespace-nowrap">
                               <div className="flex items-center gap-1.5"><Calendar size={14} /> {item.date}</div>
@@ -2814,11 +2853,7 @@ export default function AdminDashboard() {
                                                 
                                                 // Persist to DB
                                                 try {
-                                                  await trackWrite(fetch(`/api/admin/pendaftaran/${p.id}/pembahas`, {
-                                                    method: "PUT",
-                                                    headers: { "Content-Type": "application/json" },
-                                                    body: JSON.stringify({ pembahas: newPembahasStr }),
-                                                  }));
+                                                  await savePembahas(p.id, newPembahasStr);
                                                 } catch (err) {
                                                   console.error("Gagal menyimpan pembahas:", err);
                                                 }
@@ -2846,11 +2881,7 @@ export default function AdminDashboard() {
                                                   const newPembahasStr = newArr.filter(Boolean).join(',');
                                                   setPendaftaran(prev => prev.map(item => item.id === p.id ? { ...item, pembahas: newPembahasStr } : item));
                                                   try {
-                                                    await trackWrite(fetch(`/api/admin/pendaftaran/${p.id}/pembahas`, {
-                                                      method: "PUT",
-                                                      headers: { "Content-Type": "application/json" },
-                                                      body: JSON.stringify({ pembahas: newPembahasStr }),
-                                                    }));
+                                                    await savePembahas(p.id, newPembahasStr);
                                                   } catch (err) {
                                                     console.error("Gagal menyimpan pembahas:", err);
                                                   }
@@ -2869,11 +2900,7 @@ export default function AdminDashboard() {
                                               const newPembahasStr = [...currentPembahas, ""].join(',');
                                               setPendaftaran(prev => prev.map(item => item.id === p.id ? { ...item, pembahas: newPembahasStr } : item));
                                               try {
-                                                await trackWrite(fetch(`/api/admin/pendaftaran/${p.id}/pembahas`, {
-                                                  method: "PUT",
-                                                  headers: { "Content-Type": "application/json" },
-                                                  body: JSON.stringify({ pembahas: newPembahasStr }),
-                                                }));
+                                                await savePembahas(p.id, newPembahasStr);
                                               } catch (err) {
                                                 console.error("Gagal menyimpan pembahas:", err);
                                               }

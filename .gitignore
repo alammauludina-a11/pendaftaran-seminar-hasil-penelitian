@@ -42,3 +42,6 @@ next-env.d.ts
 
 sqlite.db
 public/uploads/
+
+# local database backups (contain student documents)
+/backups/

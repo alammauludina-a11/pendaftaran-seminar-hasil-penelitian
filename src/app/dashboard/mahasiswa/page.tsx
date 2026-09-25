@@ -163,13 +163,14 @@ export default function MahasiswaDashboard() {
     }
   }, [sessionData]);
 
-  // Auto-refresh slot availability every 15 seconds when on pengajuan tab
+  // Auto-refresh slot availability every 10s when on pengajuan tab
+  // (kept short so students competing for slots see near-real-time availability)
   useEffect(() => {
     if (activeTab !== "pengajuan" || pendaftaranStatus !== null) return;
     
     const interval = setInterval(() => {
       fetchRuanganData();
-    }, 30000);
+    }, 10000);
     
     return () => clearInterval(interval);
   }, [activeTab, pendaftaranStatus]);

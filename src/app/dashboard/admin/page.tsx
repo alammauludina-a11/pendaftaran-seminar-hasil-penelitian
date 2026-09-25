@@ -304,6 +304,7 @@ export default function AdminDashboard() {
   const [globalKelasFilter, setGlobalKelasFilter] = useState("Semua Kelas");
   const [selectedDateFilter, setSelectedDateFilter] = useState("Semua Tanggal");
   const [selectedKonsentrasiFilter, setSelectedKonsentrasiFilter] = useState("Semua Konsentrasi");
+  const [pengumumanSort, setPengumumanSort] = useState<{ key: 'name' | 'kelas' | 'dospem' | 'waktu' | 'moderator' | 'pembahas' | 'status', order: 'asc' | 'desc' }>({ key: 'waktu', order: 'asc' });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [verifikasiSort, setVerifikasiSort] = useState<{ key: 'name' | 'kelas' | 'dospem' | 'title' | 'konsentrasi' | 'date', order: 'asc' | 'desc' } | null>(null);
   const [manajemenKelasFilter, setManajemenKelasFilter] = useState("Semua Kelas");
@@ -784,6 +785,23 @@ export default function AdminDashboard() {
     ? finalizedList
     : finalizedList.filter(p => p.date === selectedDateFilter);
 
+  // Table order for the Pengumuman tab (click a column header to sort)
+  const getPengumumanStatus = (p: any) => {
+    if (!p.isReleased) return 'Draft';
+    return p.waktuMulai && new Date(p.waktuMulai) < new Date() ? 'Selesai' : 'Dirilis';
+  };
+  const sortedPengumuman = [...displayFinalized].sort((a: any, b: any) => {
+    const { key, order } = pengumumanSort;
+    const dir = order === 'asc' ? 1 : -1;
+    if (key === 'waktu') {
+      return (new Date(a.waktuMulai || 0).getTime() - new Date(b.waktuMulai || 0).getTime()) * dir;
+    }
+    const value = (p: any) => key === 'status' ? getPengumumanStatus(p) : (p[key] || '');
+    const cmp = String(value(a)).localeCompare(String(value(b)), 'id', { numeric: true, sensitivity: 'base' });
+    // Ties fall back to schedule time so the list stays in a predictable order
+    return cmp !== 0 ? cmp * dir : new Date(a.waktuMulai || 0).getTime() - new Date(b.waktuMulai || 0).getTime();
+  });
+
   const getSortedDisplayFinalized = () => {
     return [...displayFinalized].sort((a: any, b: any) => {
       const timeA = new Date(a.waktuMulai || 0).getTime();
@@ -835,7 +853,7 @@ export default function AdminDashboard() {
     const title = `Pengumuman Jadwal ${jenisText} AKN ${angkatanStr} Kelas ${kelasStr} Tanggal ${dateStr}`;
     const filename = `Pengumuman_Jadwal_${jenisText.replace(/ /g, '_')}_AKN_${angkatanStr}_Kelas_${kelasStr.replace(/, /g, '_').replace(/ dan /g, '_')}_Tanggal_${dateStr.replace(/ /g, '_')}`;
 
-    return { title, filename };
+    return { title, filename, jenisText, angkatanStr, kelasStr, dateStr };
   };
 
   const handleExportExcel = () => {
@@ -859,29 +877,69 @@ export default function AdminDashboard() {
 
   const handleExportPDF = () => {
     const sortedData = getSortedDisplayFinalized();
-    const { title, filename } = getExportTitleAndFilename(sortedData);
-    
-    const doc = new jsPDF('landscape');
+    const { filename, jenisText, angkatanStr, kelasStr, dateStr } = getExportTitleAndFilename(sortedData);
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
-    doc.text(title, pageWidth / 2, 15, { align: 'center' });
-    
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const navy: [number, number, number] = [6, 18, 92];
+
+    // Title block
+    const angkatanText = angkatanStr.toUpperCase().includes('AKN') ? angkatanStr : `AKN ${angkatanStr}`.trim();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(...navy);
+    doc.text(`PENGUMUMAN JADWAL ${jenisText.toUpperCase()}`, pageWidth / 2, 15, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`${angkatanText}  |  Kelas ${kelasStr}`, pageWidth / 2, 21, { align: 'center' });
+    doc.text(`Tanggal: ${dateStr}`, pageWidth / 2, 26, { align: 'center' });
+    doc.setDrawColor(...navy);
+    doc.setLineWidth(0.6);
+    doc.line(margin, 30, pageWidth - margin, 30);
+
     autoTable(doc, {
-      startY: 20,
-      head: [['Mahasiswa', 'Kelas', 'Dospem', 'Waktu', 'Ruangan', 'Moderator', 'Pembahas']],
-      body: sortedData.map((item: any) => [
+      startY: 34,
+      margin: { left: margin, right: margin, bottom: 16 },
+      theme: 'grid',
+      head: [['No', 'Mahasiswa', 'Judul Penelitian', 'Kelas', 'Dosen Pembimbing', 'Waktu & Ruangan', 'Moderator', 'Pembahas']],
+      body: sortedData.map((item: any, idx: number) => [
+        idx + 1,
         `${item.name}\n${item.nim}`,
-        item.kelas || '-',
+        item.title || '-',
+        item.kelas ? `Kelas ${item.kelas.replace('Kelas ', '')}` : '-',
         item.dospem2 ? `1. ${item.dospem}\n2. ${item.dospem2}` : (item.dospem || '-'),
-        `${item.date}\n${item.time}`,
-        item.room || '-',
+        `${item.date}\n${item.time}\n${item.room || '-'}`,
         item.moderator || '-',
-        item.pembahas ? item.pembahas.replace(/,/g, '\n') : '-'
+        item.pembahas ? item.pembahas.split(',').map((p: string) => p.trim()).filter(Boolean).join('\n') : '-'
       ]),
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [6, 18, 92] }
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 2, valign: 'top', overflow: 'linebreak', lineColor: [203, 213, 225], lineWidth: 0.2, textColor: [30, 41, 59] },
+      headStyles: { fillColor: navy, textColor: 255, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 9, halign: 'center' },
+        1: { cellWidth: 38 },
+        2: { cellWidth: 62 },
+        3: { cellWidth: 16, halign: 'center' },
+        4: { cellWidth: 40 },
+        5: { cellWidth: 32 },
+        6: { cellWidth: 34 },
+        7: { cellWidth: 42 },
+      },
+      didDrawPage: () => {
+        // Footer on every page: print date + page number
+        const printed = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        doc.text(`Dicetak: ${printed}`, margin, pageHeight - 8);
+        doc.text(`Halaman ${doc.getCurrentPageInfo().pageNumber}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
+      },
     });
-    
-    doc.save("Pengumuman_Jadwal.pdf");
+
+    doc.save(`${filename}.pdf`);
   };
 
   const handleExportKelasPDF = () => {
@@ -2987,18 +3045,37 @@ export default function AdminDashboard() {
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-sm text-slate-500">
-                          <th className="p-4 font-semibold w-[16%]">Mahasiswa</th>
-                          <th className="p-4 font-semibold w-[8%] whitespace-nowrap">Kelas</th>
-                          <th className="p-4 font-semibold w-[13%] whitespace-nowrap">Dosen Pembimbing</th>
-                          <th className="p-4 font-semibold w-[22%] whitespace-nowrap">Waktu & Ruangan</th>
-                          <th className="p-4 font-semibold w-[13%] whitespace-nowrap">Moderator</th>
-                          <th className="p-4 font-semibold w-[13%]">Pembahas</th>
-                          <th className="p-4 font-semibold w-[9%]">Status</th>
-                          <th className="p-4 font-semibold text-center w-[6%]">Aksi</th>
+                          {([
+                            { label: "Mahasiswa", key: "name", width: "w-[22%]" },
+                            { label: "Kelas", key: "kelas", width: "w-px whitespace-nowrap" },
+                            { label: "Dosen Pembimbing", key: "dospem", width: "w-[17%]" },
+                            { label: "Waktu & Ruangan", key: "waktu", width: "w-[14%]" },
+                            { label: "Moderator", key: "moderator", width: "w-[13%]" },
+                            { label: "Pembahas", key: "pembahas", width: "w-[17%]" },
+                            { label: "Status", key: "status", width: "w-px whitespace-nowrap" }
+                          ] as const).map(col => (
+                            <th
+                              key={col.key}
+                              className={`px-3 py-3 font-semibold cursor-pointer select-none hover:bg-slate-100 transition-colors ${col.width}`}
+                              onClick={() => setPengumumanSort(prev => ({
+                                key: col.key,
+                                order: prev.key === col.key && prev.order === 'asc' ? 'desc' : 'asc'
+                              }))}
+                            >
+                              <div className="flex items-center gap-1">
+                                {col.label}
+                                <div className="flex flex-col opacity-50">
+                                  <ChevronUp size={10} className={pengumumanSort.key === col.key && pengumumanSort.order === 'asc' ? 'text-indigo-600 opacity-100' : ''} />
+                                  <ChevronDown size={10} className={pengumumanSort.key === col.key && pengumumanSort.order === 'desc' ? 'text-indigo-600 opacity-100' : '-mt-1'} />
+                                </div>
+                              </div>
+                            </th>
+                          ))}
+                          <th className="px-3 py-3 font-semibold text-center w-px whitespace-nowrap">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="text-sm">
-                        {displayFinalized.map((item, index, arr) => {
+                        {sortedPengumuman.map((item, index, arr) => {
                           const isReady = item.room && item.moderator;
                           const isJugaPembahas = pendaftaran.some(p => p.pembahas && p.pembahas.includes(`${item.name} (${item.nim})`));
                           const isFinished = item.waktuMulai ? new Date(item.waktuMulai) < new Date() : false;
@@ -3007,7 +3084,7 @@ export default function AdminDashboard() {
                               key={item.id}
                               className={`border-b border-slate-100 transition-colors hover:bg-slate-50/50 ${index === arr.length - 1 ? 'border-b-0' : ''}`}
                             >
-                              <td className="p-4">
+                              <td className="px-3 py-4">
                                 <div className="font-bold text-[#06125C] flex flex-col gap-1 items-start">
                                   {item.name}
                                   {isJugaPembahas && (
@@ -3017,32 +3094,33 @@ export default function AdminDashboard() {
                                   )}
                                 </div>
                                 <div className="text-xs text-slate-500 mt-1">{item.nim}</div>
-                                <div className="text-xs text-slate-500 mt-1">Judul: <span className="italic">{item.title}</span></div>
+                                <div className="text-xs text-slate-500 mt-1 line-clamp-2 leading-snug" title={item.title}>Judul: <span className="italic">{item.title}</span></div>
                               </td>
-                              <td className="p-4 text-slate-700 font-medium">
+                              <td className="px-3 py-4 text-slate-700 font-medium whitespace-nowrap">
                                 {item.kelas ? `Kelas ${item.kelas.replace('Kelas ', '')}` : '-'}
                               </td>
-                              <td className="p-4 text-slate-700 font-medium text-sm">
+                              <td className="px-3 py-4 text-slate-700 font-medium text-sm">
                                 <div className="flex flex-col gap-1">
                                   <span>1. {item.dospem}</span>
                                   {item.dospem2 && <span>2. {item.dospem2}</span>}
                                 </div>
                               </td>
-                              <td className="p-4">
-                                <div className="text-sm font-medium text-slate-800">{item.date} • {item.time}</div>
+                              <td className="px-3 py-4">
+                                <div className="text-sm font-medium text-slate-800 whitespace-nowrap">{item.date}</div>
+                                <div className="text-xs text-slate-600 mt-0.5 whitespace-nowrap"><Clock size={12} className="inline mr-1 text-slate-400" />{item.time}</div>
                                 <div className="text-xs text-slate-500 mt-0.5"><MapPin size={12} className="inline mr-1 text-amber-500" />{item.room}</div>
                               </td>
-                              <td className="p-4 text-slate-700 font-medium">
+                              <td className="px-3 py-4 text-slate-700 font-medium">
                                 {item.moderator ? item.moderator : <span className="italic text-slate-500">Menunggu Dosen</span>}
                               </td>
-                              <td className="p-4 text-slate-700 font-medium">
+                              <td className="px-3 py-4 text-slate-700 font-medium">
                                 {item.pembahas ? item.pembahas.split(',').map((pStr: string, idx: number) => (
-                                  <span key={idx} className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap block mb-1">
+                                  <span key={idx} className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-xs font-medium leading-snug block mb-1 last:mb-0">
                                     {pStr}
                                   </span>
                                 )) : <span className="italic text-slate-500">Belum ada</span>}
                               </td>
-                              <td className="p-4">
+                              <td className="px-3 py-4 whitespace-nowrap">
                                 {item.isReleased ? (
                                   isFinished ? (
                                     <span className="bg-indigo-100 text-indigo-700 text-[11px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider">
@@ -3059,7 +3137,7 @@ export default function AdminDashboard() {
                                   </span>
                                 )}
                               </td>
-                              <td className="p-4 text-center">
+                              <td className="px-3 py-4 text-center whitespace-nowrap">
                                 <button
                                   onClick={() => handleBatalRilis(item.id)}
                                   className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors"
@@ -3072,7 +3150,7 @@ export default function AdminDashboard() {
                         })}
                         {displayFinalized.length === 0 && (
                           <tr>
-                            <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                            <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                               Tidak ada jadwal yang sesuai dengan filter.
                             </td>
                           </tr>

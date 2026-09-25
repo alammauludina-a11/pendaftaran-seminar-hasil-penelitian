@@ -268,7 +268,7 @@ export default function AdminDashboard() {
       if (currentViewRef.current !== "pengaturan" && !isPendingModeratorUpdateRef.current) {
         fetchData(true);
       }
-    }, 5000);
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 

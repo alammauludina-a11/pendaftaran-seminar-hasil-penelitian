@@ -102,7 +102,7 @@ export default function DosenDashboard() {
       const interval = setInterval(() => {
          fetchData(selectedPeriodeId, true);
          fetchModerator(selectedPeriodeId);
-      }, 5000);
+      }, 30000);
 
       return () => clearInterval(interval);
    }, [selectedPeriodeId]);

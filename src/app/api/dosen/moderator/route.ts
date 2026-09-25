@@ -41,162 +41,162 @@ export async function GET(request: Request) {
 
     const allKelas = await db.select().from(kelasSeminar).where(eq(kelasSeminar.periodeId, activePeriodeData.id));
 
-    // Build details for all classes
-    const classesDetails = await Promise.all(
-      allKelas.map(async (k) => {
-        let slotDetail: any = null;
-        
-        const studentsData = await db.select({
-          pendaftaranId: pendaftaran.id,
-          nama: users.nama,
-          nim: users.nipNim,
-          judul: pendaftaran.judulPenelitian,
-          dospem: pendaftaran.dospem1,
-          dospem2: pendaftaran.dospem2,
-          room: pendaftaran.ruanganDisetujui,
-          waktuMulai: slotWaktu.waktuMulai,
-          waktuSelesai: slotWaktu.waktuSelesai,
-          moderatorId: moderator.dosenId,
-          moderatorRecordId: moderator.id,
-          moderatorName: dosenUsers.nama,
-          batalStatus: moderator.batalStatus,
-        })
-          .from(pendaftaran)
-          .leftJoin(users, eq(pendaftaran.userId, users.id))
-          .leftJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
-          .leftJoin(moderator, eq(pendaftaran.id, moderator.pendaftaranId))
-          .leftJoin(dosenUsers, eq(moderator.dosenId, dosenUsers.id))
-          .where(
-            and(
-              eq(pendaftaran.kelasSeminarId, k.id),
-              eq(pendaftaran.statusVerifikasi, "disetujui")
-            )
-          );
+    // Batch query: fetch all students for all classes in one go (eliminates N+1)
+    const allStudentsData = await db.select({
+      kelasSeminarId: pendaftaran.kelasSeminarId,
+      pendaftaranId: pendaftaran.id,
+      nama: users.nama,
+      nim: users.nipNim,
+      judul: pendaftaran.judulPenelitian,
+      dospem: pendaftaran.dospem1,
+      dospem2: pendaftaran.dospem2,
+      room: pendaftaran.ruanganDisetujui,
+      waktuMulai: slotWaktu.waktuMulai,
+      waktuSelesai: slotWaktu.waktuSelesai,
+      moderatorId: moderator.dosenId,
+      moderatorRecordId: moderator.id,
+      moderatorName: dosenUsers.nama,
+      batalStatus: moderator.batalStatus,
+    })
+      .from(pendaftaran)
+      .leftJoin(users, eq(pendaftaran.userId, users.id))
+      .leftJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
+      .leftJoin(moderator, eq(pendaftaran.id, moderator.pendaftaranId))
+      .leftJoin(dosenUsers, eq(moderator.dosenId, dosenUsers.id))
+      .where(eq(pendaftaran.statusVerifikasi, "disetujui"));
 
-        const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
-        let isPast = false;
-        let isToday = false;
-        let isFuture = false;
-        
-        if (studentsData.length > 0) {
-          const sortedStudents = [...studentsData].sort((a, b) => {
-            const timeA = a.waktuMulai ? new Date(a.waktuMulai).getTime() : 0;
-            const timeB = b.waktuMulai ? new Date(b.waktuMulai).getTime() : 0;
-            return timeA - timeB;
-          });
-          const startD = new Date(sortedStudents[0].waktuMulai!);
-          const endD = new Date(sortedStudents[sortedStudents.length - 1].waktuSelesai!);
-          
-          const startDateStr = `${startD.getDate().toString().padStart(2, '0')} ${months[startD.getMonth()]} ${startD.getFullYear()}`;
-          const endDateStr = `${endD.getDate().toString().padStart(2, '0')} ${months[endD.getMonth()]} ${endD.getFullYear()}`;
-          const dateStr = startDateStr === endDateStr ? startDateStr : `${startDateStr} - ${endDateStr}`;
+    // Group students by kelasSeminarId
+    const studentsByClass = new Map<number, typeof allStudentsData>();
+    for (const s of allStudentsData) {
+      if (!s.kelasSeminarId) continue;
+      if (!studentsByClass.has(s.kelasSeminarId)) studentsByClass.set(s.kelasSeminarId, []);
+      studentsByClass.get(s.kelasSeminarId)!.push(s);
+    }
 
-          const timeFormatter = new Intl.DateTimeFormat('id-ID', {
-            timeZone: 'Asia/Jakarta',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-          });
-          const minTime = timeFormatter.format(startD).replace('.', ':');
-          const maxTime = timeFormatter.format(endD).replace('.', ':');
+    const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-          const isoDates = Array.from(new Set(sortedStudents.map(s => {
-             const d = new Date(s.waktuMulai!);
-             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          })));
-          
-          const now = new Date();
-          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const startOfClass = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate());
-          const endOfClass = new Date(endD.getFullYear(), endD.getMonth(), endD.getDate());
+    const classesDetails = allKelas.map((k) => {
+      const studentsData = studentsByClass.get(k.id) || [];
 
-          if (now.getTime() > endD.getTime()) {
-            isPast = true;
-          } else if (startOfClass.getTime() === startOfToday.getTime()) {
-            isToday = true;
-          } else {
-            isFuture = true;
-          }
+      let slotDetail: any = null;
+      let isPast = false;
+      let isToday = false;
+      let isFuture = false;
 
-          slotDetail = {
-            date: dateStr,
-            fullDate: dateStr,
-            time: `${minTime} - ${maxTime}`,
-            dateNum: startD.getDate(),
-            isoDates: isoDates,
-            isPast, isToday, isFuture
-          };
+      if (studentsData.length > 0) {
+        const sortedStudents = [...studentsData].sort((a, b) => {
+          const timeA = a.waktuMulai ? new Date(a.waktuMulai).getTime() : 0;
+          const timeB = b.waktuMulai ? new Date(b.waktuMulai).getTime() : 0;
+          return timeA - timeB;
+        });
+        const startD = new Date(sortedStudents[0].waktuMulai!);
+        const endD = new Date(sortedStudents[sortedStudents.length - 1].waktuSelesai!);
+
+        const startDateStr = `${startD.getDate().toString().padStart(2, '0')} ${months[startD.getMonth()]} ${startD.getFullYear()}`;
+        const endDateStr = `${endD.getDate().toString().padStart(2, '0')} ${months[endD.getMonth()]} ${endD.getFullYear()}`;
+        const dateStr = startDateStr === endDateStr ? startDateStr : `${startDateStr} - ${endDateStr}`;
+
+        const timeFormatter = new Intl.DateTimeFormat('id-ID', {
+          timeZone: 'Asia/Jakarta',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+        const minTime = timeFormatter.format(startD).replace('.', ':');
+        const maxTime = timeFormatter.format(endD).replace('.', ':');
+
+        const isoDates = Array.from(new Set(sortedStudents.map(s => {
+          const d = new Date(s.waktuMulai!);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        })));
+
+        const startOfClass = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate());
+
+        if (now.getTime() > endD.getTime()) {
+          isPast = true;
+        } else if (startOfClass.getTime() === startOfToday.getTime()) {
+          isToday = true;
         } else {
-           slotDetail = {
-            date: "Belum ada jadwal",
-            fullDate: "Belum ada jadwal",
-            time: "-",
-            dateNum: 0,
-            isoDates: [],
-            isPast: false, isToday: false, isFuture: false
-          };
+          isFuture = true;
         }
 
-        const students = studentsData.map(s => {
-          const startD = new Date(s.waktuMulai!);
-          const endD = new Date(s.waktuSelesai!);
-          const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
-          const dateStr = `${startD.getDate().toString().padStart(2, '0')} ${months[startD.getMonth()]} ${startD.getFullYear()}`;
-          const timeFormatter = new Intl.DateTimeFormat('id-ID', {
-            timeZone: 'Asia/Jakarta',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-          });
-          const startTimeStr = timeFormatter.format(startD).replace('.', ':');
-          const endTimeStr = timeFormatter.format(endD).replace('.', ':');
-          
-          let sIsPast = false;
-          let sIsToday = false;
-          let sIsFuture = false;
-          const now = new Date();
-          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const startOfClass = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate());
+        slotDetail = {
+          date: dateStr,
+          fullDate: dateStr,
+          time: `${minTime} - ${maxTime}`,
+          dateNum: startD.getDate(),
+          isoDates: isoDates,
+          isPast, isToday, isFuture
+        };
+      } else {
+        slotDetail = {
+          date: "Belum ada jadwal",
+          fullDate: "Belum ada jadwal",
+          time: "-",
+          dateNum: 0,
+          isoDates: [],
+          isPast: false, isToday: false, isFuture: false
+        };
+      }
 
-          if (now.getTime() > endD.getTime()) {
-            sIsPast = true;
-          } else if (startOfClass.getTime() === startOfToday.getTime()) {
-            sIsToday = true;
-          } else {
-            sIsFuture = true;
-          }
-
-          return {
-             ...s,
-             dateStr: dateStr,
-             time: `${startTimeStr} - ${endTimeStr}`,
-             isMyModeration: s.moderatorId === currentUserId,
-             hasModerator: !!s.moderatorId,
-             batalStatus: s.moderatorId === currentUserId ? s.batalStatus : null,
-             isPast: sIsPast,
-             isToday: sIsToday,
-             isFuture: sIsFuture,
-          };
+      const students = studentsData.map(s => {
+        const startD = new Date(s.waktuMulai!);
+        const endD = new Date(s.waktuSelesai!);
+        const dateStr = `${startD.getDate().toString().padStart(2, '0')} ${months[startD.getMonth()]} ${startD.getFullYear()}`;
+        const timeFormatter = new Intl.DateTimeFormat('id-ID', {
+          timeZone: 'Asia/Jakarta',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
         });
+        const startTimeStr = timeFormatter.format(startD).replace('.', ':');
+        const endTimeStr = timeFormatter.format(endD).replace('.', ':');
 
-        const isSupervisor = students.some(s => s.dospem === dosenName || s.dospem2 === dosenName);
-        const userModeratesClass = students.some(s => s.isMyModeration);
+        let sIsPast = false;
+        let sIsToday = false;
+        let sIsFuture = false;
+        const startOfClass = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate());
+
+        if (now.getTime() > endD.getTime()) {
+          sIsPast = true;
+        } else if (startOfClass.getTime() === startOfToday.getTime()) {
+          sIsToday = true;
+        } else {
+          sIsFuture = true;
+        }
 
         return {
-          id: k.id,
-          name: k.namaKelas,
-          kuotaTerisi: k.kuotaTerisi,
-          kapasitasMax: k.kapasitasMax,
-          ...slotDetail,
-          room: Array.from(new Set(students.map(s => s.room).filter(Boolean))).join(', ') || "-",
-          studentCount: students.length,
-          students: students,
-          supervisor: students[0]?.dospem || "-",
-          isSupervisor: isSupervisor,
-          userModeratesClass: userModeratesClass,
+          ...s,
+          dateStr: dateStr,
+          time: `${startTimeStr} - ${endTimeStr}`,
+          isMyModeration: s.moderatorId === currentUserId,
+          hasModerator: !!s.moderatorId,
+          batalStatus: s.moderatorId === currentUserId ? s.batalStatus : null,
+          isPast: sIsPast,
+          isToday: sIsToday,
+          isFuture: sIsFuture,
         };
-      })
-    );
+      });
+
+      const isSupervisor = students.some(s => s.dospem === dosenName || s.dospem2 === dosenName);
+      const userModeratesClass = students.some(s => s.isMyModeration);
+
+      return {
+        id: k.id,
+        name: k.namaKelas,
+        kuotaTerisi: k.kuotaTerisi,
+        kapasitasMax: k.kapasitasMax,
+        ...slotDetail,
+        room: Array.from(new Set(students.map(s => s.room).filter(Boolean))).join(', ') || "-",
+        studentCount: students.length,
+        students: students,
+        supervisor: students[0]?.dospem || "-",
+        isSupervisor: isSupervisor,
+        userModeratesClass: userModeratesClass,
+      };
+    });
 
     // Available Kelas: show all classes so lecturers can see the schedule even if fully moderated
     const availableKelas = classesDetails;

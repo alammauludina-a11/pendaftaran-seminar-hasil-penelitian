@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { pendaftaran, periode, slotWaktu, kelasSeminar, moderator, users } from "@/db/schema";
+import { pendaftaran, periode, slotWaktu, kelasSeminar, moderator, users, files } from "@/db/schema";
 import { isValidSlotTime } from "@/lib/slot-rules";
 import { eq, and, isNotNull, isNull, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
-import { writeFile } from "fs/promises";
-import path from "path";
 import crypto from "crypto";
 
 const SLOT_TAKEN_MESSAGE = "Slot ini baru saja diambil mahasiswa lain dan sedang menunggu kelas terbentuk. Silakan pilih slot lain.";
@@ -114,62 +112,67 @@ export async function POST(request: Request) {
     const mhsId = session.user.id;
     const formData = await request.formData();
     
-    const judul_penelitian = formData.get("judul_penelitian") as string;
-    const konsentrasi_penelitian = formData.get("konsentrasi_penelitian") as string;
-    const dospem1_nama = formData.get("dospem1_nama") as string;
-    const dospem2_nama = (formData.get("dospem2_nama") as string) || "";
+    const judul_penelitian = ((formData.get("judul_penelitian") as string) || "").trim();
+    const konsentrasi_penelitian = ((formData.get("konsentrasi_penelitian") as string) || "").trim();
+    const dospem1_nama = ((formData.get("dospem1_nama") as string) || "").trim();
+    const dospem2_nama = ((formData.get("dospem2_nama") as string) || "").trim();
     const tanggal_kolokium = formData.get("tanggal_seminar") as string || "";
     const jenisSeminar = formData.get("jenisSeminar") as string || "hasil_penelitian";
     const periodeId = formData.get("periodeId") ? parseInt(formData.get("periodeId") as string) : null;
     const slot_id = formData.get("slot_id") ? parseInt(formData.get("slot_id") as string) : null;
-    
-    // File processing
-    let fileBuktiKolokiumUrl = null;
-    let fileApprovalDospemUrl = null;
-    
-    const fileKolokium = formData.get("file-kolokium") as File | null;
-    if (fileKolokium && fileKolokium.size > 0) {
-      if (fileKolokium.size > 500 * 1024) {
-        return NextResponse.json({ error: "Ukuran file Bukti Forum Kolokium melebihi 500 KB." }, { status: 400 });
-      }
-      if (fileKolokium.type !== "application/pdf") {
-        return NextResponse.json({ error: "File Bukti Forum Kolokium harus berformat PDF." }, { status: 400 });
-      }
-      const buffer = Buffer.from(await fileKolokium.arrayBuffer());
-      const base64Data = buffer.toString("base64");
-      const fileId = crypto.randomUUID();
-      
-      await db.insert(require("@/db/schema").files).values({
-        id: fileId,
-        name: fileKolokium.name,
-        mimeType: "application/pdf",
-        data: base64Data,
-      });
-      
-      fileBuktiKolokiumUrl = `/api/files/${fileId}`;
+
+    // Required fields (same rules as the form; the server must not rely on the browser alone)
+    if (jenisSeminar !== "kolokium" && jenisSeminar !== "hasil_penelitian") {
+      return NextResponse.json({ error: "Jenis seminar tidak valid." }, { status: 400 });
     }
-    
-    const fileDospem = formData.get("file-dospem") as File | null;
-    if (fileDospem && fileDospem.size > 0) {
-      if (fileDospem.size > 500 * 1024) {
-        return NextResponse.json({ error: "Ukuran file Persetujuan Dosen Pembimbing melebihi 500 KB." }, { status: 400 });
-      }
-      if (fileDospem.type !== "application/pdf") {
-        return NextResponse.json({ error: "File Persetujuan Dosen Pembimbing harus berformat PDF." }, { status: 400 });
-      }
-      const buffer = Buffer.from(await fileDospem.arrayBuffer());
-      const base64Data = buffer.toString("base64");
-      const fileId = crypto.randomUUID();
-      
-      await db.insert(require("@/db/schema").files).values({
-        id: fileId,
-        name: fileDospem.name,
-        mimeType: "application/pdf",
-        data: base64Data,
-      });
-      
-      fileApprovalDospemUrl = `/api/files/${fileId}`;
+    if (!judul_penelitian) {
+      return NextResponse.json({ error: "Judul penelitian wajib diisi." }, { status: 400 });
     }
+    if (jenisSeminar === "hasil_penelitian" && !konsentrasi_penelitian) {
+      return NextResponse.json({ error: "Konsentrasi penelitian wajib dipilih." }, { status: 400 });
+    }
+    if (!dospem1_nama) {
+      return NextResponse.json({ error: "Dosen Pembimbing 1 wajib dipilih." }, { status: 400 });
+    }
+    if (dospem2_nama && dospem2_nama === dospem1_nama) {
+      return NextResponse.json({ error: "Dosen Pembimbing 1 dan 2 tidak boleh orang yang sama." }, { status: 400 });
+    }
+    if (!slot_id || isNaN(slot_id)) {
+      return NextResponse.json({ error: "Slot jadwal wajib dipilih." }, { status: 400 });
+    }
+    const dosenNames = new Set(
+      (await db.select({ nama: users.nama }).from(users).where(eq(users.role, "dosen"))).map(d => d.nama)
+    );
+    if (!dosenNames.has(dospem1_nama) || (dospem2_nama && !dosenNames.has(dospem2_nama))) {
+      return NextResponse.json({ error: "Dosen pembimbing tidak ditemukan di data dosen." }, { status: 400 });
+    }
+
+    // File validation (files are only stored after all checks pass, so a rejected submit leaves no orphan files)
+    const fileKolokiumInput = formData.get("file-kolokium") as File | null;
+    const fileDospemInput = formData.get("file-dospem") as File | null;
+    const fileKolokium = fileKolokiumInput && fileKolokiumInput.size > 0 ? fileKolokiumInput : null;
+    const fileDospem = fileDospemInput && fileDospemInput.size > 0 ? fileDospemInput : null;
+
+    for (const [file, label] of [[fileKolokium, "Bukti Forum Kolokium"], [fileDospem, "Persetujuan Dosen Pembimbing"]] as const) {
+      if (!file) continue;
+      if (file.size > 500 * 1024) {
+        return NextResponse.json({ error: `Ukuran file ${label} melebihi 500 KB.` }, { status: 400 });
+      }
+      if (file.type !== "application/pdf") {
+        return NextResponse.json({ error: `File ${label} harus berformat PDF.` }, { status: 400 });
+      }
+    }
+
+    const storeFile = async (file: File) => {
+      const fileId = crypto.randomUUID();
+      await db.insert(files).values({
+        id: fileId,
+        name: file.name,
+        mimeType: "application/pdf",
+        data: Buffer.from(await file.arrayBuffer()).toString("base64"),
+      });
+      return `/api/files/${fileId}`;
+    };
 
     // Check if period is active
     const periodeIdToUse = periodeId || null;
@@ -284,6 +287,17 @@ export async function POST(request: Request) {
       }
       slotWaktuMulai = slotCheck.waktuMulai;
     }
+
+    // Required files: on re-registration the previously uploaded file may be kept
+    if (!fileDospem && !alreadyInPeriode?.fileApprovalDospem) {
+      return NextResponse.json({ error: "File Persetujuan Dosen Pembimbing wajib diunggah." }, { status: 400 });
+    }
+    if (jenisSeminar === "hasil_penelitian" && !fileKolokium && !alreadyInPeriode?.fileBuktiKolokium) {
+      return NextResponse.json({ error: "File Bukti Forum Kolokium wajib diunggah." }, { status: 400 });
+    }
+
+    const fileBuktiKolokiumUrl = fileKolokium ? await storeFile(fileKolokium) : null;
+    const fileApprovalDospemUrl = fileDospem ? await storeFile(fileDospem) : null;
 
     if (alreadyInPeriode) {
       // Re-registration after rejection

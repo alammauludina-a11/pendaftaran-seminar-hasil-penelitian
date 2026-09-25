@@ -153,14 +153,23 @@ export default function MahasiswaDashboard() {
     nim: (sessionData?.user as any)?.nipNim || "-",
   };
 
-  // Tracks the current seminar type so late slot responses for another type are ignored
-  const seminarTypeRef = useRef(selectedSeminarType);
-  seminarTypeRef.current = selectedSeminarType;
+  // Only the response of the most recent request may update state. Older requests (a 10s poll that
+  // started before the student picked a dospem, or a request for the other seminar type) that finish
+  // later would otherwise overwrite newer data.
+  const slotRequestSeqRef = useRef(0);
+  const dashboardRequestSeqRef = useRef(0);
 
   // Load slots for the selected seminar type (availability differs between kolokium & hasil_penelitian)
+  // and start with a clean form, so choices made for the other seminar type are not carried over.
   useEffect(() => {
     setAvailableSlots([]);
-    if (selectedSeminarType) fetchRuanganData();
+    setSelectedSlot(null);
+    setSelectedDospem1("");
+    setSelectedDospem2("");
+    setFileKolokiumName(null);
+    setFileDospemName(null);
+    setFormStatus("idle");
+    if (selectedSeminarType) fetchRuanganData("", "");
   }, [selectedSeminarType]);
 
   useEffect(() => {
@@ -186,8 +195,16 @@ export default function MahasiswaDashboard() {
   const fetchDashboardData = async (jenis?: string) => {
     try {
       const seminarType = jenis || selectedSeminarType || "hasil_penelitian";
+      const seq = ++dashboardRequestSeqRef.current;
       const res = await fetch(`/api/mahasiswa/dashboard?jenis=${seminarType}`, { cache: "no-store" });
+      if (seq !== dashboardRequestSeqRef.current) return; // a newer request was started meanwhile
+      if (!res.ok) {
+        // Keep the current data (e.g. the dosen list) instead of wiping the form on a temporary error
+        console.error("Gagal memuat dashboard:", res.status);
+        return;
+      }
       const data = await res.json();
+      if (seq !== dashboardRequestSeqRef.current) return;
       
       setPengumuman(data.pengumuman || []);
       setMasterDosen(data.masterDosen || []);
@@ -241,11 +258,18 @@ export default function MahasiswaDashboard() {
       if (d2) params.set("dospem2", d2);
       if (!selectedSeminarType) return;
       params.set("jenisSeminar", selectedSeminarType);
+      const seq = ++slotRequestSeqRef.current;
       const res = await fetch(`/api/mahasiswa/slot?${params.toString()}`);
       const data = await res.json();
-      if (seminarTypeRef.current !== selectedSeminarType) return; // user switched seminar type meanwhile
+      if (seq !== slotRequestSeqRef.current) return; // a newer request (other dospem / seminar type) was started meanwhile
       if (data.availableSlots) {
         setAvailableSlots(data.availableSlots);
+        // Unselect the chosen slot if it is no longer available (e.g. taken, or clashes with the new dospem)
+        setSelectedSlot(prev => {
+          if (prev === null) return prev;
+          const chosen = data.availableSlots.find((sl: any) => sl.id === prev);
+          return chosen && !chosen.blocked ? prev : null;
+        });
       }
     } catch (e) {
       console.error(e);
@@ -715,8 +739,9 @@ export default function MahasiswaDashboard() {
         )}
 
         {/* Tab Content: Pengajuan */}
-        {activeTab === "pengajuan" && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {/* Kept mounted (only hidden) on other tabs so filled-in fields and chosen files are not lost when switching tabs */}
+        {(
+          <div hidden={activeTab !== "pengajuan"} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             {selectedSeminarType === "hasil_penelitian" && !isKolokiumSelesai ? (
               <div className="bg-white rounded-3xl p-10 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center min-h-[400px]">
                 <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mb-6 shadow-sm border border-amber-100">
@@ -888,7 +913,7 @@ export default function MahasiswaDashboard() {
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#06125C]/20 focus:border-[#06125C] transition-all outline-none text-slate-700 appearance-none"
                       >
                         <option value="">Pilih Dosen Pembimbing 1</option>
-                        {masterDosen.map((dosen, i) => <option key={i} value={dosen}>{dosen}</option>)}
+                        {masterDosen.map((dosen, i) => <option key={i} value={dosen} disabled={dosen === selectedDospem2}>{dosen}</option>)}
                       </select>
                       <div className="absolute right-4 top-3.5 text-slate-400 pointer-events-none">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -905,7 +930,7 @@ export default function MahasiswaDashboard() {
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#06125C]/20 focus:border-[#06125C] transition-all outline-none text-slate-700 appearance-none"
                       >
                         <option value="">Pilih Dosen Pembimbing 2 (opsional)</option>
-                        {masterDosen.map((dosen, i) => <option key={i} value={dosen}>{dosen}</option>)}
+                        {masterDosen.map((dosen, i) => <option key={i} value={dosen} disabled={dosen === selectedDospem1}>{dosen}</option>)}
                       </select>
                       <div className="absolute right-4 top-3.5 text-slate-400 pointer-events-none">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>

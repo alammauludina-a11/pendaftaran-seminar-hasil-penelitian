@@ -415,9 +415,13 @@ export default function MahasiswaDashboard() {
         setRuanganName(inputRuangan);
         setRuanganStatus("submitted");
         setShowRuanganModal(false);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Gagal menyimpan ruangan.");
       }
     } catch(e) {
       console.error(e);
+      alert("Terjadi kesalahan sistem.");
     }
   }
 
@@ -438,9 +442,13 @@ export default function MahasiswaDashboard() {
       if(res.ok) {
         setRuanganName(inputRuanganBaru);
         setRuanganStatus("waiting_approval");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Gagal mengajukan pindah ruangan.");
       }
     } catch(e) {
       console.error(e);
+      alert("Terjadi kesalahan sistem.");
     }
   }
 

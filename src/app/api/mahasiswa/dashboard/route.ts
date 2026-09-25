@@ -13,7 +13,7 @@ export const revalidate = 0;
 export async function GET(request: Request) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
+    if (!session?.user || (session.user as { role?: string }).role !== "mahasiswa") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

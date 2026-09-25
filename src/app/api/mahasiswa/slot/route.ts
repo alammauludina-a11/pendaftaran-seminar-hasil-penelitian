@@ -10,6 +10,9 @@ import { isValidSlotTime } from "@/lib/slot-rules";
 export async function GET(request: Request) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const userDospem1 = (session?.user as any)?.nama as string | undefined;
     const url = new URL(request.url);
     const dospem1Param = url.searchParams.get("dospem1") || userDospem1 || "";

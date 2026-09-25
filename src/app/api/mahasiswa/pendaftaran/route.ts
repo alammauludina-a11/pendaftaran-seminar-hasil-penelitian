@@ -105,7 +105,7 @@ async function validateSlot(opts: {
 export async function POST(request: Request) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
+    if (!session?.user || (session.user as { role?: string }).role !== "mahasiswa") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -188,8 +188,14 @@ export async function POST(request: Request) {
       if (openPeriodes.length > 0) p = openPeriodes[0];
     }
 
-    if (!p || !p.isOpen) {
+    if (!p || !p.isOpen || p.isDraft) {
       return NextResponse.json({ error: "Periode pendaftaran tidak aktif atau tidak ditemukan." }, { status: 400 });
+    }
+
+    // The periode must be for the student's angkatan (same rule as the dashboard that lists the periode)
+    const mhsAngkatan = (await db.select({ angkatan: users.angkatan }).from(users).where(eq(users.id, mhsId)).limit(1))[0]?.angkatan || "";
+    if (!mhsAngkatan || !p.angkatan.includes(mhsAngkatan)) {
+      return NextResponse.json({ error: "Periode ini bukan untuk angkatan Anda." }, { status: 403 });
     }
 
     // The periode must belong to the seminar type being registered
@@ -367,6 +373,14 @@ export async function POST(request: Request) {
       })
       .returning();
 
+    // Guard against the same student submitting twice at once (e.g. two tabs): keep only the first registration
+    const ownInPeriode = await db.select({ id: pendaftaran.id }).from(pendaftaran)
+      .where(and(eq(pendaftaran.userId, mhsId), eq(pendaftaran.periodeId, p.id)));
+    if (ownInPeriode.some(o => o.id < result[0].id)) {
+      await db.delete(pendaftaran).where(eq(pendaftaran.id, result[0].id));
+      return NextResponse.json({ error: "Anda sudah mendaftar pada periode ini." }, { status: 409 });
+    }
+
     // Guard against simultaneous submits: the earliest registration (lowest id) keeps the slot,
     // any later one on the same slot time is removed again.
     if (slotWaktuMulai) {
@@ -393,23 +407,40 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
+    if (!session?.user || (session.user as { role?: string }).role !== "mahasiswa") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const mhsId = session.user.id;
     const body = await request.json();
-    const { action, slotId, ruanganName, pendaftaranId } = body;
+    const action = body?.action;
+    const pendaftaranId = Number(body?.pendaftaranId);
+    const ruanganName = typeof body?.ruanganName === "string" ? body.ruanganName.trim() : "";
+
+    if (!Number.isInteger(pendaftaranId) || pendaftaranId <= 0) {
+      return NextResponse.json({ error: "Pendaftaran tidak valid." }, { status: 400 });
+    }
+    if (!ruanganName || ruanganName.length > 100) {
+      return NextResponse.json({ error: "Nama ruangan wajib diisi (maksimal 100 karakter)." }, { status: 400 });
+    }
+
+    // Validate ownership
+    const existing = await db.select().from(pendaftaran).where(eq(pendaftaran.id, pendaftaranId));
+    if (!existing.length || existing[0].userId !== mhsId) {
+      return NextResponse.json({ error: "Tidak memiliki akses ke pendaftaran ini." }, { status: 403 });
+    }
+    const reg = existing[0];
+    if (reg.statusVerifikasi === "ditolak") {
+      return NextResponse.json({ error: "Pendaftaran Anda ditolak, ruangan tidak dapat diatur." }, { status: 400 });
+    }
 
     if (action === "simpan_ruangan_awal") {
-      // Validate ownership
-      const existing = await db
-        .select()
-        .from(pendaftaran)
-        .where(eq(pendaftaran.id, pendaftaranId));
-
-      if (!existing.length || existing[0].userId !== mhsId) {
-        return NextResponse.json({ error: "Tidak memiliki akses ke pendaftaran ini." }, { status: 403 });
+      // The first room is set directly by the student; afterwards a change needs admin approval
+      if (reg.ruanganDisetujui || reg.ruanganDiajukan) {
+        return NextResponse.json({ error: "Ruangan sudah pernah diisi. Gunakan pengajuan pindah ruangan." }, { status: 400 });
+      }
+      if (reg.isFinalized || reg.isReleased) {
+        return NextResponse.json({ error: "Jadwal sudah difinalisasi, ruangan tidak dapat diubah." }, { status: 400 });
       }
 
       const updated = await db
@@ -425,16 +456,6 @@ export async function PUT(request: Request) {
     }
 
     if (action === "pengajuan_ruangan") {
-      // Validate ownership
-      const existing = await db
-        .select()
-        .from(pendaftaran)
-        .where(eq(pendaftaran.id, pendaftaranId));
-
-      if (!existing.length || existing[0].userId !== mhsId) {
-        return NextResponse.json({ error: "Tidak memiliki akses ke pendaftaran ini." }, { status: 403 });
-      }
-
       const updated = await db
         .update(pendaftaran)
         .set({

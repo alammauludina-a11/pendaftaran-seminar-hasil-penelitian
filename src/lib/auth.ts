@@ -19,6 +19,8 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
+    // Accounts are only created by admin (master data), never through public sign-up
+    disableSignUp: true,
     minPasswordLength: 4,
     maxPasswordLength: 255,
   },
@@ -26,10 +28,13 @@ export const auth = betterAuth({
     username()
   ],
   user: {
+      // Profile & role fields are managed by admin only; `input: false` stops users from
+      // changing them through /api/auth/update-user (e.g. promoting themselves to admin).
       additionalFields: {
           role: {
               type: "string",
-              required: true
+              required: true,
+              input: false
           },
           username: {
               type: "string",
@@ -37,27 +42,33 @@ export const auth = betterAuth({
           },
           nama: {
               type: "string",
-              required: true
+              required: true,
+              input: false
           },
           nipNim: {
               type: "string",
-              required: true
+              required: true,
+              input: false
           },
           prodi: {
               type: "string",
-              required: false
+              required: false,
+              input: false
           },
           statusAktif: {
               type: "string",
-              required: false
+              required: false,
+              input: false
           },
           jabatan: {
               type: "string",
-              required: false
+              required: false,
+              input: false
           },
           angkatan: {
               type: "string",
-              required: false
+              required: false,
+              input: false
           }
       }
   }

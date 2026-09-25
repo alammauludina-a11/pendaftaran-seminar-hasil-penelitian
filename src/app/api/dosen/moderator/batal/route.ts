@@ -4,6 +4,9 @@ import { moderator, pendaftaran, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { getWaktuMulaiPendaftaran } from "@/lib/jadwal";
+
+const MAX_REASON_LENGTH = 500;
 
 // POST: Dosen mengajukan batal moderasi
 export async function POST(request: Request) {
@@ -14,10 +17,15 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { pendaftaranId, action, reason } = body;
+    const { action } = body;
+    const pendaftaranId = Number(body?.pendaftaranId);
+    const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
 
-    if (!pendaftaranId || !action) {
+    if (!Number.isInteger(pendaftaranId) || pendaftaranId <= 0 || !action) {
       return NextResponse.json({ error: "pendaftaranId dan action diperlukan" }, { status: 400 });
+    }
+    if (reason.length > MAX_REASON_LENGTH) {
+      return NextResponse.json({ error: `Alasan maksimal ${MAX_REASON_LENGTH} karakter` }, { status: 400 });
     }
 
     const currentUserId = session.user.id;
@@ -42,6 +50,12 @@ export async function POST(request: Request) {
       // Prevent re-applying if already pending
       if (modRecord.batalStatus === "menunggu") {
         return NextResponse.json({ error: "Pengajuan batal sudah dalam proses" }, { status: 400 });
+      }
+
+      // A seminar that already took place can no longer be cancelled (it would erase the moderation history)
+      const waktuMulai = await getWaktuMulaiPendaftaran(pendaftaranId);
+      if (waktuMulai && waktuMulai.getTime() <= Date.now()) {
+        return NextResponse.json({ error: "Seminar ini sudah berlangsung, moderasi tidak dapat dibatalkan." }, { status: 400 });
       }
 
       await db.update(moderator)

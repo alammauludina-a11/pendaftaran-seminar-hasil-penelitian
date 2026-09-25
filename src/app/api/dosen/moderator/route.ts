@@ -229,10 +229,10 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { pendaftaranId } = body;
+    const pendaftaranId = Number(body?.pendaftaranId);
 
-    if (!pendaftaranId) {
-      return NextResponse.json({ error: "Pendaftaran ID diperlukan" }, { status: 400 });
+    if (!Number.isInteger(pendaftaranId) || pendaftaranId <= 0) {
+      return NextResponse.json({ error: "Pendaftaran ID tidak valid" }, { status: 400 });
     }
 
     // Check if someone else already took it
@@ -250,24 +250,39 @@ export async function POST(request: Request) {
     if (targetPend.length === 0) {
        return NextResponse.json({ error: "Data pendaftaran tidak ditemukan" }, { status: 404 });
     }
+    // Only approved registrations that already sit in a seminar class can be moderated (same set the GET shows)
+    if (targetPend[0].statusVerifikasi !== "disetujui" || !targetPend[0].kelasSeminarId) {
+      return NextResponse.json({ error: "Jadwal ini belum tersedia untuk dipilih moderator." }, { status: 400 });
+    }
     if (dosenName && (targetPend[0].dospem1 === dosenName || targetPend[0].dospem2 === dosenName)) {
       return NextResponse.json({ error: "Anda tidak dapat menjadi moderator untuk mahasiswa bimbingan Anda sendiri." }, { status: 400 });
     }
 
     // Check for schedule conflict: bimbingan or another moderation at the same time (matched by slot time)
     const waktuMulai = await getWaktuMulaiPendaftaran(targetPend[0].id);
-    if (waktuMulai && dosenName) {
+    if (!waktuMulai || waktuMulai.getTime() <= Date.now()) {
+      return NextResponse.json({ error: "Jadwal seminar ini sudah lewat atau belum ditentukan." }, { status: 400 });
+    }
+    if (dosenName) {
       const clash = await findDosenClash({ dosenId: currentUserId, dosenName, waktuMulai, excludePendaftaranId: targetPend[0].id });
       if (clash) {
         return NextResponse.json({ error: `Anda tidak dapat menjadi moderator pada jadwal ini karena bentrok: ${clash}` }, { status: 400 });
       }
     }
 
-    await db.insert(moderator).values({
-      pendaftaranId,
-      dosenId: session.user.id,
-      assignedByRole: 'dosen'
-    });
+    try {
+      await db.insert(moderator).values({
+        pendaftaranId,
+        dosenId: session.user.id,
+        assignedByRole: 'dosen'
+      });
+    } catch (e: any) {
+      // pendaftaran_id is unique: another dosen took this slot between our check and the insert
+      if (String(e?.message || e?.cause?.message).includes("UNIQUE")) {
+        return NextResponse.json({ error: "Jadwal ini sudah diambil oleh moderator lain" }, { status: 400 });
+      }
+      throw e;
+    }
 
     return NextResponse.json({ message: "Berhasil memilih jadwal" }, { status: 200 });
   } catch (error) {

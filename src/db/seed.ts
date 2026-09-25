@@ -22,11 +22,24 @@ async function seed() {
   } catch (e) {}
 
 
-  // Helper to safely create users and ignore if they exist
+  // Helper to safely create users and ignore if they exist.
+  // Public sign-up is disabled and profile fields are not user-settable, so users are inserted directly
+  // (same approach as the admin master-data account generator).
   async function seedUser(data: any) {
     try {
-      const res = await auth.api.signUpEmail({ body: data });
-      return res.user.id;
+      const { account } = await import("./schema");
+      const { password, ...profile } = data;
+      const id = crypto.randomUUID();
+      const ctx = await auth.$context;
+      await db.insert(users).values({ id, ...profile, displayUsername: profile.username });
+      await db.insert(account).values({
+        id: crypto.randomUUID(),
+        accountId: id,
+        providerId: "credential",
+        userId: id,
+        password: await ctx.password.hash(password),
+      });
+      return id;
     } catch (e) {
       console.log(`User ${data.email} might already exist or error:`);
       console.error(e);

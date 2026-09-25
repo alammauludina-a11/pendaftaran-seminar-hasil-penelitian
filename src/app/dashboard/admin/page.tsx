@@ -10,7 +10,8 @@ import autoTable from 'jspdf-autotable';
 import {
   LogOut, FileCheck, MapPin, Megaphone, CheckCircle2, XCircle, Eye,
   Clock, CheckSquare, X, Search, Filter, Users, Calendar, AlertCircle, Settings,
-  ArrowLeft, Plus, Trash2, LayoutDashboard, Sparkles, Loader2, UserCheck, ChevronUp, ChevronDown, Menu, FileDown, Ban
+  ArrowLeft, Plus, Trash2, LayoutDashboard, Sparkles, Loader2, UserCheck, ChevronUp, ChevronDown, Menu, FileDown, Ban,
+  BookOpen
 } from "lucide-react";
 import DashboardAnalisis from "./DashboardAnalisis";
 import AnalisisLog from "./AnalisisLog";
@@ -302,6 +303,7 @@ export default function AdminDashboard() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [globalKelasFilter, setGlobalKelasFilter] = useState("Semua Kelas");
   const [selectedDateFilter, setSelectedDateFilter] = useState("Semua Tanggal");
+  const [selectedKonsentrasiFilter, setSelectedKonsentrasiFilter] = useState("Semua Konsentrasi");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [verifikasiSort, setVerifikasiSort] = useState<{ key: 'name' | 'kelas' | 'dospem' | 'title' | 'konsentrasi' | 'date', order: 'asc' | 'desc' } | null>(null);
   const [manajemenKelasFilter, setManajemenKelasFilter] = useState("Semua Kelas");
@@ -686,6 +688,11 @@ export default function AdminDashboard() {
     if (valA > valB) return order === 'asc' ? 1 : -1;
     return 0;
   });
+
+  const uniqueKonsentrasi = Array.from(new Set(activePendaftaran.map(p => p.konsentrasi))).filter(Boolean).sort() as string[];
+  const verifikasiList = selectedKonsentrasiFilter === "Semua Konsentrasi"
+    ? filteredPendaftaran
+    : filteredPendaftaran.filter(p => p.konsentrasi === selectedKonsentrasiFilter);
 
   const finalizedList = filteredPendaftaran.filter(p => p.isFinalized);
   const uniqueDates = Array.from(new Set(finalizedList.map(p => p.date)));
@@ -2420,7 +2427,20 @@ export default function AdminDashboard() {
                     <h2 className="text-xl font-bold text-[#06125C] flex items-center gap-2">
                       <FileCheck className="text-amber-500" /> Daftar Verifikasi Berkas
                     </h2>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-sm">
+                        <BookOpen size={16} className="text-slate-400" />
+                        <select
+                          value={selectedKonsentrasiFilter}
+                          onChange={(e) => setSelectedKonsentrasiFilter(e.target.value)}
+                          className="bg-transparent border-none focus:ring-0 outline-none text-slate-700 font-medium cursor-pointer"
+                        >
+                          <option value="Semua Konsentrasi">Semua Konsentrasi</option>
+                          {uniqueKonsentrasi.map((kons) => (
+                            <option key={kons} value={kons}>{kons}</option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-sm">
                         <Calendar size={16} className="text-slate-400" />
                         <select
@@ -2443,13 +2463,13 @@ export default function AdminDashboard() {
                         <tr>
                           {([
                             { label: "Mahasiswa", key: "name", width: "w-[14%]" },
-                            { label: "Kelas", key: "kelas", width: "w-[7%] whitespace-nowrap" },
-                            { label: "Dosen Pembimbing", key: "dospem", width: "w-[15%]" },
-                            { label: "Judul Penelitian", key: "title", width: "w-[20%]" },
+                            { label: "Kelas", key: "kelas", width: "w-px whitespace-nowrap" },
+                            { label: "Dosen Pembimbing", key: "dospem", width: "w-[20%]" },
+                            { label: "Judul Penelitian", key: "title", width: "w-[28%]" },
                             { label: "Konsentrasi", key: "konsentrasi", width: "w-[11%]" },
-                            { label: "Jadwal Diajukan", key: "date", width: "w-[11%] whitespace-nowrap" }
+                            { label: "Jadwal Diajukan", key: "date", width: "w-[10%]" }
                           ] as const).map(col => (
-                            <th key={col.key} className={`px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors ${col.width}`} onClick={() => {
+                            <th key={col.key} className={`px-3 py-3 cursor-pointer hover:bg-slate-100 transition-colors ${col.width}`} onClick={() => {
                               if (verifikasiSort?.key === col.key) {
                                 setVerifikasiSort({ key: col.key, order: verifikasiSort.order === 'asc' ? 'desc' : 'asc' });
                               } else {
@@ -2465,53 +2485,47 @@ export default function AdminDashboard() {
                               </div>
                             </th>
                           ))}
-                          <th className="px-4 py-3 w-[10%]">Ruangan</th>
-                          <th className="px-4 py-3 text-center w-[7%]">Status</th>
-                          <th className="px-4 py-3 text-center w-[5%]">Aksi</th>
+                          <th className="px-3 py-3 w-[9%]">Ruangan</th>
+                          <th className="px-3 py-3 text-center w-px whitespace-nowrap">Status</th>
+                          <th className="px-3 py-3 text-center w-px whitespace-nowrap">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {filteredPendaftaran.map((item) => (
+                        {verifikasiList.map((item) => (
                           <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="px-4 py-4">
+                            <td className="px-3 py-4">
                               <div className="font-semibold text-slate-800">{item.name}</div>
                               <div className="text-xs text-slate-500">{item.nim}</div>
                             </td>
-                            <td className="px-4 py-4 text-slate-700 font-medium whitespace-nowrap">
+                            <td className="px-3 py-4 text-slate-700 font-medium whitespace-nowrap">
                               {item.kelas ? `Kelas ${item.kelas.replace('Kelas ', '')}` : '-'}
                             </td>
-                            <td className="px-4 py-4 text-slate-700 font-medium">
+                            <td className="px-3 py-4 text-slate-700 font-medium">
                               <div className="flex flex-col gap-1 text-sm">
                                 <span>1. {item.dospem}</span>
                                 {item.dospem2 && <span>2. {item.dospem2}</span>}
                               </div>
                             </td>
-                            <td className="px-4 py-4 max-w-[250px]">
-                              <div className="line-clamp-2 font-medium text-slate-800" title={item.title}>{item.title}</div>
+                            <td className="px-3 py-4">
+                              <div className="line-clamp-3 font-medium text-slate-800 leading-snug" title={item.title}>{item.title}</div>
                             </td>
-                            <td className="px-4 py-4">
-                              {item.konsentrasi ? (
-                                <span className="inline-block bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-medium px-2 py-1 rounded-md leading-snug">
-                                  {item.konsentrasi}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400 text-xs">-</span>
-                              )}
+                            <td className="px-3 py-4 text-slate-700 font-medium">
+                              {item.konsentrasi || '-'}
                             </td>
-                            <td className="px-4 py-4 text-slate-600 whitespace-nowrap">
+                            <td className="px-3 py-4 text-slate-600 whitespace-nowrap">
                               <div className="flex items-center gap-1.5"><Calendar size={14} /> {item.date}</div>
                               <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1"><Clock size={12} /> {item.time}</div>
                             </td>
-                            <td className="px-4 py-4">
+                            <td className="px-3 py-4 max-w-[140px]">
                               {item.statusRuangan === 'disetujui' && item.room && (
                                 <span className="text-sm font-medium text-slate-800">{item.room}</span>
                               )}
                               {item.statusRuangan === 'menunggu' && (item.ruanganDiajukan || item.room) && (
                                 <div className="flex flex-col gap-2 items-start">
-                                  <span className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-1 rounded">Minta: {item.ruanganDiajukan || item.room}</span>
+                                  <span className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-1 rounded break-words">Minta: {item.ruanganDiajukan || item.room}</span>
                                   <button
                                     onClick={() => handleSetujuiRuangan(item.id)}
-                                    className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] px-2 py-1 rounded shadow-sm font-semibold transition-colors"
+                                    className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] px-2 py-1 rounded shadow-sm font-semibold transition-colors whitespace-nowrap"
                                   >
                                     Setujui Ruangan
                                   </button>
@@ -2521,7 +2535,7 @@ export default function AdminDashboard() {
                                 <span className="text-slate-400 italic text-xs">Belum di set</span>
                               )}
                             </td>
-                            <td className="px-4 py-4 text-center">
+                            <td className="px-3 py-4 text-center whitespace-nowrap">
                               {item.status === 'menunggu' && (
                                 <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-md inline-flex items-center gap-1">
                                   <Clock size={12} /> Menunggu
@@ -2538,7 +2552,7 @@ export default function AdminDashboard() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-4 text-center">
+                            <td className="px-3 py-4 text-center whitespace-nowrap">
                               <button
                                 onClick={() => handleVerifikasiClick(item)}
                                 disabled={item.isFinalized || item.status === 'ditolak'}

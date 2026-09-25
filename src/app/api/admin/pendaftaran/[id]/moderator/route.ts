@@ -4,6 +4,7 @@ import { pendaftaran, kelasSeminar, moderator, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { findDosenClash, getWaktuMulaiPendaftaran } from "@/lib/jadwal";
 
 
 export async function PUT(
@@ -35,10 +36,22 @@ export async function PUT(
       await db.delete(moderator).where(eq(moderator.pendaftaranId, pend.id));
     } else {
       // Validate: the selected dosen must not be the supervisor of this student
-      const dosenUser = await db.select({ nama: users.nama }).from(users).where(eq(users.id, dosenId)).limit(1);
-      const dosenName = dosenUser[0]?.nama;
+      const dosenUser = await db.select({ nama: users.nama, role: users.role }).from(users).where(eq(users.id, dosenId)).limit(1);
+      if (!dosenUser.length || dosenUser[0].role !== "dosen") {
+        return NextResponse.json({ error: "Dosen tidak ditemukan." }, { status: 404 });
+      }
+      const dosenName = dosenUser[0].nama;
       if (dosenName && (pend.dospem1 === dosenName || pend.dospem2 === dosenName)) {
         return NextResponse.json({ error: "Dosen pembimbing tidak dapat dijadikan moderator untuk mahasiswanya sendiri." }, { status: 400 });
+      }
+
+      // Validate: the dosen must not have another duty (pembimbing / moderator) at the same time
+      const waktuMulai = await getWaktuMulaiPendaftaran(pend.id);
+      if (waktuMulai && dosenName) {
+        const clash = await findDosenClash({ dosenId, dosenName, waktuMulai, excludePendaftaranId: pend.id });
+        if (clash) {
+          return NextResponse.json({ error: `Jadwal bentrok: ${clash}` }, { status: 409 });
+        }
       }
 
       // Update or insert moderator

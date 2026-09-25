@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-auth";
 import { db } from "@/db";
 import { periode } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -6,6 +7,9 @@ import { autoGenerateSlots } from "@/lib/slot-generator";
 
 export async function GET() {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     const periodesData = await db.select().from(periode);
     const periodes = periodesData.map(p => ({
       ...p,
@@ -20,6 +24,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     const body = await request.json();
     const { 
       angkatan, startDate, endDate, registrationEndDate, isOpen, batasKelas, isDraft, jenisSeminar

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { pendaftaran, kelasSeminar } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -17,6 +17,14 @@ export async function DELETE(
 
     const { id: idStr } = await params;
     const id = parseInt(idStr);
+
+    // A class with finalized/released students can't be cancelled (their schedule is already published)
+    const locked = await db.select({ id: pendaftaran.id }).from(pendaftaran)
+      .where(and(eq(pendaftaran.kelasSeminarId, id), or(eq(pendaftaran.isFinalized, true), eq(pendaftaran.isReleased, true))))
+      .limit(1);
+    if (locked.length > 0) {
+      return NextResponse.json({ error: "Kelas tidak dapat dibatalkan karena ada mahasiswa yang sudah difinalisasi. Batalkan finalisasinya terlebih dahulu." }, { status: 400 });
+    }
 
     // Unassign students from this class
     await db.update(pendaftaran)

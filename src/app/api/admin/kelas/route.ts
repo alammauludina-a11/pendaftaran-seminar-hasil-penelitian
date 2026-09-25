@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-auth";
 import { db } from "@/db";
 import { kelasSeminar, pendaftaran } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -7,6 +8,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     // Count students per class from the actual pendaftaran table for accuracy (run both queries in parallel)
     const [data, pendaftarans] = await Promise.all([
       db.select().from(kelasSeminar),

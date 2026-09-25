@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from "@/lib/admin-auth";
 import { GoogleGenAI } from '@google/genai';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -36,6 +37,9 @@ async function generateWithRetry(ai: GoogleGenAI, prompt: string, maxRetries = 3
 
 export async function POST(request: Request) {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     const data = await request.json();
     
     const apiKey = process.env.GEMINI_API_KEY;

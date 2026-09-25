@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-auth";
 import { db } from "@/db";
 import { pendaftaran, users, slotWaktu, kelasSeminar, moderator as moderatorTable } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
@@ -8,6 +9,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     const dosenUsers = alias(users, "dosenUsers");
     const data = await db.select({
       id: pendaftaran.id,

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-auth";
 import { db } from "@/db";
 import { pendaftaran, users, periode, slotWaktu } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -9,6 +10,9 @@ const kolokiumPend = alias(pendaftaran, "kolokiumPend");
 
 export async function GET() {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     // Fetch hasil_penelitian rows with their slot time
     const rawData = await db
       .select({

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { findDosenClash, getWaktuMulaiPendaftaran } from "@/lib/jadwal";
 import { db } from "@/db";
 import { moderator, kelasSeminar, pendaftaran, users, slotWaktu, periode } from "@/db/schema";
 import { eq, isNull, and, desc, or } from "drizzle-orm";
@@ -249,23 +250,16 @@ export async function POST(request: Request) {
     if (targetPend.length === 0) {
        return NextResponse.json({ error: "Data pendaftaran tidak ditemukan" }, { status: 404 });
     }
-    const targetSlotId = targetPend[0].slotWaktuId;
+    if (dosenName && (targetPend[0].dospem1 === dosenName || targetPend[0].dospem2 === dosenName)) {
+      return NextResponse.json({ error: "Anda tidak dapat menjadi moderator untuk mahasiswa bimbingan Anda sendiri." }, { status: 400 });
+    }
 
-    if (targetSlotId && dosenName) {
-      const conflictBimbingan = await db.select()
-        .from(pendaftaran)
-        .where(
-          and(
-            eq(pendaftaran.slotWaktuId, targetSlotId),
-            or(
-              eq(pendaftaran.dospem1, dosenName),
-              eq(pendaftaran.dospem2, dosenName)
-            )
-          )
-        ).limit(1);
-        
-      if (conflictBimbingan.length > 0) {
-        return NextResponse.json({ error: "Anda tidak dapat menjadi moderator pada jadwal ini karena bentrok dengan jadwal bimbingan Anda di jam yang sama." }, { status: 400 });
+    // Check for schedule conflict: bimbingan or another moderation at the same time (matched by slot time)
+    const waktuMulai = await getWaktuMulaiPendaftaran(targetPend[0].id);
+    if (waktuMulai && dosenName) {
+      const clash = await findDosenClash({ dosenId: currentUserId, dosenName, waktuMulai, excludePendaftaranId: targetPend[0].id });
+      if (clash) {
+        return NextResponse.json({ error: `Anda tidak dapat menjadi moderator pada jadwal ini karena bentrok: ${clash}` }, { status: 400 });
       }
     }
 

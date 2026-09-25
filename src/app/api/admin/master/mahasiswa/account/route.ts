@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-auth";
 import { db } from "@/db";
 import { users, account } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -6,6 +7,9 @@ import { auth } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     const { id } = await request.json();
     if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
 

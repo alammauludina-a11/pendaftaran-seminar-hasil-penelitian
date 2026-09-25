@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { pendaftaran } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNotNull } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -19,13 +19,17 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "IDs wajib diisi." }, { status: 400 });
     }
 
-    await db
+    // Only finalized registrations with a room can be released (same rule as the single release)
+    const updated = await db
       .update(pendaftaran)
       .set({ isReleased: isReleased === true })
-      .where(inArray(pendaftaran.id, ids));
+      .where(isReleased === true
+        ? and(inArray(pendaftaran.id, ids), eq(pendaftaran.isFinalized, true), isNotNull(pendaftaran.ruanganDisetujui))
+        : inArray(pendaftaran.id, ids))
+      .returning({ id: pendaftaran.id });
 
     return NextResponse.json({
-      message: `${ids.length} pendaftaran berhasil ${isReleased ? "dirilis" : "ditarik"}.`,
+      message: `${updated.length} pendaftaran berhasil ${isReleased ? "dirilis" : "ditarik"}.`,
     }, { status: 200 });
   } catch (error) {
     console.error(error);

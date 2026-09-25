@@ -716,9 +716,15 @@ export default function AdminDashboard() {
         setPendaftaran(prev =>
           prev.map(p => p.id === selectedPendaftar.id ? { ...p, status, note: catatanVerifikasi } : p)
         );
+        // Verification can form a class or remove the student from a class, so reload the real data
+        fetchData(true);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Gagal memperbarui verifikasi.");
       }
     } catch (e) {
       console.error(e);
+      alert("Terjadi kesalahan sistem.");
     }
     setIsVerifikasiModalOpen(false);
   };

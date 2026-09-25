@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-auth";
 import { db } from "@/db";
 import { pendaftaran } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -8,6 +9,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     const { id: idStr } = await params;
     const id = parseInt(idStr);
     const body = await request.json();

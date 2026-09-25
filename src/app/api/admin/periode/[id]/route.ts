@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-auth";
 import { db } from "@/db";
-import { periode } from "@/db/schema";
+import { periode, pendaftaran } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { autoGenerateSlots } from "@/lib/slot-generator";
 
@@ -9,6 +10,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     const { id: idStr } = await params;
     const id = parseInt(idStr);
     const data = await db.select().from(periode).where(eq(periode.id, id));
@@ -27,6 +31,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     const { id: idStr } = await params;
     const id = parseInt(idStr);
     const body = await request.json();
@@ -80,8 +87,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     const { id: idStr } = await params;
     const id = parseInt(idStr);
+    // Deleting a periode cascades to its registrations, so only allow it when it has none
+    const hasPendaftaran = await db.select({ id: pendaftaran.id }).from(pendaftaran).where(eq(pendaftaran.periodeId, id)).limit(1);
+    if (hasPendaftaran.length > 0) {
+      return NextResponse.json({ error: "Periode tidak dapat dihapus karena sudah memiliki pendaftar." }, { status: 400 });
+    }
+
     await db.delete(periode).where(eq(periode.id, id));
 
     return NextResponse.json({

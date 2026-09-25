@@ -1,10 +1,14 @@
 import { db } from "../../../../db";
+import { requireAdmin } from "@/lib/admin-auth";
 import { users, session } from "../../../../db/schema";
 import { eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
+
     const userLogins = await db
       .select({
         id: users.id,

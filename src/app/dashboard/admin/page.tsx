@@ -7,6 +7,7 @@ import { authClient } from "../../../lib/auth-client";
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { drawPdfHeader, pdfTableOptions, formatAngkatan } from "@/lib/pdf-layout";
 import {
   LogOut, FileCheck, MapPin, Megaphone, CheckCircle2, XCircle, Eye,
   Clock, CheckSquare, X, Search, Filter, Users, Calendar, AlertCircle, Settings,
@@ -647,23 +648,34 @@ export default function AdminDashboard() {
   };
 
   const handleExportRekapPDF = () => {
-    const doc = new jsPDF('p');
-    doc.text(`Rekapitulasi Dosen AKN ${activePeriode?.angkatan || ''}`, 14, 15);
-    
-    autoTable(doc, {
-      startY: 20,
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const seminarType = activePeriode?.jenisSeminar === 'kolokium' ? 'Seminar Kolokium' : 'Seminar Hasil Penelitian';
+    const angkatanText = formatAngkatan(activePeriode?.angkatan);
+    const startY = drawPdfHeader(doc, 'Rekapitulasi Tugas Dosen', [
+      [seminarType, angkatanText].filter(Boolean).join('  |  '),
+      `Jumlah dosen: ${rekapitulasiData.length}`,
+    ]);
+
+    const totalModerator = rekapitulasiData.reduce((sum, d) => sum + d.moderatorCount, 0);
+    const totalPembimbing = rekapitulasiData.reduce((sum, d) => sum + d.pembimbingCount, 0);
+
+    autoTable(doc, pdfTableOptions(doc, startY, {
       head: [['No', 'Nama Dosen', 'Sebagai Moderator', 'Sebagai Pembimbing']],
-      body: rekapitulasiData.map((d, i) => [
-        i + 1,
-        d.name,
-        d.moderatorCount,
-        d.pembimbingCount
-      ]),
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [6, 18, 92] }
-    });
-    
-    doc.save(`Rekapitulasi_Dosen_AKN_${activePeriode?.angkatan || ''}.pdf`);
+      body: rekapitulasiData.map((d, i) => [i + 1, d.name, d.moderatorCount, d.pembimbingCount]),
+      foot: [['', 'Total', totalModerator, totalPembimbing]],
+      showFoot: 'lastPage',
+      columnStyles: {
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 98 },
+        2: { cellWidth: 38, halign: 'center' },
+        3: { cellWidth: 38, halign: 'center' },
+      },
+      didParseCell: (data) => {
+        if (data.section === 'foot' && data.column.index >= 2) data.cell.styles.halign = 'center';
+      },
+    }));
+
+    doc.save(`Rekapitulasi_Dosen_${seminarType}_${angkatanText}.pdf`.replace(/\s+/g, '_'));
   };
   const uniqueKelas = Array.from(new Set(activePendaftaran.map(p => p.kelas))).filter(Boolean);
   const uniqueAngkatan = Array.from(new Set(masterMahasiswa.map(m => m.angkatan).filter(Boolean))).sort();
@@ -880,30 +892,12 @@ export default function AdminDashboard() {
     const { filename, jenisText, angkatanStr, kelasStr, dateStr } = getExportTitleAndFilename(sortedData);
 
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 12;
-    const navy: [number, number, number] = [6, 18, 92];
+    const startY = drawPdfHeader(doc, `Pengumuman Jadwal ${jenisText}`, [
+      [formatAngkatan(angkatanStr), `Kelas ${kelasStr}`].filter(Boolean).join('  |  '),
+      `Tanggal: ${dateStr}`,
+    ]);
 
-    // Title block
-    const angkatanText = angkatanStr.toUpperCase().includes('AKN') ? angkatanStr : `AKN ${angkatanStr}`.trim();
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(...navy);
-    doc.text(`PENGUMUMAN JADWAL ${jenisText.toUpperCase()}`, pageWidth / 2, 15, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(60, 60, 60);
-    doc.text(`${angkatanText}  |  Kelas ${kelasStr}`, pageWidth / 2, 21, { align: 'center' });
-    doc.text(`Tanggal: ${dateStr}`, pageWidth / 2, 26, { align: 'center' });
-    doc.setDrawColor(...navy);
-    doc.setLineWidth(0.6);
-    doc.line(margin, 30, pageWidth - margin, 30);
-
-    autoTable(doc, {
-      startY: 34,
-      margin: { left: margin, right: margin, bottom: 16 },
-      theme: 'grid',
+    autoTable(doc, pdfTableOptions(doc, startY, {
       head: [['No', 'Mahasiswa', 'Judul Penelitian', 'Kelas', 'Dosen Pembimbing', 'Waktu & Ruangan', 'Moderator', 'Pembahas']],
       body: sortedData.map((item: any, idx: number) => [
         idx + 1,
@@ -915,9 +909,6 @@ export default function AdminDashboard() {
         item.moderator || '-',
         item.pembahas ? item.pembahas.split(',').map((p: string) => p.trim()).filter(Boolean).join('\n') : '-'
       ]),
-      styles: { font: 'helvetica', fontSize: 8, cellPadding: 2, valign: 'top', overflow: 'linebreak', lineColor: [203, 213, 225], lineWidth: 0.2, textColor: [30, 41, 59] },
-      headStyles: { fillColor: navy, textColor: 255, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
         0: { cellWidth: 9, halign: 'center' },
         1: { cellWidth: 38 },
@@ -928,24 +919,13 @@ export default function AdminDashboard() {
         6: { cellWidth: 34 },
         7: { cellWidth: 42 },
       },
-      didDrawPage: () => {
-        // Footer on every page: print date + page number
-        const printed = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
-        doc.text(`Dicetak: ${printed}`, margin, pageHeight - 8);
-        doc.text(`Halaman ${doc.getCurrentPageInfo().pageNumber}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
-      },
-    });
-
+    }));
     doc.save(`${filename}.pdf`);
   };
 
   const handleExportKelasPDF = () => {
-    const doc = new jsPDF('portrait');
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
     const displayList = activePendaftaran.filter(p => p.kelasSeminarId && (manajemenKelasFilter === "Semua Kelas" || p.kelasSeminarId?.toString() === manajemenKelasFilter)).sort((a, b) => {
       if (manajemenKelasSort) {
         const valA = a[manajemenKelasSort.key] || "";
@@ -962,29 +942,30 @@ export default function AdminDashboard() {
     const classRange = uniqueClasses.length > 1 ? `${uniqueClasses[0]}-${uniqueClasses[uniqueClasses.length - 1]}` : uniqueClasses.length === 1 ? uniqueClasses[0] : '';
     
     const seminarType = activePeriode?.jenisSeminar === 'kolokium' ? 'Kolokium' : 'Hasil Penelitian';
-    const angkatan = activePeriode?.angkatan || '';
-    const angkatanText = angkatan.toUpperCase().includes('AKN') ? angkatan : `AKN ${angkatan}`;
-    
-    const titleText = `Daftar Kelas ${classRange ? classRange + ' ' : ''}Seminar ${seminarType} ${angkatanText}`.trim();
-    
-    doc.text(titleText, pageWidth / 2, 15, { align: 'center' });
+    const angkatanText = formatAngkatan(activePeriode?.angkatan);
+    const kelasText = uniqueClasses.length === 0 ? ''
+      : uniqueClasses.length === 1 ? `Kelas ${uniqueClasses[0]}`
+      : `Kelas ${uniqueClasses.slice(0, -1).join(', ')} dan ${uniqueClasses[uniqueClasses.length - 1]}`;
 
-    autoTable(doc, {
-      startY: 20,
-      head: [['No', 'Nama Mahasiswa', 'NIM', 'Kelas Saat Ini']],
+    const startY = drawPdfHeader(doc, `Daftar Kelas Seminar ${seminarType}`, [
+      [angkatanText, kelasText].filter(Boolean).join('  |  '),
+      `Jumlah mahasiswa: ${displayList.length}`,
+    ]);
+
+    autoTable(doc, pdfTableOptions(doc, startY, {
+      head: [['No', 'Nama Mahasiswa', 'NIM', 'Kelas']],
       body: displayList.map((item: any, idx: number) => {
         const currentClass = kelasData.find(k => k.id === item.kelasSeminarId);
-        return [
-          idx + 1,
-          item.name,
-          item.nim,
-          `Kelas ${currentClass?.namaKelas || "-"}`
-        ];
+        return [idx + 1, item.name, item.nim, `Kelas ${currentClass?.namaKelas || "-"}`];
       }),
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [6, 18, 92] }
-    });
-    
+      columnStyles: {
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 94 },
+        2: { cellWidth: 45, halign: 'center' },
+        3: { cellWidth: 35, halign: 'center' },
+      },
+    }));
+
     const filename = `Daftar_Kelas_${classRange ? classRange + '_' : ''}Seminar_${seminarType}_${angkatanText}.pdf`.replace(/\s+/g, '_');
     doc.save(filename);
   };

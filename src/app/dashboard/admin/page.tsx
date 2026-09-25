@@ -220,28 +220,22 @@ export default function AdminDashboard() {
   const fetchData = async (silent = false) => {
     try {
       if (!silent) setIsLoading(true);
-      const [resPeriode, resMhs, resDosen, resAdmin, resPend, resKelas] = await Promise.all([
-        fetch("/api/admin/periode"),
-        fetch("/api/admin/master/mahasiswa"),
-        fetch("/api/admin/master/dosen"),
-        fetch("/api/admin/master/admin"),
-        fetch("/api/admin/pendaftaran"),
-        fetch("/api/admin/kelas")
+      // Each request updates its own state as soon as it resolves, so fast data
+      // (e.g. the periode list) is not blocked by slower endpoints.
+      const load = (url: string, apply: (data: any) => void) =>
+        fetch(url)
+          .then((res) => res.json())
+          .then(apply)
+          .catch((e) => console.error(url, e));
+
+      await Promise.all([
+        load("/api/admin/periode", (d) => setPeriodes(d.periodes || [])),
+        load("/api/admin/master/mahasiswa", (d) => setMasterMahasiswa(d.mahasiswa || [])),
+        load("/api/admin/master/dosen", (d) => setMasterDosen(d.dosen || [])),
+        load("/api/admin/master/admin", (d) => setMasterAdmin(d.admin || [])),
+        load("/api/admin/pendaftaran", (d) => setPendaftaran(d.pendaftaran || [])),
+        load("/api/admin/kelas", (d) => setKelasData(d.kelas || [])),
       ]);
-
-      const dataPeriode = await resPeriode.json();
-      const dataMhs = await resMhs.json();
-      const dataDosen = await resDosen.json();
-      const dataAdmin = await resAdmin.json();
-      const dataPend = await resPend.json();
-      const dataKelas = await resKelas.json();
-
-      setPeriodes(dataPeriode.periodes || []);
-      setMasterMahasiswa(dataMhs.mahasiswa || []);
-      setMasterDosen(dataDosen.dosen || []);
-      setMasterAdmin(dataAdmin.admin || []);
-      setPendaftaran(dataPend.pendaftaran || []);
-      setKelasData(dataKelas.kelas || []);
     } catch (e) {
       console.error(e);
     } finally {

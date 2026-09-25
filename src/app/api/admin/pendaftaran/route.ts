@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { pendaftaran, users, slotWaktu, kelasSeminar, moderator as moderatorTable } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 
 export const dynamic = "force-dynamic";
@@ -56,9 +56,11 @@ export async function GET() {
       data.filter(r => r.jenisSeminar === "hasil_penelitian" && r.userId).map(r => r.userId)
     )];
 
-    const kolokiumDateMap: Record<string, string> = {};
-    for (const userId of hasilUserIds) {
+    // Fetch all approved kolokium rows for these users in a single query (avoid N+1 round-trips to Turso)
+    const kolokiumByUser = new Map<string, { waktuMulai: Date | null; kelasDate: string | null; tanggalKolokiumInput: string | null }>();
+    if (hasilUserIds.length > 0) {
       const kolokiumRows = await db.select({
+        userId: pendaftaran.userId,
         waktuMulai: slotWaktu.waktuMulai,
         kelasDate: kelasSeminar.date,
         tanggalKolokiumInput: pendaftaran.tanggalKolokium,
@@ -67,14 +69,19 @@ export async function GET() {
       .leftJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
       .leftJoin(kelasSeminar, eq(pendaftaran.kelasSeminarId, kelasSeminar.id))
       .where(and(
-        eq(pendaftaran.userId, userId),
+        inArray(pendaftaran.userId, hasilUserIds),
         eq(pendaftaran.jenisSeminar, "kolokium"),
         eq(pendaftaran.statusVerifikasi, "disetujui")
-      ))
-      .limit(1);
+      ));
+      for (const row of kolokiumRows) {
+        if (!kolokiumByUser.has(row.userId)) kolokiumByUser.set(row.userId, row);
+      }
+    }
 
-      if (kolokiumRows.length > 0) {
-        const k = kolokiumRows[0];
+    const kolokiumDateMap: Record<string, string> = {};
+    for (const userId of hasilUserIds) {
+      const k = kolokiumByUser.get(userId);
+      if (k) {
         if (k.waktuMulai) {
           const d = new Date(k.waktuMulai);
           kolokiumDateMap[userId] = `${d.getDate().toString().padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;

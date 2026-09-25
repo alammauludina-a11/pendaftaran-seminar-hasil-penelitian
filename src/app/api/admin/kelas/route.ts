@@ -7,15 +7,18 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const data = await db.select().from(kelasSeminar);
-    
-    // Count students per class from the actual pendaftaran table for accuracy
-    const pendaftarans = await db.select().from(pendaftaran);
-    
-    const withCounts = data.map(k => {
-      const terisi = pendaftarans.filter(p => p.kelasSeminarId === k.id).length;
-      return { ...k, kuotaTerisi: terisi };
-    });
+    // Count students per class from the actual pendaftaran table for accuracy (run both queries in parallel)
+    const [data, pendaftarans] = await Promise.all([
+      db.select().from(kelasSeminar),
+      db.select({ kelasSeminarId: pendaftaran.kelasSeminarId }).from(pendaftaran),
+    ]);
+
+    const countByKelas = new Map<number, number>();
+    for (const p of pendaftarans) {
+      if (p.kelasSeminarId != null) countByKelas.set(p.kelasSeminarId, (countByKelas.get(p.kelasSeminarId) || 0) + 1);
+    }
+
+    const withCounts = data.map(k => ({ ...k, kuotaTerisi: countByKelas.get(k.id) || 0 }));
 
     const formattedData = withCounts.filter(k => {
       if (k.kuotaTerisi > 0) return true; // Always show non-empty classes

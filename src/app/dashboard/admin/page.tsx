@@ -2327,7 +2327,7 @@ export default function AdminDashboard() {
                               <td className="px-4 py-3 text-slate-500 text-center">{idx + 1}</td>
                               <td className="px-4 py-3 font-medium text-[#06125C]">{item.name}</td>
                               <td className="px-4 py-3 text-slate-500">{item.nim}</td>
-                              <td className="px-4 py-3 text-slate-600 truncate max-w-[300px]" title={item.title}>{item.title}</td>
+                              <td className="px-4 py-3 text-slate-600 leading-snug break-words">{item.title}</td>
                               <td className="px-4 py-3 text-center">
                                 {item.status === 'menunggu' && (
                                   <span className="bg-amber-100 text-amber-700 text-[11px] font-bold px-2 py-0.5 rounded-md inline-flex items-center gap-1">
@@ -2571,7 +2571,7 @@ export default function AdminDashboard() {
                               </div>
                             </td>
                             <td className="px-3 py-4">
-                              <div className="line-clamp-3 font-medium text-slate-800 leading-snug" title={item.title}>{item.title}</div>
+                              <div className="font-medium text-slate-800 leading-snug break-words">{item.title}</div>
                             </td>
                             <td className="px-3 py-4 text-slate-700 font-medium">
                               {item.konsentrasi || '-'}
@@ -3094,7 +3094,7 @@ export default function AdminDashboard() {
                                   )}
                                 </div>
                                 <div className="text-xs text-slate-500 mt-1">{item.nim}</div>
-                                <div className="text-xs text-slate-500 mt-1 line-clamp-2 leading-snug" title={item.title}>Judul: <span className="italic">{item.title}</span></div>
+                                <div className="text-xs text-slate-500 mt-1 leading-snug break-words">Judul: <span className="italic">{item.title}</span></div>
                               </td>
                               <td className="px-3 py-4 text-slate-700 font-medium whitespace-nowrap">
                                 {item.kelas ? `Kelas ${item.kelas.replace('Kelas ', '')}` : '-'}

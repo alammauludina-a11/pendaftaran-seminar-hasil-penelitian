@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient, changePassword } from "../../../lib/auth-client";
 import { useSession } from "../../../lib/auth-client";
+import { isSundayIso } from "../../../lib/slot-rules";
 import { 
   LogOut, 
   FileText, 
@@ -152,9 +153,15 @@ export default function MahasiswaDashboard() {
     nim: (sessionData?.user as any)?.nipNim || "-",
   };
 
+  // Tracks the current seminar type so late slot responses for another type are ignored
+  const seminarTypeRef = useRef(selectedSeminarType);
+  seminarTypeRef.current = selectedSeminarType;
+
+  // Load slots for the selected seminar type (availability differs between kolokium & hasil_penelitian)
   useEffect(() => {
-    fetchRuanganData();
-  }, []);
+    setAvailableSlots([]);
+    if (selectedSeminarType) fetchRuanganData();
+  }, [selectedSeminarType]);
 
   useEffect(() => {
     if (sessionData?.user) {
@@ -166,14 +173,15 @@ export default function MahasiswaDashboard() {
   // Auto-refresh slot availability every 10s when on pengajuan tab
   // (kept short so students competing for slots see near-real-time availability)
   useEffect(() => {
-    if (activeTab !== "pengajuan" || pendaftaranStatus !== null) return;
+    if (activeTab !== "pengajuan" || pendaftaranStatus !== null || !selectedSeminarType) return;
     
     const interval = setInterval(() => {
       fetchRuanganData();
     }, 10000);
     
     return () => clearInterval(interval);
-  }, [activeTab, pendaftaranStatus]);
+    // Re-create the interval when seminar type / dospem change so polling never uses stale values
+  }, [activeTab, pendaftaranStatus, selectedSeminarType, selectedDospem1, selectedDospem2]);
 
   const fetchDashboardData = async (jenis?: string) => {
     try {
@@ -231,9 +239,11 @@ export default function MahasiswaDashboard() {
       const params = new URLSearchParams();
       if (d1) params.set("dospem1", d1);
       if (d2) params.set("dospem2", d2);
-      if (selectedSeminarType) params.set("jenisSeminar", selectedSeminarType);
+      if (!selectedSeminarType) return;
+      params.set("jenisSeminar", selectedSeminarType);
       const res = await fetch(`/api/mahasiswa/slot?${params.toString()}`);
       const data = await res.json();
+      if (seminarTypeRef.current !== selectedSeminarType) return; // user switched seminar type meanwhile
       if (data.availableSlots) {
         setAvailableSlots(data.availableSlots);
       }
@@ -259,12 +269,15 @@ export default function MahasiswaDashboard() {
         const hariStr = current.toLocaleDateString('id-ID', { weekday: 'long' });
         const currentIso = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
         
-        dates.push({
-          tanggal: dateStr,
-          hari: hariStr,
-          isoDate: currentIso,
-          isAvailable: currentIso >= todayIso // Past dates are disabled
-        });
+        // No slots on Sundays
+        if (!isSundayIso(currentIso)) {
+          dates.push({
+            tanggal: dateStr,
+            hari: hariStr,
+            isoDate: currentIso,
+            isAvailable: currentIso >= todayIso // Past dates are disabled
+          });
+        }
         
         current.setDate(current.getDate() + 1);
         limit++;

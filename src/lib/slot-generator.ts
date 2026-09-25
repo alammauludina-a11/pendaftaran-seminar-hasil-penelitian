@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { slotWaktu } from "@/db/schema";
 import { and, gte, lte } from "drizzle-orm";
+import { isValidSlotTime } from "@/lib/slot-rules";
 
 export async function autoGenerateSlots(startDateStr: string, endDateStr: string) {
   if (!startDateStr || !endDateStr) return;
@@ -46,7 +47,7 @@ export async function autoGenerateSlots(startDateStr: string, endDateStr: string
           const slotStart = new Date(Date.UTC(y, m, d, hour - 7, 0, 0, 0));
           const slotEnd = new Date(Date.UTC(y, m, d, hour - 7, 50, 0, 0));
 
-          if (!slotExists(slotStart)) {
+          if (isValidSlotTime(slotStart) && !slotExists(slotStart)) {
             slotsToInsert.push({
               waktuMulai: slotStart,
               waktuSelesai: slotEnd,

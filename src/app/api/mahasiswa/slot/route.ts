@@ -5,6 +5,7 @@ import { eq, isNotNull, ne, and, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { isValidSlotTime } from "@/lib/slot-rules";
 
 export async function GET(request: Request) {
   try {
@@ -18,7 +19,8 @@ export async function GET(request: Request) {
     // Fetch ALL slots — availability is now determined dynamically below, not by the tersedia flag.
     // (The old system set tersedia=false when a slot was booked; the new system no longer does this,
     //  but old records may still have tersedia=false, so we must not filter them out.)
-    const slots = await db.select().from(slotWaktu);
+    // Sorted by id so that when duplicate rows exist for the same time, the same (lowest) id is always shown
+    const slots = (await db.select().from(slotWaktu)).sort((a, b) => a.id - b.id);
 
     // Get all active (non-rejected) registrations that have a slot, with their class info
     const dosenUsers = alias(users, "dosenUsers");
@@ -48,12 +50,15 @@ export async function GET(request: Request) {
     const formedClasses = allClasses;
     const formedClassIds = new Set(allClasses.map(k => k.id));
 
-    // Build a map: slotId -> list of registrations
+    // Build a map: slot start time -> list of registrations.
+    // Keyed by time (not slot id) because slot_waktu can contain duplicate rows for the same time;
+    // a registration on any of those rows must block/occupy the same time slot.
     const slotRegMap = new Map<number, typeof activeRegistrations>();
     for (const reg of activeRegistrations) {
-      if (!reg.slotId) continue;
-      if (!slotRegMap.has(reg.slotId)) slotRegMap.set(reg.slotId, []);
-      slotRegMap.get(reg.slotId)!.push(reg);
+      if (!reg.slotId || !reg.waktuMulai) continue;
+      const timeKey = new Date(reg.waktuMulai).getTime();
+      if (!slotRegMap.has(timeKey)) slotRegMap.set(timeKey, []);
+      slotRegMap.get(timeKey)!.push(reg);
     }
 
     // Helper: check if a specific slot has any "pending class formation" registrations
@@ -67,9 +72,8 @@ export async function GET(request: Request) {
       const dateObj = new Date(s.waktuMulai);
       const isoDate = dateObj.toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
       
-      // Filter realistically: only 08:00 to 16:50 (in WIB)
-      const hourWIB = parseInt(dateObj.toLocaleTimeString('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Jakarta' }), 10);
-      if (hourWIB < 8 || hourWIB > 16) continue;
+      // Only 08:00 - 16:50 WIB, no 12:00 break slot, no Sundays
+      if (!isValidSlotTime(dateObj)) continue;
 
       const time = s.waktuSelesai
         ? `${dateObj.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })} - ${new Date(s.waktuSelesai).toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })}`
@@ -79,7 +83,7 @@ export async function GET(request: Request) {
       if (uniqueKeys.has(key)) continue;
       uniqueKeys.add(key);
 
-      const allRegsOnSlot = slotRegMap.get(s.id) || [];
+      const allRegsOnSlot = slotRegMap.get(dateObj.getTime()) || [];
       const currentSeminarRegs = allRegsOnSlot.filter(r => r.jenisSeminar === jenisSeminar);
       
       const isEmpty = currentSeminarRegs.length === 0;
@@ -102,7 +106,10 @@ export async function GET(request: Request) {
       let blocked = false;
       let blockedReason = "";
 
-      if (hasPendingClass) {
+      if (dateObj.getTime() <= Date.now()) {
+        blocked = true;
+        blockedReason = "Waktu slot sudah lewat";
+      } else if (hasPendingClass) {
         blocked = true;
         blockedReason = "Slot sudah diambil, menunggu Kelas terbentuk";
       } else if (dospemClash) {

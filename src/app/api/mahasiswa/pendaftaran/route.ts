@@ -1,13 +1,108 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { pendaftaran, periode, slotWaktu, kelasSeminar } from "@/db/schema";
-import { eq, and, isNotNull, ne } from "drizzle-orm";
+import { pendaftaran, periode, slotWaktu, kelasSeminar, moderator, users } from "@/db/schema";
+import { isValidSlotTime } from "@/lib/slot-rules";
+import { eq, and, isNotNull, isNull, ne } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
 import { writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
+
+const SLOT_TAKEN_MESSAGE = "Slot ini baru saja diambil mahasiswa lain dan sedang menunggu kelas terbentuk. Silakan pilih slot lain.";
+
+const toIsoWIB = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" }); // YYYY-MM-DD
+const todayIsoWIB = () => toIsoWIB(new Date());
+
+/** Other active registrations of the same seminar type on the same slot time that are still waiting for a class. */
+async function pendingClaimsOnSlot(waktuMulai: Date, jenisSeminar: string, ownId: number) {
+  return db
+    .select({ id: pendaftaran.id })
+    .from(pendaftaran)
+    .innerJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
+    .where(
+      and(
+        eq(slotWaktu.waktuMulai, waktuMulai),
+        eq(pendaftaran.jenisSeminar, jenisSeminar as "kolokium" | "hasil_penelitian"),
+        ne(pendaftaran.statusVerifikasi, "ditolak"),
+        isNull(pendaftaran.kelasSeminarId),
+        ne(pendaftaran.id, ownId)
+      )
+    );
+}
+
+/**
+ * Server-side slot rules, identical for kolokium & hasil_penelitian and matching /api/mahasiswa/slot:
+ * valid time (no Sunday, no 12:00, 08-16 WIB), not in the past, inside the periode dates,
+ * no pending class of the same seminar type on that time, no dospem/moderator clash.
+ */
+async function validateSlot(opts: {
+  slotId: number;
+  jenisSeminar: string;
+  periode: { startDate: string | null; endDate: string | null };
+  dospem1: string;
+  dospem2: string;
+  excludePendaftaranId?: number;
+}): Promise<{ waktuMulai: Date } | { error: string; status: number }> {
+  const slotRecord = await db.select().from(slotWaktu).where(eq(slotWaktu.id, opts.slotId)).limit(1);
+  if (slotRecord.length === 0) {
+    return { error: "Slot jadwal tidak ditemukan.", status: 404 };
+  }
+  const waktuMulai = slotRecord[0].waktuMulai;
+
+  if (!isValidSlotTime(waktuMulai)) {
+    return { error: "Slot jadwal tidak valid (hari Minggu dan jam 12.00 tidak tersedia).", status: 400 };
+  }
+  if (new Date(waktuMulai).getTime() <= Date.now()) {
+    return { error: "Waktu slot jadwal sudah lewat. Silakan pilih slot lain.", status: 400 };
+  }
+  const slotIso = toIsoWIB(new Date(waktuMulai));
+  const { startDate, endDate } = opts.periode;
+  if ((startDate && slotIso < startDate) || (endDate && slotIso > endDate)) {
+    return { error: "Slot jadwal berada di luar rentang tanggal periode seminar.", status: 400 };
+  }
+
+  // All active registrations on this slot time (matched by time, not slot id: slot_waktu may contain duplicate rows)
+  const dosenUsers = alias(users, "dosenUsers");
+  const activeOnSlot = await db
+    .select({
+      id: pendaftaran.id,
+      kelasSeminarId: pendaftaran.kelasSeminarId,
+      dospem1: pendaftaran.dospem1,
+      dospem2: pendaftaran.dospem2,
+      jenisSeminar: pendaftaran.jenisSeminar,
+      moderatorName: dosenUsers.nama,
+    })
+    .from(pendaftaran)
+    .innerJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
+    .leftJoin(moderator, eq(pendaftaran.id, moderator.pendaftaranId))
+    .leftJoin(dosenUsers, eq(moderator.dosenId, dosenUsers.id))
+    .where(
+      and(
+        eq(slotWaktu.waktuMulai, waktuMulai),
+        ne(pendaftaran.statusVerifikasi, "ditolak"),
+        opts.excludePendaftaranId ? ne(pendaftaran.id, opts.excludePendaftaranId) : undefined
+      )
+    );
+
+  // Pending class is checked per seminar type
+  if (activeOnSlot.some(r => r.jenisSeminar === opts.jenisSeminar && r.kelasSeminarId === null)) {
+    return { error: "Slot ini belum bisa dipilih karena pendaftar sebelumnya masih menunggu kelas terbentuk.", status: 409 };
+  }
+
+  // Dospem / moderator clash is checked across ALL seminar types (a lecturer can't be in two places at once)
+  const mine = [opts.dospem1, opts.dospem2].filter(Boolean);
+  const clash = activeOnSlot.some(r =>
+    [r.dospem1, r.dospem2, r.moderatorName].some(name => name && mine.includes(name))
+  );
+  if (clash) {
+    return { error: "Dosen Pembimbing Anda sudah terjadwal di slot jam yang sama pada kelas lain. Pilih jadwal lain.", status: 409 };
+  }
+
+  return { waktuMulai };
+}
 
 export async function POST(request: Request) {
   try {
@@ -83,12 +178,25 @@ export async function POST(request: Request) {
       const periodeResult = await db.select().from(periode).where(eq(periode.id, periodeIdToUse));
       if (periodeResult.length > 0) p = periodeResult[0];
     } else {
-      const openPeriodes = await db.select().from(periode).where(eq(periode.isOpen, true));
+      const openPeriodes = await db.select().from(periode).where(and(
+        eq(periode.isOpen, true),
+        eq(periode.jenisSeminar, jenisSeminar as "kolokium" | "hasil_penelitian")
+      ));
       if (openPeriodes.length > 0) p = openPeriodes[0];
     }
 
     if (!p || !p.isOpen) {
       return NextResponse.json({ error: "Periode pendaftaran tidak aktif atau tidak ditemukan." }, { status: 400 });
+    }
+
+    // The periode must belong to the seminar type being registered
+    if (p.jenisSeminar !== jenisSeminar) {
+      return NextResponse.json({ error: "Periode yang dipilih tidak sesuai dengan jenis seminar." }, { status: 400 });
+    }
+
+    // Registration is only allowed up to and including Batas Pendaftaran (WIB)
+    if (p.registrationEndDate && todayIsoWIB() > p.registrationEndDate) {
+      return NextResponse.json({ error: "Batas pendaftaran untuk periode ini sudah lewat." }, { status: 400 });
     }
 
     let finalTanggalKolokium = tanggal_kolokium;
@@ -156,109 +264,75 @@ export async function POST(request: Request) {
       .where(eq(pendaftaran.userId, mhsId));
 
     const alreadyInPeriode = existing.find(e => e.periodeId === p!.id);
-    if (alreadyInPeriode) {
-      if (alreadyInPeriode.statusVerifikasi === "ditolak") {
-        // NEW PARALLEL SLOT LOGIC for re-registration
-        if (slot_id) {
-          const activeOnSlot = await db
-            .select({
-              id: pendaftaran.id,
-              kelasSeminarId: pendaftaran.kelasSeminarId,
-              dospem1: pendaftaran.dospem1,
-              dospem2: pendaftaran.dospem2,
-            })
-            .from(pendaftaran)
-            .where(
-              and(
-                eq(pendaftaran.slotWaktuId, slot_id),
-                ne(pendaftaran.statusVerifikasi, 'ditolak'),
-                ne(pendaftaran.id, alreadyInPeriode.id)
-              )
-            );
-
-          const pendingClass = activeOnSlot.some(r => r.kelasSeminarId === null);
-          if (pendingClass) {
-            return NextResponse.json({ error: "Slot ini belum bisa dipilih karena pendaftar sebelumnya masih menunggu kelas terbentuk." }, { status: 409 });
-          }
-
-          const dospemClash = activeOnSlot.some(r =>
-            (r.dospem1 && (r.dospem1 === dospem1_nama || r.dospem1 === dospem2_nama)) ||
-            (r.dospem2 && (r.dospem2 === dospem1_nama || r.dospem2 === dospem2_nama))
-          );
-          if (dospemClash) {
-            return NextResponse.json({ error: "Dosen Pembimbing Anda sudah terjadwal di slot jam yang sama pada kelas lain. Pilih jadwal lain." }, { status: 409 });
-          }
-        }
-
-        // Update the application
-        const result = await db
-          .update(pendaftaran)
-          .set({
-            judulPenelitian: judul_penelitian,
-            konsentrasi: konsentrasi_penelitian,
-            dospem1: dospem1_nama,
-            dospem2: dospem2_nama,
-            tanggalKolokium: finalTanggalKolokium,
-            slotWaktuId: slot_id || null,
-            fileBuktiKolokium: fileBuktiKolokiumUrl || alreadyInPeriode.fileBuktiKolokium,
-            fileApprovalDospem: fileApprovalDospemUrl || alreadyInPeriode.fileApprovalDospem,
-            statusVerifikasi: "menunggu",
-            catatanAdmin: null, // clear rejection note
-            jenisSeminar: jenisSeminar as "kolokium" | "hasil_penelitian"
-          })
-          .where(eq(pendaftaran.id, alreadyInPeriode.id))
-          .returning();
-
-        return NextResponse.json({
-          message: "Pendaftaran berhasil disubmit ulang.",
-          data: result[0],
-        }, { status: 200 });
-      } else {
-        return NextResponse.json({ error: "Anda sudah mendaftar pada periode ini." }, { status: 409 });
-      }
+    if (alreadyInPeriode && alreadyInPeriode.statusVerifikasi !== "ditolak") {
+      return NextResponse.json({ error: "Anda sudah mendaftar pada periode ini." }, { status: 409 });
     }
 
-    // NEW PARALLEL SLOT LOGIC
-    // Rule: A slot can be taken by multiple students IF the previous class has been formed.
-    // Rule: Dospem cannot clash on the same slot.
+    // PARALLEL SLOT LOGIC (same rules for kolokium & hasil_penelitian)
+    let slotWaktuMulai: Date | null = null;
     if (slot_id) {
-      const slotRecord = await db.select().from(slotWaktu).where(eq(slotWaktu.id, slot_id)).limit(1);
-      if (slotRecord.length === 0) {
-        return NextResponse.json({ error: "Slot jadwal tidak ditemukan." }, { status: 404 });
+      const slotCheck = await validateSlot({
+        slotId: slot_id,
+        jenisSeminar,
+        periode: p,
+        dospem1: dospem1_nama,
+        dospem2: dospem2_nama,
+        excludePendaftaranId: alreadyInPeriode?.id,
+      });
+      if ("error" in slotCheck) {
+        return NextResponse.json({ error: slotCheck.error }, { status: slotCheck.status });
       }
+      slotWaktuMulai = slotCheck.waktuMulai;
+    }
 
-      // Get all active registrations on this slot
-      const activeOnSlot = await db
-        .select({
-          id: pendaftaran.id,
-          kelasSeminarId: pendaftaran.kelasSeminarId,
-          dospem1: pendaftaran.dospem1,
-          dospem2: pendaftaran.dospem2,
+    if (alreadyInPeriode) {
+      // Re-registration after rejection
+      const result = await db
+        .update(pendaftaran)
+        .set({
+          judulPenelitian: judul_penelitian,
+          konsentrasi: konsentrasi_penelitian,
+          dospem1: dospem1_nama,
+          dospem2: dospem2_nama,
+          tanggalKolokium: finalTanggalKolokium,
+          slotWaktuId: slot_id || null,
+          fileBuktiKolokium: fileBuktiKolokiumUrl || alreadyInPeriode.fileBuktiKolokium,
+          fileApprovalDospem: fileApprovalDospemUrl || alreadyInPeriode.fileApprovalDospem,
+          statusVerifikasi: "menunggu",
+          catatanAdmin: null, // clear rejection note
+          jenisSeminar: jenisSeminar as "kolokium" | "hasil_penelitian"
         })
-        .from(pendaftaran)
-        .where(
-          and(
-            eq(pendaftaran.slotWaktuId, slot_id),
-            ne(pendaftaran.statusVerifikasi, 'ditolak')
-          )
-        );
+        .where(eq(pendaftaran.id, alreadyInPeriode.id))
+        .returning();
 
-      // Check: Is there anyone on this slot who doesn't have a class yet?
-      const pendingClass = activeOnSlot.some(r => r.kelasSeminarId === null);
-      if (pendingClass) {
-        return NextResponse.json({ error: "Slot ini belum bisa dipilih karena pendaftar sebelumnya masih menunggu kelas terbentuk." }, { status: 409 });
+      // Guard against simultaneous submits: if someone else claimed this slot time in the meantime, roll back.
+      if (slotWaktuMulai) {
+        const others = await pendingClaimsOnSlot(slotWaktuMulai, jenisSeminar, alreadyInPeriode.id);
+        if (others.length > 0) {
+          await db
+            .update(pendaftaran)
+            .set({
+              judulPenelitian: alreadyInPeriode.judulPenelitian,
+              konsentrasi: alreadyInPeriode.konsentrasi,
+              dospem1: alreadyInPeriode.dospem1,
+              dospem2: alreadyInPeriode.dospem2,
+              tanggalKolokium: alreadyInPeriode.tanggalKolokium,
+              slotWaktuId: alreadyInPeriode.slotWaktuId,
+              fileBuktiKolokium: alreadyInPeriode.fileBuktiKolokium,
+              fileApprovalDospem: alreadyInPeriode.fileApprovalDospem,
+              statusVerifikasi: alreadyInPeriode.statusVerifikasi,
+              catatanAdmin: alreadyInPeriode.catatanAdmin,
+              jenisSeminar: alreadyInPeriode.jenisSeminar,
+            })
+            .where(eq(pendaftaran.id, alreadyInPeriode.id));
+          return NextResponse.json({ error: SLOT_TAKEN_MESSAGE }, { status: 409 });
+        }
       }
 
-      // Check: Dospem clash
-      const mhsDospem1 = dospem1_nama;
-      const mhsDospem2 = dospem2_nama;
-      const dospemClash = activeOnSlot.some(r =>
-        (r.dospem1 && (r.dospem1 === mhsDospem1 || r.dospem1 === mhsDospem2)) ||
-        (r.dospem2 && (r.dospem2 === mhsDospem1 || r.dospem2 === mhsDospem2))
-      );
-      if (dospemClash) {
-        return NextResponse.json({ error: "Dosen Pembimbing Anda sudah terjadwal di slot jam yang sama pada kelas lain. Pilih jadwal lain." }, { status: 409 });
-      }
+      return NextResponse.json({
+        message: "Pendaftaran berhasil disubmit ulang.",
+        data: result[0],
+      }, { status: 200 });
     }
 
     const result = await db
@@ -278,6 +352,16 @@ export async function POST(request: Request) {
         jenisSeminar: jenisSeminar as "kolokium" | "hasil_penelitian",
       })
       .returning();
+
+    // Guard against simultaneous submits: the earliest registration (lowest id) keeps the slot,
+    // any later one on the same slot time is removed again.
+    if (slotWaktuMulai) {
+      const others = await pendingClaimsOnSlot(slotWaktuMulai, jenisSeminar, result[0].id);
+      if (others.some(o => o.id < result[0].id)) {
+        await db.delete(pendaftaran).where(eq(pendaftaran.id, result[0].id));
+        return NextResponse.json({ error: SLOT_TAKEN_MESSAGE }, { status: 409 });
+      }
+    }
 
     // NOTE: We no longer mark slot as tersedia=false because parallel booking is now allowed.
     // Slot availability is determined dynamically by the /api/mahasiswa/slot endpoint.

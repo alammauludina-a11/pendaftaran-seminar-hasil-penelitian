@@ -4,6 +4,17 @@ import { db } from "@/db";
 import { pendaftaran, users, periode, slotWaktu } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
+/** Sort "AKN 60", "AKN 61", ... by their number instead of as plain text. */
+const byAngkatan = (a: { name: string }, b: { name: string }) =>
+  a.name.localeCompare(b.name, "id", { numeric: true });
+
+const median = (values: number[]) => {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+
 export async function GET() {
   try {
     const denied = await requireAdmin();
@@ -48,7 +59,7 @@ export async function GET() {
     }
 
     const now = new Date();
-    let tanpaKolokium = 0;
+    const tanpaKolokium: Record<string, number> = {};
 
     // Progress funnel: distinct students per stage, grouped by angkatan
     type FunnelSets = { kolokium: Set<string>; daftarHasil: Set<string>; disetujui: Set<string>; dirilis: Set<string>; selesai: Set<string> };
@@ -75,7 +86,8 @@ export async function GET() {
 
     const durationMap: Record<string, { "< 1 Bulan": number, "1 - 3 Bulan": number, "3 - 6 Bulan": number, "> 6 Bulan": number }> = {};
     const konsentrasiMap: Record<string, Record<string, number>> = {};
-    const titles: string[] = [];
+    const titlesByAngkatan: Record<string, string[]> = {};
+    const durasiHariByAngkatan: Record<string, number[]> = {};
 
     for (const row of rawData) {
       const angkatan = row.angkatan || "Unknown";
@@ -99,13 +111,13 @@ export async function GET() {
       }
 
       if (row.judulPenelitian) {
-        titles.push(row.judulPenelitian);
+        (titlesByAngkatan[angkatan] ??= []).push(row.judulPenelitian);
       }
 
       // Resolve the actual kolokium date from the student's kolokium pendaftaran slot
       const tKol = row.userId ? kolokiumByUser.get(row.userId) : undefined;
       if (!tKol) {
-        tanpaKolokium++;
+        tanpaKolokium[angkatan] = (tanpaKolokium[angkatan] || 0) + 1;
         continue;
       }
 
@@ -113,6 +125,7 @@ export async function GET() {
       const diffTime = Math.abs(hasilSlotTime.getTime() - tKol.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       const diffMonths = diffDays / 30;
+      (durasiHariByAngkatan[angkatan] ??= []).push(diffDays);
 
       if (diffMonths < 1) durationMap[angkatan]["< 1 Bulan"]++;
       else if (diffMonths <= 3) durationMap[angkatan]["1 - 3 Bulan"]++;
@@ -120,15 +133,20 @@ export async function GET() {
       else durationMap[angkatan]["> 6 Bulan"]++;
     }
 
-    const durationData = Object.keys(durationMap).map(angkatan => ({
-      name: angkatan,
-      ...durationMap[angkatan]
-    })).sort((a, b) => a.name.localeCompare(b.name));
+    const durationData = Object.keys(durationMap).map(angkatan => {
+      const medianHari = median(durasiHariByAngkatan[angkatan] ?? []);
+      return {
+        name: angkatan,
+        ...durationMap[angkatan],
+        total: durasiHariByAngkatan[angkatan]?.length ?? 0,
+        medianBulan: medianHari === null ? null : Math.round((medianHari / 30) * 10) / 10,
+      };
+    }).sort(byAngkatan);
 
     const konsentrasiData = Object.keys(konsentrasiMap).map(angkatan => ({
       name: angkatan,
       ...konsentrasiMap[angkatan]
-    })).sort((a, b) => a.name.localeCompare(b.name));
+    })).sort(byAngkatan);
 
     const funnelData = Object.keys(funnelMap).map(angkatan => ({
       name: angkatan,
@@ -137,16 +155,17 @@ export async function GET() {
       disetujui: funnelMap[angkatan].disetujui.size,
       dirilis: funnelMap[angkatan].dirilis.size,
       selesai: funnelMap[angkatan].selesai.size,
-    })).sort((a, b) => a.name.localeCompare(b.name));
+    })).sort(byAngkatan);
 
-    const sampleTitles = titles.slice(-100);
+    // Keep the AI prompt small: the latest 100 titles per angkatan
+    const titles = Object.fromEntries(Object.entries(titlesByAngkatan).map(([a, list]) => [a, list.slice(-100)]));
 
     return NextResponse.json({
       durationData,
       konsentrasiData,
       tanpaKolokium,
       funnelData,
-      titles: sampleTitles
+      titles
     }, { status: 200 });
 
   } catch (error: any) {

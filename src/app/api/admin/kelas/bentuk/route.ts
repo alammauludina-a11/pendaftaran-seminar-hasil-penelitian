@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, transaksi } from "@/db";
 import { periode } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/admin-auth";
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     // Even if the queue is smaller than batas kelas, admin can force-create a class
-    const result = await formClassFromQueue(periodeId);
+    const result = await transaksi(tx => formClassFromQueue(periodeId, {}, tx));
     if (!result) {
       return NextResponse.json({ error: "Tidak ada mahasiswa dalam antrean" }, { status: 400 });
     }

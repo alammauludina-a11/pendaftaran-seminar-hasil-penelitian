@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { moderator, pendaftaran } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { catatAktivitas } from "@/lib/audit";
@@ -44,8 +44,14 @@ export async function POST(
     }
 
     if (action === "setujui") {
-      // Delete moderator record → slot opens up again
-      await db.delete(moderator).where(eq(moderator.id, modRecord.id));
+      // Delete moderator record → slot opens up again.
+      // Only while the request is still pending: the dosen may have withdrawn it in the meantime.
+      const deleted = await db.delete(moderator)
+        .where(and(eq(moderator.id, modRecord.id), eq(moderator.batalStatus, "menunggu")))
+        .returning({ id: moderator.id });
+      if (deleted.length === 0) {
+        return NextResponse.json({ error: "Pengajuan batal sudah tidak menunggu (mungkin baru saja ditarik dosen)." }, { status: 409 });
+      }
       catatAktivitas({
         kategori: "jadwal",
         aksi: "moderator.batal_disetujui",
@@ -59,9 +65,13 @@ export async function POST(
 
     } else if (action === "tolak") {
       // Reset batal request, keep moderator assignment intact
-      await db.update(moderator)
+      const updated = await db.update(moderator)
         .set({ batalStatus: "ditolak", batalReason: modRecord.batalReason })
-        .where(eq(moderator.id, modRecord.id));
+        .where(and(eq(moderator.id, modRecord.id), eq(moderator.batalStatus, "menunggu")))
+        .returning({ id: moderator.id });
+      if (updated.length === 0) {
+        return NextResponse.json({ error: "Pengajuan batal sudah tidak menunggu (mungkin baru saja ditarik dosen)." }, { status: 409 });
+      }
       catatAktivitas({
         kategori: "jadwal",
         aksi: "moderator.batal_ditolak",

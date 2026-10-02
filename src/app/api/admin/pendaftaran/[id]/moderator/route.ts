@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, transaksi } from "@/db";
 import { pendaftaran, kelasSeminar, moderator, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -48,21 +48,26 @@ export async function PUT(
         return NextResponse.json({ error: "Dosen pembimbing tidak dapat dijadikan moderator untuk mahasiswanya sendiri." }, { status: 400 });
       }
 
-      // Validate: the dosen must not have another duty (pembimbing / moderator) at the same time
-      const waktuMulai = await getWaktuMulaiPendaftaran(pend.id);
-      if (waktuMulai && dosenName) {
-        const clash = await findDosenClash({ dosenId, dosenName, waktuMulai, excludePendaftaranId: pend.id });
-        if (clash) {
-          return NextResponse.json({ error: `Jadwal bentrok: ${clash}` }, { status: 409 });
+      // Clash check and write in one transaction, so the dosen can't be booked elsewhere at the same time in between
+      const clash = await transaksi(async (tx) => {
+        // Validate: the dosen must not have another duty (pembimbing / moderator) at the same time
+        const waktuMulai = await getWaktuMulaiPendaftaran(pend.id, tx);
+        if (waktuMulai && dosenName) {
+          const clash = await findDosenClash({ dosenId, dosenName, waktuMulai, excludePendaftaranId: pend.id }, tx);
+          if (clash) return clash;
         }
-      }
 
-      // Update or insert moderator
-      const existing = await db.select().from(moderator).where(eq(moderator.pendaftaranId, pend.id));
-      if (existing.length > 0) {
-        await db.update(moderator).set({ dosenId, assignedByRole: 'admin' }).where(eq(moderator.pendaftaranId, pend.id));
-      } else {
-        await db.insert(moderator).values({ pendaftaranId: pend.id, dosenId, assignedByRole: 'admin' });
+        // Update or insert moderator
+        const existing = await tx.select().from(moderator).where(eq(moderator.pendaftaranId, pend.id));
+        if (existing.length > 0) {
+          await tx.update(moderator).set({ dosenId, assignedByRole: 'admin' }).where(eq(moderator.pendaftaranId, pend.id));
+        } else {
+          await tx.insert(moderator).values({ pendaftaranId: pend.id, dosenId, assignedByRole: 'admin' });
+        }
+        return null;
+      });
+      if (clash) {
+        return NextResponse.json({ error: `Jadwal bentrok: ${clash}` }, { status: 409 });
       }
     }
 

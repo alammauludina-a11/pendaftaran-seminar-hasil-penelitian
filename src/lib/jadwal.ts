@@ -1,12 +1,12 @@
 // Shared scheduling rules used by the admin & dosen APIs.
-import { db } from "@/db";
+import { db, type Executor } from "@/db";
 import { pendaftaran, slotWaktu, moderator, users, kelasSeminar, periode } from "@/db/schema";
 import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 
 /** Start time of a pendaftaran's slot, or null when it has no slot. */
-export async function getWaktuMulaiPendaftaran(pendaftaranId: number): Promise<Date | null> {
-  const rows = await db
+export async function getWaktuMulaiPendaftaran(pendaftaranId: number, ex: Executor = db): Promise<Date | null> {
+  const rows = await ex
     .select({ waktuMulai: slotWaktu.waktuMulai })
     .from(pendaftaran)
     .innerJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
@@ -25,9 +25,9 @@ export async function findDosenClash(opts: {
   dosenName: string;
   waktuMulai: Date;
   excludePendaftaranId: number;
-}): Promise<string | null> {
+}, ex: Executor = db): Promise<string | null> {
   const moderatorUsers = alias(users, "moderatorUsers");
-  const rows = await db
+  const rows = await ex
     .select({
       mahasiswa: users.nama,
       dospem1: pendaftaran.dospem1,
@@ -61,19 +61,18 @@ export async function findDosenClash(opts: {
 
 /**
  * Forms one class from the queue (approved, no class yet) of a periode, up to its batas kelas.
- * Students are assigned in a single statement that only takes students still without a class,
- * so two simultaneous formations can never put the same student in two classes; a class that
- * ends up empty because another formation took the students first is removed again.
+ * Pass the caller's transaction so the queue read, class creation and assignment happen atomically.
  */
 export async function formClassFromQueue(
   periodeId: number,
-  opts: { minStudents?: number } = {}
+  opts: { minStudents?: number } = {},
+  ex: Executor = db
 ): Promise<{ className: string; kelas: typeof kelasSeminar.$inferSelect; count: number } | null> {
-  const periodes = await db.select().from(periode).where(eq(periode.id, periodeId));
+  const periodes = await ex.select().from(periode).where(eq(periode.id, periodeId));
   if (periodes.length === 0) return null;
   const batasKelas = periodes[0].batasKelas || 31;
 
-  const queued = await db
+  const queued = await ex
     .select({ id: pendaftaran.id })
     .from(pendaftaran)
     .where(
@@ -90,7 +89,7 @@ export async function formClassFromQueue(
 
   // Pick the first free class name: A..Z, then A1..Z1, ...
   const existingNames = new Set(
-    (await db.select({ nama: kelasSeminar.namaKelas }).from(kelasSeminar).where(eq(kelasSeminar.periodeId, periodeId))).map(c => c.nama)
+    (await ex.select({ nama: kelasSeminar.namaKelas }).from(kelasSeminar).where(eq(kelasSeminar.periodeId, periodeId))).map(c => c.nama)
   );
   let className = "A";
   for (let i = 0; ; i++) {
@@ -101,13 +100,13 @@ export async function formClassFromQueue(
     }
   }
 
-  const [newClass] = await db
+  const [newClass] = await ex
     .insert(kelasSeminar)
     .values({ namaKelas: className, periodeId, kuotaTerisi: 0, kapasitasMax: batasKelas })
     .returning();
 
   // Atomic assignment: only students that are still approved and without a class
-  const assigned = await db
+  const assigned = await ex
     .update(pendaftaran)
     .set({ kelasSeminarId: newClass.id })
     .where(
@@ -120,10 +119,10 @@ export async function formClassFromQueue(
     .returning({ id: pendaftaran.id });
 
   if (assigned.length === 0) {
-    await db.delete(kelasSeminar).where(eq(kelasSeminar.id, newClass.id));
+    await ex.delete(kelasSeminar).where(eq(kelasSeminar.id, newClass.id));
     return null;
   }
 
-  await db.update(kelasSeminar).set({ kuotaTerisi: assigned.length }).where(eq(kelasSeminar.id, newClass.id));
+  await ex.update(kelasSeminar).set({ kuotaTerisi: assigned.length }).where(eq(kelasSeminar.id, newClass.id));
   return { className, kelas: { ...newClass, kuotaTerisi: assigned.length }, count: assigned.length };
 }

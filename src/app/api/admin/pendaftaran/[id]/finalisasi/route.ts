@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { transaksi } from "@/db";
 import { pendaftaran, moderator } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/admin-auth";
@@ -16,33 +16,42 @@ export async function PUT(
     const { id: idStr } = await params;
     const id = parseInt(idStr);
 
-    const existing = await db.select().from(pendaftaran).where(eq(pendaftaran.id, id)).limit(1);
-    if (!existing.length) {
-      return NextResponse.json({ error: "Pendaftaran tidak ditemukan." }, { status: 404 });
-    }
-    const reg = existing[0];
+    // Checks and update in one transaction, so e.g. a moderator cancellation approved at the same moment
+    // can't result in a finalized schedule without a moderator.
+    const hasil = await transaksi(async (tx) => {
+      const existing = await tx.select().from(pendaftaran).where(eq(pendaftaran.id, id)).limit(1);
+      if (!existing.length) {
+        return { error: "Pendaftaran tidak ditemukan.", status: 404 } as const;
+      }
+      const reg = existing[0];
 
-    // Requirements: approved, in a class, room and moderator set. Pembahas is optional ("Paksa Finalisasi").
-    if (reg.statusVerifikasi !== "disetujui") {
-      return NextResponse.json({ error: "Pendaftaran belum disetujui." }, { status: 400 });
-    }
-    if (!reg.kelasSeminarId) {
-      return NextResponse.json({ error: "Mahasiswa belum masuk kelas." }, { status: 400 });
-    }
-    if (!reg.ruanganDisetujui) {
-      return NextResponse.json({ error: "Ruangan belum ditetapkan." }, { status: 400 });
-    }
-    const mod = await db.select({ id: moderator.id }).from(moderator).where(eq(moderator.pendaftaranId, id)).limit(1);
-    if (!mod.length) {
-      return NextResponse.json({ error: "Moderator belum dipilih." }, { status: 400 });
-    }
+      // Requirements: approved, in a class, room and moderator set. Pembahas is optional ("Paksa Finalisasi").
+      if (reg.statusVerifikasi !== "disetujui") {
+        return { error: "Pendaftaran belum disetujui.", status: 400 } as const;
+      }
+      if (!reg.kelasSeminarId) {
+        return { error: "Mahasiswa belum masuk kelas.", status: 400 } as const;
+      }
+      if (!reg.ruanganDisetujui) {
+        return { error: "Ruangan belum ditetapkan.", status: 400 } as const;
+      }
+      const mod = await tx.select({ id: moderator.id }).from(moderator).where(eq(moderator.pendaftaranId, id)).limit(1);
+      if (!mod.length) {
+        return { error: "Moderator belum dipilih.", status: 400 } as const;
+      }
 
-    // Finalisasi also publishes the schedule (rilis happens at finalisasi)
-    const updated = await db
-      .update(pendaftaran)
-      .set({ isFinalized: true, isReleased: true })
-      .where(eq(pendaftaran.id, id))
-      .returning();
+      // Finalisasi also publishes the schedule (rilis happens at finalisasi)
+      const updated = await tx
+        .update(pendaftaran)
+        .set({ isFinalized: true, isReleased: true })
+        .where(eq(pendaftaran.id, id))
+        .returning();
+      return { updated };
+    });
+    if ("error" in hasil) {
+      return NextResponse.json({ error: hasil.error }, { status: hasil.status });
+    }
+    const { updated } = hasil;
 
     catatAktivitas({
       kategori: "jadwal",

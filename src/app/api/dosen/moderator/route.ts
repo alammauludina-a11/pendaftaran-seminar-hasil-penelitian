@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { findDosenClash, getWaktuMulaiPendaftaran } from "@/lib/jadwal";
-import { db } from "@/db";
+import { db, transaksi } from "@/db";
 import { moderator, kelasSeminar, pendaftaran, users, slotWaktu, periode } from "@/db/schema";
 import { eq, isNull, and, desc, or } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -235,53 +235,52 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Pendaftaran ID tidak valid" }, { status: 400 });
     }
 
-    // Check if someone else already took it
-    const existing = await db.select().from(moderator).where(eq(moderator.pendaftaranId, pendaftaranId));
-    if (existing.length > 0) {
-      return NextResponse.json({ error: "Jadwal ini sudah diambil oleh moderator lain" }, { status: 400 });
-    }
-
-    // Check for schedule conflict with their bimbingan
     const currentUserId = session.user.id;
     const dosenUser = await db.select().from(users).where(eq(users.id, currentUserId)).limit(1);
     const dosenName = dosenUser[0]?.nama;
 
-    const targetPend = await db.select().from(pendaftaran).where(eq(pendaftaran.id, pendaftaranId)).limit(1);
-    if (targetPend.length === 0) {
-       return NextResponse.json({ error: "Data pendaftaran tidak ditemukan" }, { status: 404 });
-    }
-    // Only approved registrations that already sit in a seminar class can be moderated (same set the GET shows)
-    if (targetPend[0].statusVerifikasi !== "disetujui" || !targetPend[0].kelasSeminarId) {
-      return NextResponse.json({ error: "Jadwal ini belum tersedia untuk dipilih moderator." }, { status: 400 });
-    }
-    if (dosenName && (targetPend[0].dospem1 === dosenName || targetPend[0].dospem2 === dosenName)) {
-      return NextResponse.json({ error: "Anda tidak dapat menjadi moderator untuk mahasiswa bimbingan Anda sendiri." }, { status: 400 });
-    }
-
-    // Check for schedule conflict: bimbingan or another moderation at the same time (matched by slot time)
-    const waktuMulai = await getWaktuMulaiPendaftaran(targetPend[0].id);
-    if (!waktuMulai || waktuMulai.getTime() <= Date.now()) {
-      return NextResponse.json({ error: "Jadwal seminar ini sudah lewat atau belum ditentukan." }, { status: 400 });
-    }
-    if (dosenName) {
-      const clash = await findDosenClash({ dosenId: currentUserId, dosenName, waktuMulai, excludePendaftaranId: targetPend[0].id });
-      if (clash) {
-        return NextResponse.json({ error: `Anda tidak dapat menjadi moderator pada jadwal ini karena bentrok: ${clash}` }, { status: 400 });
+    // Checks and insert run in one transaction: two dosen picking the same seminar, or one dosen picking two
+    // seminars at the same time (two tabs), are serialized, so the second request sees the first one's row.
+    const error = await transaksi(async (tx): Promise<{ error: string; status: number } | null> => {
+      // Check if someone else already took it
+      const existing = await tx.select().from(moderator).where(eq(moderator.pendaftaranId, pendaftaranId));
+      if (existing.length > 0) {
+        return { error: "Jadwal ini sudah diambil oleh moderator lain", status: 400 };
       }
-    }
 
-    try {
-      await db.insert(moderator).values({
+      const targetPend = await tx.select().from(pendaftaran).where(eq(pendaftaran.id, pendaftaranId)).limit(1);
+      if (targetPend.length === 0) {
+        return { error: "Data pendaftaran tidak ditemukan", status: 404 };
+      }
+      // Only approved registrations that already sit in a seminar class can be moderated (same set the GET shows)
+      if (targetPend[0].statusVerifikasi !== "disetujui" || !targetPend[0].kelasSeminarId) {
+        return { error: "Jadwal ini belum tersedia untuk dipilih moderator.", status: 400 };
+      }
+      if (dosenName && (targetPend[0].dospem1 === dosenName || targetPend[0].dospem2 === dosenName)) {
+        return { error: "Anda tidak dapat menjadi moderator untuk mahasiswa bimbingan Anda sendiri.", status: 400 };
+      }
+
+      // Check for schedule conflict: bimbingan or another moderation at the same time (matched by slot time)
+      const waktuMulai = await getWaktuMulaiPendaftaran(targetPend[0].id, tx);
+      if (!waktuMulai || waktuMulai.getTime() <= Date.now()) {
+        return { error: "Jadwal seminar ini sudah lewat atau belum ditentukan.", status: 400 };
+      }
+      if (dosenName) {
+        const clash = await findDosenClash({ dosenId: currentUserId, dosenName, waktuMulai, excludePendaftaranId: targetPend[0].id }, tx);
+        if (clash) {
+          return { error: `Anda tidak dapat menjadi moderator pada jadwal ini karena bentrok: ${clash}`, status: 400 };
+        }
+      }
+
+      await tx.insert(moderator).values({
         pendaftaranId,
-        dosenId: session.user.id,
+        dosenId: currentUserId,
         assignedByRole: 'dosen'
       });
-    } catch (e: any) {
-      // pendaftaran_id is unique: another dosen took this slot between our check and the insert
-      if (String(e?.message || e?.cause?.message).includes("UNIQUE")) {
-        return NextResponse.json({ error: "Jadwal ini sudah diambil oleh moderator lain" }, { status: 400 });
-      }
-      throw e;
+      return null;
+    });
+    if (error) {
+      return NextResponse.json({ error: error.error }, { status: error.status });
     }
 
     return NextResponse.json({ message: "Berhasil memilih jadwal" }, { status: 200 });

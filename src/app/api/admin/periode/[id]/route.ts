@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { db } from "@/db";
+import { db, transaksi } from "@/db";
 import { periode, pendaftaran } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { autoGenerateSlots } from "@/lib/slot-generator";
@@ -106,14 +106,19 @@ export async function DELETE(
 
     const { id: idStr } = await params;
     const id = parseInt(idStr);
-    // Deleting a periode cascades to its registrations, so only allow it when it has none
-    const hasPendaftaran = await db.select({ id: pendaftaran.id }).from(pendaftaran).where(eq(pendaftaran.periodeId, id)).limit(1);
-    if (hasPendaftaran.length > 0) {
+    // Deleting a periode cascades to its registrations, so only allow it when it has none.
+    // Check and delete in one transaction, so a student registering at that moment can't be deleted with it.
+    const hapus = await transaksi(async (tx) => {
+      const hasPendaftaran = await tx.select({ id: pendaftaran.id }).from(pendaftaran).where(eq(pendaftaran.periodeId, id)).limit(1);
+      if (hasPendaftaran.length > 0) return "ada_pendaftar" as const;
+
+      const [hapus] = await tx.select({ angkatan: periode.angkatan, jenisSeminar: periode.jenisSeminar }).from(periode).where(eq(periode.id, id)).limit(1);
+      await tx.delete(periode).where(eq(periode.id, id));
+      return hapus;
+    });
+    if (hapus === "ada_pendaftar") {
       return NextResponse.json({ error: "Periode tidak dapat dihapus karena sudah memiliki pendaftar." }, { status: 400 });
     }
-
-    const [hapus] = await db.select({ angkatan: periode.angkatan, jenisSeminar: periode.jenisSeminar }).from(periode).where(eq(periode.id, id)).limit(1);
-    await db.delete(periode).where(eq(periode.id, id));
 
     catatAktivitas({
       kategori: "periode",

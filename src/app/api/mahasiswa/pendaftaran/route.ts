@@ -1,35 +1,16 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, transaksi, type Executor } from "@/db";
 import { pendaftaran, periode, slotWaktu, kelasSeminar, moderator, users, files } from "@/db/schema";
 import { isValidSlotTime } from "@/lib/slot-rules";
-import { eq, and, isNotNull, isNull, ne } from "drizzle-orm";
+import { eq, and, inArray, isNull, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
 import crypto from "crypto";
 
-const SLOT_TAKEN_MESSAGE = "Slot ini baru saja diambil mahasiswa lain dan sedang menunggu kelas terbentuk. Silakan pilih slot lain.";
-
 const toIsoWIB = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" }); // YYYY-MM-DD
 const todayIsoWIB = () => toIsoWIB(new Date());
-
-/** Other active registrations of the same seminar type on the same slot time that are still waiting for a class. */
-async function pendingClaimsOnSlot(waktuMulai: Date, jenisSeminar: string, ownId: number) {
-  return db
-    .select({ id: pendaftaran.id })
-    .from(pendaftaran)
-    .innerJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
-    .where(
-      and(
-        eq(slotWaktu.waktuMulai, waktuMulai),
-        eq(pendaftaran.jenisSeminar, jenisSeminar as "kolokium" | "hasil_penelitian"),
-        ne(pendaftaran.statusVerifikasi, "ditolak"),
-        isNull(pendaftaran.kelasSeminarId),
-        ne(pendaftaran.id, ownId)
-      )
-    );
-}
 
 /**
  * Server-side slot rules, identical for kolokium & hasil_penelitian and matching /api/mahasiswa/slot:
@@ -43,8 +24,8 @@ async function validateSlot(opts: {
   dospem1: string;
   dospem2: string;
   excludePendaftaranId?: number;
-}): Promise<{ waktuMulai: Date } | { error: string; status: number }> {
-  const slotRecord = await db.select().from(slotWaktu).where(eq(slotWaktu.id, opts.slotId)).limit(1);
+}, ex: Executor = db): Promise<{ waktuMulai: Date } | { error: string; status: number }> {
+  const slotRecord = await ex.select().from(slotWaktu).where(eq(slotWaktu.id, opts.slotId)).limit(1);
   if (slotRecord.length === 0) {
     return { error: "Slot jadwal tidak ditemukan.", status: 404 };
   }
@@ -64,7 +45,7 @@ async function validateSlot(opts: {
 
   // All active registrations on this slot time (matched by time, not slot id: slot_waktu may contain duplicate rows)
   const dosenUsers = alias(users, "dosenUsers");
-  const activeOnSlot = await db
+  const activeOnSlot = await ex
     .select({
       id: pendaftaran.id,
       kelasSeminarId: pendaftaran.kelasSeminarId,
@@ -277,21 +258,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Anda sudah mendaftar pada periode ini." }, { status: 409 });
     }
 
-    // PARALLEL SLOT LOGIC (same rules for kolokium & hasil_penelitian)
-    let slotWaktuMulai: Date | null = null;
-    if (slot_id) {
-      const slotCheck = await validateSlot({
-        slotId: slot_id,
-        jenisSeminar,
-        periode: p,
-        dospem1: dospem1_nama,
-        dospem2: dospem2_nama,
-        excludePendaftaranId: alreadyInPeriode?.id,
-      });
-      if ("error" in slotCheck) {
-        return NextResponse.json({ error: slotCheck.error }, { status: slotCheck.status });
-      }
-      slotWaktuMulai = slotCheck.waktuMulai;
+    // Pre-check outside the transaction so an invalid slot fails fast, before any file is uploaded
+    const slotCheck = await validateSlot({
+      slotId: slot_id,
+      jenisSeminar,
+      periode: p,
+      dospem1: dospem1_nama,
+      dospem2: dospem2_nama,
+      excludePendaftaranId: alreadyInPeriode?.id,
+    });
+    if ("error" in slotCheck) {
+      return NextResponse.json({ error: slotCheck.error }, { status: slotCheck.status });
     }
 
     // Required files: on re-registration the previously uploaded file may be kept
@@ -302,101 +279,97 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "File Bukti Forum Kolokium wajib diunggah." }, { status: 400 });
     }
 
+    // Files are stored before the transaction so the (short) transaction doesn't hold the write lock during the upload;
+    // they are removed again if the transaction rejects the registration.
     const fileBuktiKolokiumUrl = fileKolokium ? await storeFile(fileKolokium) : null;
     const fileApprovalDospemUrl = fileDospem ? await storeFile(fileDospem) : null;
+    const hapusFileBaru = async () => {
+      const ids = [fileBuktiKolokiumUrl, fileApprovalDospemUrl].filter((u): u is string => !!u).map(u => u.split("/").pop()!);
+      if (ids.length) await db.delete(files).where(inArray(files.id, ids)).catch(console.error);
+    };
 
-    if (alreadyInPeriode) {
-      // Re-registration after rejection
-      const result = await db
-        .update(pendaftaran)
-        .set({
-          judulPenelitian: judul_penelitian,
-          konsentrasi: konsentrasi_penelitian,
+    const nilai = {
+      judulPenelitian: judul_penelitian,
+      konsentrasi: konsentrasi_penelitian,
+      dospem1: dospem1_nama,
+      dospem2: dospem2_nama,
+      tanggalKolokium: finalTanggalKolokium,
+      slotWaktuId: slot_id,
+      statusVerifikasi: "menunggu" as const,
+      jenisSeminar: jenisSeminar as "kolokium" | "hasil_penelitian",
+    };
+
+    // The duplicate and slot checks are repeated inside the transaction: simultaneous submits (two tabs,
+    // two students on the same slot, a dosen picking a moderation) are serialized, so the first one wins
+    // and the others see its row and are rejected. Nothing is written unless every check passes.
+    let hasil: { error: string; status: number } | { data: typeof pendaftaran.$inferSelect; baru: boolean };
+    try {
+      hasil = await transaksi(async (tx) => {
+        const [current] = await tx.select().from(pendaftaran)
+          .where(and(eq(pendaftaran.userId, mhsId), eq(pendaftaran.periodeId, p.id)))
+          .limit(1);
+        if (current && current.statusVerifikasi !== "ditolak") {
+          return { error: "Anda sudah mendaftar pada periode ini.", status: 409 };
+        }
+
+        const slot = await validateSlot({
+          slotId: slot_id,
+          jenisSeminar,
+          periode: p,
           dospem1: dospem1_nama,
           dospem2: dospem2_nama,
-          tanggalKolokium: finalTanggalKolokium,
-          slotWaktuId: slot_id || null,
-          fileBuktiKolokium: fileBuktiKolokiumUrl || alreadyInPeriode.fileBuktiKolokium,
-          fileApprovalDospem: fileApprovalDospemUrl || alreadyInPeriode.fileApprovalDospem,
-          statusVerifikasi: "menunggu",
-          catatanAdmin: null, // clear rejection note
-          jenisSeminar: jenisSeminar as "kolokium" | "hasil_penelitian"
-        })
-        .where(eq(pendaftaran.id, alreadyInPeriode.id))
-        .returning();
+          excludePendaftaranId: current?.id,
+        }, tx);
+        if ("error" in slot) return slot;
 
-      // Guard against simultaneous submits: if someone else claimed this slot time in the meantime, roll back.
-      if (slotWaktuMulai) {
-        const others = await pendingClaimsOnSlot(slotWaktuMulai, jenisSeminar, alreadyInPeriode.id);
-        if (others.length > 0) {
-          await db
-            .update(pendaftaran)
+        if (current) {
+          // Re-registration after rejection
+          const [data] = await tx.update(pendaftaran)
             .set({
-              judulPenelitian: alreadyInPeriode.judulPenelitian,
-              konsentrasi: alreadyInPeriode.konsentrasi,
-              dospem1: alreadyInPeriode.dospem1,
-              dospem2: alreadyInPeriode.dospem2,
-              tanggalKolokium: alreadyInPeriode.tanggalKolokium,
-              slotWaktuId: alreadyInPeriode.slotWaktuId,
-              fileBuktiKolokium: alreadyInPeriode.fileBuktiKolokium,
-              fileApprovalDospem: alreadyInPeriode.fileApprovalDospem,
-              statusVerifikasi: alreadyInPeriode.statusVerifikasi,
-              catatanAdmin: alreadyInPeriode.catatanAdmin,
-              jenisSeminar: alreadyInPeriode.jenisSeminar,
+              ...nilai,
+              fileBuktiKolokium: fileBuktiKolokiumUrl || current.fileBuktiKolokium,
+              fileApprovalDospem: fileApprovalDospemUrl || current.fileApprovalDospem,
+              catatanAdmin: null, // clear rejection note
             })
-            .where(eq(pendaftaran.id, alreadyInPeriode.id));
-          return NextResponse.json({ error: SLOT_TAKEN_MESSAGE }, { status: 409 });
+            .where(eq(pendaftaran.id, current.id))
+            .returning();
+          return { data, baru: false };
         }
-      }
 
-      return NextResponse.json({
-        message: "Pendaftaran berhasil disubmit ulang.",
-        data: result[0],
-      }, { status: 200 });
+        const [data] = await tx.insert(pendaftaran)
+          .values({
+            ...nilai,
+            userId: mhsId,
+            periodeId: p.id,
+            fileBuktiKolokium: fileBuktiKolokiumUrl,
+            fileApprovalDospem: fileApprovalDospemUrl,
+          })
+          .returning();
+        return { data, baru: true };
+      });
+    } catch (e) {
+      await hapusFileBaru();
+      throw e;
     }
 
-    const result = await db
-      .insert(pendaftaran)
-      .values({
-        userId: mhsId,
-        periodeId: p.id,
-        judulPenelitian: judul_penelitian,
-        konsentrasi: konsentrasi_penelitian,
-        dospem1: dospem1_nama,
-        dospem2: dospem2_nama,
-        tanggalKolokium: finalTanggalKolokium,
-        slotWaktuId: slot_id || null,
-        fileBuktiKolokium: fileBuktiKolokiumUrl,
-        fileApprovalDospem: fileApprovalDospemUrl,
-        statusVerifikasi: "menunggu",
-        jenisSeminar: jenisSeminar as "kolokium" | "hasil_penelitian",
-      })
-      .returning();
-
-    // Guard against the same student submitting twice at once (e.g. two tabs): keep only the first registration
-    const ownInPeriode = await db.select({ id: pendaftaran.id }).from(pendaftaran)
-      .where(and(eq(pendaftaran.userId, mhsId), eq(pendaftaran.periodeId, p.id)));
-    if (ownInPeriode.some(o => o.id < result[0].id)) {
-      await db.delete(pendaftaran).where(eq(pendaftaran.id, result[0].id));
-      return NextResponse.json({ error: "Anda sudah mendaftar pada periode ini." }, { status: 409 });
-    }
-
-    // Guard against simultaneous submits: the earliest registration (lowest id) keeps the slot,
-    // any later one on the same slot time is removed again.
-    if (slotWaktuMulai) {
-      const others = await pendingClaimsOnSlot(slotWaktuMulai, jenisSeminar, result[0].id);
-      if (others.some(o => o.id < result[0].id)) {
-        await db.delete(pendaftaran).where(eq(pendaftaran.id, result[0].id));
-        return NextResponse.json({ error: SLOT_TAKEN_MESSAGE }, { status: 409 });
-      }
+    if ("error" in hasil) {
+      await hapusFileBaru();
+      return NextResponse.json({ error: hasil.error }, { status: hasil.status });
     }
 
     // NOTE: We no longer mark slot as tersedia=false because parallel booking is now allowed.
     // Slot availability is determined dynamically by the /api/mahasiswa/slot endpoint.
 
+    if (!hasil.baru) {
+      return NextResponse.json({
+        message: "Pendaftaran berhasil disubmit ulang.",
+        data: hasil.data,
+      }, { status: 200 });
+    }
+
     return NextResponse.json({
       message: "Pendaftaran berhasil disubmit.",
-      data: result[0],
+      data: hasil.data,
     }, { status: 201 });
   } catch (error) {
     console.error(error);
@@ -443,14 +416,24 @@ export async function PUT(request: Request) {
         return NextResponse.json({ error: "Jadwal sudah difinalisasi, ruangan tidak dapat diubah." }, { status: 400 });
       }
 
+      // The conditions are repeated in the update itself, so a second simultaneous submit changes nothing
       const updated = await db
         .update(pendaftaran)
         .set({
           ruanganDisetujui: ruanganName,
           statusRuangan: "disetujui",
         })
-        .where(eq(pendaftaran.id, pendaftaranId))
+        .where(and(
+          eq(pendaftaran.id, pendaftaranId),
+          isNull(pendaftaran.ruanganDisetujui),
+          isNull(pendaftaran.ruanganDiajukan),
+          eq(pendaftaran.isFinalized, false),
+          eq(pendaftaran.isReleased, false)
+        ))
         .returning();
+      if (updated.length === 0) {
+        return NextResponse.json({ error: "Ruangan sudah pernah diisi. Gunakan pengajuan pindah ruangan." }, { status: 409 });
+      }
 
       return NextResponse.json({ message: "Ruangan berhasil disimpan.", data: updated[0] }, { status: 200 });
     }

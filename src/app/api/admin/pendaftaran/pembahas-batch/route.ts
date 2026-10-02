@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { transaksi } from "@/db";
 import { pendaftaran } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -29,22 +29,27 @@ export async function PUT(request: Request) {
     }
 
     const ids = assignments.map(a => a.id);
-    const existing = await db
-      .select({ id: pendaftaran.id, isReleased: pendaftaran.isReleased })
-      .from(pendaftaran)
-      .where(inArray(pendaftaran.id, ids));
+    const error = await transaksi(async (tx) => {
+      const existing = await tx
+        .select({ id: pendaftaran.id, isReleased: pendaftaran.isReleased })
+        .from(pendaftaran)
+        .where(inArray(pendaftaran.id, ids));
 
-    if (existing.length !== new Set(ids).size) {
-      return NextResponse.json({ error: "Sebagian pendaftaran tidak ditemukan." }, { status: 404 });
-    }
-    if (existing.some(p => p.isReleased)) {
-      return NextResponse.json({ error: "Kelas sudah dirilis, pembahas tidak dapat diubah." }, { status: 400 });
-    }
+      if (existing.length !== new Set(ids).size) {
+        return { error: "Sebagian pendaftaran tidak ditemukan.", status: 404 };
+      }
+      if (existing.some(p => p.isReleased)) {
+        return { error: "Kelas sudah dirilis, pembahas tidak dapat diubah.", status: 400 };
+      }
 
-    const [first, ...rest] = assignments.map(a =>
-      db.update(pendaftaran).set({ pembahas: a.pembahas || null }).where(eq(pendaftaran.id, a.id))
-    );
-    await db.batch([first, ...rest]);
+      for (const a of assignments) {
+        await tx.update(pendaftaran).set({ pembahas: a.pembahas || null }).where(eq(pendaftaran.id, a.id));
+      }
+      return null;
+    });
+    if (error) {
+      return NextResponse.json({ error: error.error }, { status: error.status });
+    }
 
     catatAktivitas({
       kategori: "jadwal",

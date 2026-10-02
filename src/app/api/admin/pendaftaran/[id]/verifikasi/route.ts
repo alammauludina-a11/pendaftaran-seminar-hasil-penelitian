@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { db } from "@/db";
-import { pendaftaran, moderator } from "@/db/schema";
+import { transaksi } from "@/db";
+import { pendaftaran, moderator, periode } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { formClassFromQueue } from "@/lib/jadwal";
 import { catatAktivitas } from "@/lib/audit";
@@ -23,49 +23,57 @@ export async function PUT(
       return NextResponse.json({ error: "Status tidak valid" }, { status: 400 });
     }
 
-    const existing = await db.select().from(pendaftaran).where(eq(pendaftaran.id, id)).limit(1);
-    if (!existing.length) {
-      return NextResponse.json({ error: "Pendaftaran tidak ditemukan" }, { status: 404 });
-    }
-    if (existing[0].isFinalized || existing[0].isReleased) {
-      return NextResponse.json({ error: "Pendaftaran sudah difinalisasi. Batalkan finalisasi terlebih dahulu untuk mengubah verifikasi." }, { status: 400 });
-    }
-
-    // A student that is no longer approved leaves their class (and its moderator assignment),
-    // otherwise a rejected student would stay listed in the class.
-    const leavesClass = status !== "disetujui" && existing[0].kelasSeminarId !== null;
-
-    const updated = await db.update(pendaftaran)
-      .set({
-        statusVerifikasi: status,
-        catatanAdmin: note || "",
-        ...(leavesClass ? { kelasSeminarId: null } : {}),
-      })
-      .where(eq(pendaftaran.id, id))
-      .returning();
-
-    if (leavesClass) {
-      await db.delete(moderator).where(eq(moderator.pendaftaranId, id));
-    }
-
-    const reg = updated[0];
-
-    // If the queue of this periode reaches batas kelas, auto-form a class
-    if (status === "disetujui" && reg.slotWaktuId && reg.periodeId) {
-      const [p] = await db.query.periode.findMany({ where: (t, { eq }) => eq(t.id, reg.periodeId!), limit: 1 });
-      if (p) {
-        await formClassFromQueue(reg.periodeId, { minStudents: p.batasKelas || 31 });
+    // Status change, leaving the class and auto-forming a class happen in one transaction:
+    // either all of it is saved or nothing (no rejected student left behind with a moderator or class).
+    const hasil = await transaksi(async (tx) => {
+      const existing = await tx.select().from(pendaftaran).where(eq(pendaftaran.id, id)).limit(1);
+      if (!existing.length) {
+        return { error: "Pendaftaran tidak ditemukan", status: 404 } as const;
       }
+      if (existing[0].isFinalized || existing[0].isReleased) {
+        return { error: "Pendaftaran sudah difinalisasi. Batalkan finalisasi terlebih dahulu untuk mengubah verifikasi.", status: 400 } as const;
+      }
+
+      // A student that is no longer approved leaves their class (and its moderator assignment),
+      // otherwise a rejected student would stay listed in the class.
+      const leavesClass = status !== "disetujui" && existing[0].kelasSeminarId !== null;
+
+      const [reg] = await tx.update(pendaftaran)
+        .set({
+          statusVerifikasi: status,
+          catatanAdmin: note || "",
+          ...(leavesClass ? { kelasSeminarId: null } : {}),
+        })
+        .where(eq(pendaftaran.id, id))
+        .returning();
+
+      if (leavesClass) {
+        await tx.delete(moderator).where(eq(moderator.pendaftaranId, id));
+      }
+
+      // If the queue of this periode reaches batas kelas, auto-form a class
+      if (status === "disetujui" && reg.slotWaktuId && reg.periodeId) {
+        const [p] = await tx.select({ batasKelas: periode.batasKelas }).from(periode).where(eq(periode.id, reg.periodeId)).limit(1);
+        if (p) {
+          await formClassFromQueue(reg.periodeId, { minStudents: p.batasKelas || 31 }, tx);
+        }
+      }
+
+      return { reg, statusLama: existing[0].statusVerifikasi };
+    });
+    if ("error" in hasil) {
+      return NextResponse.json({ error: hasil.error }, { status: hasil.status });
     }
+    const { reg, statusLama } = hasil;
 
     catatAktivitas({
       kategori: "verifikasi",
       aksi: `verifikasi.${status}`,
-      deskripsi: `Mengubah status verifikasi {mahasiswa} dari "${existing[0].statusVerifikasi}" menjadi "${status}"`,
+      deskripsi: `Mengubah status verifikasi {mahasiswa} dari "${statusLama}" menjadi "${status}"`,
       targetTipe: "pendaftaran",
       targetId: id,
       pendaftaranIds: [id],
-      detail: { dari: existing[0].statusVerifikasi, ke: status, catatan: note || null },
+      detail: { dari: statusLama, ke: status, catatan: note || null },
     });
 
     return NextResponse.json({

@@ -27,6 +27,13 @@ Backup disimpan di `~/Backup Seminar` (data harian `data/`, PDF `pdf/`). Skrip h
 Data disimpan 30 hari terakhir + tanggal 1 tiap bulan selama 12 bulan; PDF disimpan selamanya.
 Backup berisi data pribadi: jangan di-commit atau dibagikan.
 
+## File unggahan (PDF)
+
+PDF disimpan di disk server, folder `UPLOAD_DIR` (default `./uploads`; di produksi sebuah persistent volume Coolify).
+Tabel `files` hanya menyimpan metadata (`storage_key`, `size`, `sha256`). File lama yang masih base64 di database
+dipindah dengan `scripts/pindahkan-file.ts` (butuh `APP_URL` dan `MAINTENANCE_TOKEN`; lihat komentar di skrip).
+Endpoint `/api/maintenance/*` hanya aktif bila `MAINTENANCE_TOKEN` (min. 32 karakter) diatur.
+
 ## Getting Started
 
 First, run the development server:

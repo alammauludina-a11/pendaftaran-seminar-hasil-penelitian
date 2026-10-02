@@ -45,3 +45,6 @@ public/uploads/
 
 # local database backups (contain student documents)
 /backups/
+
+# uploaded files (local development)
+/uploads

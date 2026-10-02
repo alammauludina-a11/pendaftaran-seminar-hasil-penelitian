@@ -28,8 +28,8 @@ case "${1:-}" in
     "$PROJECT/node_modules/.bin/esbuild" "$PROJECT/scripts/backup.ts" --bundle --platform=node --format=cjs \
       --target=node20 --alias:@libsql/client=@libsql/client/web --outfile="$PROG/backup.cjs" --log-level=warning
 
-    # Only the two database settings are copied, readable by this user only
-    grep -E '^(DATABASE_URL|DATABASE_AUTH_TOKEN)=' "$PROJECT/.env.local" > "$PROG/.env"
+    # Only the database settings (and the app URL/token for PDFs stored on the server) are copied, readable by this user only
+    grep -E '^(DATABASE_URL|DATABASE_AUTH_TOKEN|APP_URL|MAINTENANCE_TOKEN)=' "$PROJECT/.env.local" > "$PROG/.env"
     chmod 600 "$PROG/.env"
     grep -q '^DATABASE_URL=libsql://' "$PROG/.env" || { echo "DATABASE_URL di .env.local harus libsql://..."; exit 1; }
 

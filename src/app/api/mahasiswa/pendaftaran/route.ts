@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db, transaksi } from "@/db";
 import { pendaftaran, periode, slotWaktu, kelasSeminar, users, files } from "@/db/schema";
 import { validasiSlot } from "@/lib/jadwal";
+import { hapusFile, simpanFile } from "@/lib/file-storage";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -73,14 +74,16 @@ export async function POST(request: Request) {
       }
     }
 
+    // The PDF goes to disk (UPLOAD_DIR); the files row only keeps its metadata
     const storeFile = async (file: File) => {
       const fileId = crypto.randomUUID();
-      await db.insert(files).values({
-        id: fileId,
-        name: file.name,
-        mimeType: "application/pdf",
-        data: Buffer.from(await file.arrayBuffer()).toString("base64"),
-      });
+      const meta = await simpanFile(fileId, Buffer.from(await file.arrayBuffer()));
+      try {
+        await db.insert(files).values({ id: fileId, name: file.name, mimeType: "application/pdf", data: "", ...meta });
+      } catch (e) {
+        await hapusFile(meta.storageKey).catch(console.error);
+        throw e;
+      }
       return `/api/files/${fileId}`;
     };
 
@@ -214,7 +217,9 @@ export async function POST(request: Request) {
     const fileApprovalDospemUrl = fileDospem ? await storeFile(fileDospem) : null;
     const hapusFileBaru = async () => {
       const ids = [fileBuktiKolokiumUrl, fileApprovalDospemUrl].filter((u): u is string => !!u).map(u => u.split("/").pop()!);
-      if (ids.length) await db.delete(files).where(inArray(files.id, ids)).catch(console.error);
+      if (!ids.length) return;
+      await db.delete(files).where(inArray(files.id, ids)).catch(console.error);
+      await Promise.all(ids.map(id => hapusFile(`${id}.pdf`).catch(console.error)));
     };
 
     const nilai = {

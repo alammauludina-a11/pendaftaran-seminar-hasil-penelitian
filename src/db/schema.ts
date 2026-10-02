@@ -141,7 +141,12 @@ export const files = sqliteTable("files", {
   id: text("id").primaryKey(), // crypto.randomUUID()
   name: text("name").notNull(),
   mimeType: text("mime_type").notNull(),
-  data: text("data").notNull(), // Base64 encoded string
+  // Legacy: base64 content stored in the database. Empty ("") once the file lives on disk (see storageKey).
+  data: text("data").notNull(),
+  // File name inside UPLOAD_DIR (lib/file-storage), with size and sha256 to verify it; null for legacy rows
+  storageKey: text("storage_key"),
+  size: integer("size"),
+  sha256: text("sha256"),
   createdAt: integer("created_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
 

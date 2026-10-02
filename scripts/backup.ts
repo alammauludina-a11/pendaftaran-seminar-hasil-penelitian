@@ -3,12 +3,14 @@
 // - Data (every table, without the PDF contents) → data/data-YYYY-MM-DD.json.gz, read in one consistent snapshot.
 //   Kept: the last 30 days, plus the copy of the 1st of each month for 12 months.
 // - Uploaded PDFs → pdf/<file id>.pdf. Each file is downloaded once (uploads never change) and never deleted.
+//   Legacy PDFs come from the database; PDFs on the server's disk via APP_URL + MAINTENANCE_TOKEN.
 //
 //   npx tsx --env-file=.env.local scripts/backup.ts
 //
 // Folder: ~/Backup Seminar (override with BACKUP_DIR). Restore with scripts/restore.ts.
 import { createClient, type Client, type Row } from "@libsql/client";
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -40,7 +42,9 @@ async function backupData(dataDir: string) {
     const isi: Record<string, Record<string, unknown>[]> = {};
     for (const t of tables) {
       // PDF contents are stored separately in pdf/; the files table keeps only its metadata here
-      const kolom = t === "files" ? "id, name, mime_type, created_at" : "*";
+      const kolom = t === "files"
+        ? (await tx.execute(`pragma table_info("files")`)).rows.map(r => `"${r.name}"`).filter(c => c !== '"data"').join(", ")
+        : "*";
       const res = await tx.execute(`select ${kolom} from "${t}"`);
       isi[t] = res.rows.map(r => toObject(res.columns, r));
     }
@@ -60,7 +64,18 @@ async function backupData(dataDir: string) {
   }
 }
 
-async function backupPdf(pdfDir: string, fileIds: string[]) {
+/** Files stored on the server's disk (UPLOAD_DIR) are fetched through the token protected maintenance endpoint. */
+async function unduhDariServer(id: string) {
+  const appUrl = process.env.APP_URL, token = process.env.MAINTENANCE_TOKEN;
+  if (!appUrl || !token) throw new Error("APP_URL dan MAINTENANCE_TOKEN dibutuhkan untuk mengunduh PDF yang tersimpan di server.");
+  const res = await fetch(`${appUrl.replace(/\/$/, "")}/api/maintenance/files/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Gagal mengunduh PDF ${id} dari server: HTTP ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+async function backupPdf(pdfDir: string, fileIds: string[], hash: Map<string, string | null>) {
   const sudahAda = new Set(readdirSync(pdfDir).filter(f => f.endsWith(".pdf")).map(f => f.slice(0, -4)));
   const baru = fileIds.filter(id => !sudahAda.has(id));
   for (let i = 0; i < baru.length; i += 20) {
@@ -70,7 +85,11 @@ async function backupPdf(pdfDir: string, fileIds: string[]) {
       args: batch,
     });
     for (const r of res.rows) {
-      tulisAman(path.join(pdfDir, `${r.id}.pdf`), Buffer.from(String(r.data), "base64"));
+      // Legacy files still carry base64 in the database; moved files are downloaded from the app's disk
+      const isi = r.data ? Buffer.from(String(r.data), "base64") : await unduhDariServer(String(r.id));
+      const diharapkan = hash.get(String(r.id));
+      if (diharapkan && createHash("sha256").update(isi).digest("hex") !== diharapkan) throw new Error(`PDF ${r.id} tidak cocok dengan sha256-nya`);
+      tulisAman(path.join(pdfDir, `${r.id}.pdf`), isi);
     }
   }
   return { baru: baru.length, total: sudahAda.size + baru.length };
@@ -107,7 +126,7 @@ async function main() {
 
   const mulai = Date.now();
   const { file, isi } = await backupData(dataDir);
-  const pdf = await backupPdf(pdfDir, (isi.files ?? []).map(f => String(f.id)));
+  const pdf = await backupPdf(pdfDir, (isi.files ?? []).map(f => String(f.id)), new Map((isi.files ?? []).map(f => [String(f.id), f.sha256 as string | null])));
   const dihapus = rapikan(dataDir);
 
   const ringkas = Object.entries(isi).map(([t, rows]) => `${t}=${rows.length}`).join(", ");

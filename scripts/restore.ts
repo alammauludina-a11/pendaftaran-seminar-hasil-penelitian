@@ -75,6 +75,8 @@ async function main() {
       if (t === "files") {
         const pdf = path.join(pdfDir, `${data.id}.pdf`);
         data.data = existsSync(pdf) ? readFileSync(pdf).toString("base64") : "";
+        // Restored PDFs live in the database again; move them to disk afterwards with POST /api/maintenance/files
+        if ("storage_key" in data) data.storage_key = null;
       }
       const kolom = Object.keys(data);
       const tidakAda = kolom.filter(k => !kolomTujuan.has(k));

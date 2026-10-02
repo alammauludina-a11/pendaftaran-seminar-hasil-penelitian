@@ -4,6 +4,7 @@ import { pendaftaran } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { catatAktivitas } from "@/lib/audit";
 
 export async function PUT(
   request: Request,
@@ -40,6 +41,15 @@ export async function PUT(
       .set({ isReleased: isReleased === true })
       .where(eq(pendaftaran.id, id))
       .returning();
+
+    catatAktivitas({
+      kategori: "jadwal",
+      aksi: isReleased ? "jadwal.rilis" : "jadwal.tarik",
+      deskripsi: `${isReleased ? "Merilis" : "Menarik"} jadwal {mahasiswa}`,
+      targetTipe: "pendaftaran",
+      targetId: id,
+      pendaftaranIds: [id],
+    });
 
     return NextResponse.json({
       message: `Pendaftaran berhasil ${isReleased ? "dirilis" : "ditarik"}.`,

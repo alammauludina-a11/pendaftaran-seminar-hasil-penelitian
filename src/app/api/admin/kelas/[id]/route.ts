@@ -4,6 +4,7 @@ import { pendaftaran, kelasSeminar } from "@/db/schema";
 import { and, eq, or } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { catatAktivitas } from "@/lib/audit";
 
 export async function DELETE(
   request: Request,
@@ -26,6 +27,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Kelas tidak dapat dibatalkan karena ada mahasiswa yang sudah difinalisasi. Batalkan finalisasinya terlebih dahulu." }, { status: 400 });
     }
 
+    const [kelas] = await db.select({ namaKelas: kelasSeminar.namaKelas }).from(kelasSeminar).where(eq(kelasSeminar.id, id)).limit(1);
+
     // Unassign students from this class
     await db.update(pendaftaran)
       .set({ kelasSeminarId: null })
@@ -34,6 +37,14 @@ export async function DELETE(
     // Delete the class
     await db.delete(kelasSeminar)
       .where(eq(kelasSeminar.id, id));
+
+    catatAktivitas({
+      kategori: "kelas",
+      aksi: "kelas.batal",
+      deskripsi: `Membatalkan Kelas ${kelas?.namaKelas ?? id}`,
+      targetTipe: "kelas",
+      targetId: id,
+    });
 
     return NextResponse.json({
       message: "Kelas berhasil dibatalkan."

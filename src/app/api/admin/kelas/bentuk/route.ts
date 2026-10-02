@@ -4,6 +4,7 @@ import { periode } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/admin-auth";
 import { formClassFromQueue } from "@/lib/jadwal";
+import { catatAktivitas } from "@/lib/audit";
 
 export async function POST(request: Request) {
   try {
@@ -27,6 +28,14 @@ export async function POST(request: Request) {
     if (!result) {
       return NextResponse.json({ error: "Tidak ada mahasiswa dalam antrean" }, { status: 400 });
     }
+
+    catatAktivitas({
+      kategori: "kelas",
+      aksi: "kelas.bentuk",
+      deskripsi: `Membentuk Kelas ${result.className} dengan ${result.count} mahasiswa`,
+      targetTipe: "periode",
+      targetId: periodeId,
+    });
 
     return NextResponse.json({
       message: `Berhasil membentuk Kelas ${result.className} dengan ${result.count} mahasiswa.`,

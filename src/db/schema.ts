@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
+import { sqliteTable, integer, text, index } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -141,3 +141,40 @@ export const files = sqliteTable("files", {
   data: text("data").notNull(), // Base64 encoded string
   createdAt: integer("created_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
+
+// Permanent record of every successful login. Unlike `session`, rows are not removed on logout,
+// so Analisis Log can count logins and show history accurately.
+export const loginLog = sqliteTable("login_log", {
+  id: text("id").primaryKey(), // crypto.randomUUID()
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: integer("created_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [index("login_log_user_id_idx").on(t.userId), index("login_log_created_at_idx").on(t.createdAt)]);
+
+// Failed sign-in attempts. `userId` is null when the username does not match any account.
+export const loginGagal = sqliteTable("login_gagal", {
+  id: text("id").primaryKey(), // crypto.randomUUID()
+  identifier: text("identifier").notNull(), // username as typed on the login form
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  alasan: text("alasan"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: integer("created_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [index("login_gagal_created_at_idx").on(t.createdAt)]);
+
+// Audit trail of admin actions. Actor name and target label are stored as text so entries stay
+// readable after the admin or the target record is deleted.
+export const logAktivitas = sqliteTable("log_aktivitas", {
+  id: text("id").primaryKey(), // crypto.randomUUID()
+  actorId: text("actor_id"),
+  actorNama: text("actor_nama"),
+  kategori: text("kategori", { enum: ["verifikasi", "jadwal", "kelas", "periode", "master"] }).notNull(),
+  aksi: text("aksi").notNull(),
+  deskripsi: text("deskripsi").notNull(),
+  targetTipe: text("target_tipe"),
+  targetId: text("target_id"),
+  detail: text("detail"), // JSON string
+  ipAddress: text("ip_address"),
+  createdAt: integer("created_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [index("log_aktivitas_created_at_idx").on(t.createdAt)]);

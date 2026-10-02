@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { db } from "@/db";
 import { pendaftaran } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { catatAktivitas } from "@/lib/audit";
 
 export async function PUT(
   request: Request,
@@ -37,6 +38,15 @@ export async function PUT(
         })
         .where(eq(pendaftaran.id, id))
         .returning();
+
+      catatAktivitas({
+        kategori: "jadwal",
+        aksi: "ruangan.disetujui",
+        deskripsi: `Menyetujui ruangan "${p.ruanganDiajukan}" untuk {mahasiswa}`,
+        targetTipe: "pendaftaran",
+        targetId: id,
+        pendaftaranIds: [id],
+      });
 
       return NextResponse.json({
         message: "Ruangan disetujui",

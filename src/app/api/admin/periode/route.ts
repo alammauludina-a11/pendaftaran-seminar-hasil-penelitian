@@ -4,6 +4,9 @@ import { db } from "@/db";
 import { periode } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { autoGenerateSlots } from "@/lib/slot-generator";
+import { catatAktivitas } from "@/lib/audit";
+
+const labelJenis = (jenis?: string | null) => (jenis === "kolokium" ? "Kolokium" : "Seminar Hasil");
 
 export async function GET() {
   try {
@@ -98,6 +101,15 @@ export async function POST(request: Request) {
       forcedClasses: [],
       cancelledClasses: []
     };
+
+    catatAktivitas({
+      kategori: "periode",
+      aksi: "periode.buat",
+      deskripsi: `Membuat periode ${labelJenis(newPeriode[0].jenisSeminar)} ${angkatan}${newPeriode[0].isDraft ? " (draft)" : ""}`,
+      targetTipe: "periode",
+      targetId: newPeriode[0].id,
+      detail: { startDate: finalStart, endDate: finalEnd, registrationEndDate: registrationEndDate || null, isOpen: newPeriode[0].isOpen },
+    });
 
     return NextResponse.json({
       message: "Periode berhasil dibuat.",

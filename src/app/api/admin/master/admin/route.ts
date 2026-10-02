@@ -4,6 +4,7 @@ import { users, account } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { catatAktivitas } from "@/lib/audit";
 
 export async function GET() {
   try {
@@ -78,6 +79,8 @@ export async function POST(request: Request) {
         emailVerified: false,
       })
       .returning();
+
+    catatAktivitas({ kategori: "master", aksi: "master.tambah", deskripsi: `Menambahkan admin ${name}`, targetTipe: "admin", targetId: newUser[0].id });
 
     return NextResponse.json({
       message: "Data admin berhasil ditambahkan.",

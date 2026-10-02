@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { users, account } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
+import { catatAktivitas } from "@/lib/audit";
 
 export async function POST(request: Request) {
   try {
@@ -70,6 +71,8 @@ export async function POST(request: Request) {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+
+    catatAktivitas({ kategori: "master", aksi: "master.buat_akun", deskripsi: `Membuat akun login untuk dosen ${userRecord.nama} (${userRecord.nipNim})`, targetTipe: "dosen", targetId: userRecord.id });
 
     return NextResponse.json({ success: true, username: generatedUsername, password }, { status: 200 });
   } catch (error: any) {

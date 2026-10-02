@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { catatAktivitas, labelUsers } from "@/lib/audit";
 
 export async function DELETE(
   request: Request,
@@ -17,7 +18,10 @@ export async function DELETE(
 
     const { id } = await params;
 
+    const label = await labelUsers([id]);
     await db.delete(users).where(eq(users.id, id));
+
+    catatAktivitas({ kategori: "master", aksi: "master.hapus", deskripsi: `Menghapus admin ${label}`, targetTipe: "admin", targetId: id });
 
     return NextResponse.json({ message: "Data admin berhasil dihapus." }, { status: 200 });
   } catch (error) {
@@ -56,6 +60,8 @@ export async function PUT(
     if (updated.length === 0) {
       return NextResponse.json({ error: "Data admin tidak ditemukan." }, { status: 404 });
     }
+
+    catatAktivitas({ kategori: "master", aksi: "master.ubah", deskripsi: `Mengubah data admin ${name}`, targetTipe: "admin", targetId: id });
 
     return NextResponse.json({
       message: "Data admin berhasil diubah.",

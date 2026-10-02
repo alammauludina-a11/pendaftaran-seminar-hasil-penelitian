@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { pendaftaran, moderator } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { formClassFromQueue } from "@/lib/jadwal";
+import { catatAktivitas } from "@/lib/audit";
 
 export async function PUT(
   request: Request,
@@ -56,6 +57,16 @@ export async function PUT(
         await formClassFromQueue(reg.periodeId, { minStudents: p.batasKelas || 31 });
       }
     }
+
+    catatAktivitas({
+      kategori: "verifikasi",
+      aksi: `verifikasi.${status}`,
+      deskripsi: `Mengubah status verifikasi {mahasiswa} dari "${existing[0].statusVerifikasi}" menjadi "${status}"`,
+      targetTipe: "pendaftaran",
+      targetId: id,
+      pendaftaranIds: [id],
+      detail: { dari: existing[0].statusVerifikasi, ke: status, catatan: note || null },
+    });
 
     return NextResponse.json({
       message: "Status verifikasi berhasil diperbarui.",

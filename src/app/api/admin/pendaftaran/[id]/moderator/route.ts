@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { findDosenClash, getWaktuMulaiPendaftaran } from "@/lib/jadwal";
+import { catatAktivitas } from "@/lib/audit";
 
 
 export async function PUT(
@@ -31,6 +32,7 @@ export async function PUT(
       return NextResponse.json({ error: "Pendaftaran belum memiliki jadwal kelas" }, { status: 400 });
     }
 
+    let namaModerator: string | null = null;
     if (!dosenId) {
       // Remove moderator
       await db.delete(moderator).where(eq(moderator.pendaftaranId, pend.id));
@@ -41,6 +43,7 @@ export async function PUT(
         return NextResponse.json({ error: "Dosen tidak ditemukan." }, { status: 404 });
       }
       const dosenName = dosenUser[0].nama;
+      namaModerator = dosenName;
       if (dosenName && (pend.dospem1 === dosenName || pend.dospem2 === dosenName)) {
         return NextResponse.json({ error: "Dosen pembimbing tidak dapat dijadikan moderator untuk mahasiswanya sendiri." }, { status: 400 });
       }
@@ -62,6 +65,15 @@ export async function PUT(
         await db.insert(moderator).values({ pendaftaranId: pend.id, dosenId, assignedByRole: 'admin' });
       }
     }
+
+    catatAktivitas({
+      kategori: "jadwal",
+      aksi: dosenId ? "moderator.tetapkan" : "moderator.hapus",
+      deskripsi: dosenId ? `Menetapkan ${namaModerator} sebagai moderator {mahasiswa}` : "Menghapus moderator {mahasiswa}",
+      targetTipe: "pendaftaran",
+      targetId: pend.id,
+      pendaftaranIds: [pend.id],
+    });
 
     return NextResponse.json({ message: "Moderator berhasil diperbarui" }, { status: 200 });
   } catch (error) {

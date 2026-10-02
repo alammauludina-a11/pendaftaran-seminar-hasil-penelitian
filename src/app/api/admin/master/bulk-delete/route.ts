@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { eq, inArray, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { catatAktivitas, labelUsers } from "@/lib/audit";
 
 export async function POST(request: Request) {
   try {
@@ -22,6 +23,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Tipe data tidak valid." }, { status: 400 });
     }
 
+    const label = await labelUsers(ids);
+
     // Delete users matching the IDs and role (cascades to account, session via schema FK)
     await db.delete(users).where(
       and(
@@ -29,6 +32,14 @@ export async function POST(request: Request) {
         eq(users.role, type)
       )
     );
+
+    catatAktivitas({
+      kategori: "master",
+      aksi: "master.hapus_massal",
+      deskripsi: `Menghapus ${ids.length} data ${type}: ${label}`,
+      targetTipe: type,
+      detail: { ids },
+    });
 
     return NextResponse.json({ message: "Data berhasil dihapus secara massal." }, { status: 200 });
   } catch (error) {

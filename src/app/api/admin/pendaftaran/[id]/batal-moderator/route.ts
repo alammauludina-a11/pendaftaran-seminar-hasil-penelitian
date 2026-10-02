@@ -4,6 +4,7 @@ import { moderator, pendaftaran } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { catatAktivitas } from "@/lib/audit";
 
 // POST: Admin merespon pengajuan batal moderasi
 export async function POST(
@@ -45,6 +46,15 @@ export async function POST(
     if (action === "setujui") {
       // Delete moderator record → slot opens up again
       await db.delete(moderator).where(eq(moderator.id, modRecord.id));
+      catatAktivitas({
+        kategori: "jadwal",
+        aksi: "moderator.batal_disetujui",
+        deskripsi: "Menyetujui pengajuan batal moderator untuk {mahasiswa}",
+        targetTipe: "pendaftaran",
+        targetId: pendaftaranId,
+        pendaftaranIds: [pendaftaranId],
+        detail: { alasan: modRecord.batalReason },
+      });
       return NextResponse.json({ message: "Pembatalan moderator disetujui. Slot moderator kini kosong kembali." }, { status: 200 });
 
     } else if (action === "tolak") {
@@ -52,6 +62,15 @@ export async function POST(
       await db.update(moderator)
         .set({ batalStatus: "ditolak", batalReason: modRecord.batalReason })
         .where(eq(moderator.id, modRecord.id));
+      catatAktivitas({
+        kategori: "jadwal",
+        aksi: "moderator.batal_ditolak",
+        deskripsi: "Menolak pengajuan batal moderator untuk {mahasiswa}",
+        targetTipe: "pendaftaran",
+        targetId: pendaftaranId,
+        pendaftaranIds: [pendaftaranId],
+        detail: { alasan: modRecord.batalReason },
+      });
       return NextResponse.json({ message: "Pengajuan batal ditolak. Dosen tetap menjadi moderator." }, { status: 200 });
     }
 

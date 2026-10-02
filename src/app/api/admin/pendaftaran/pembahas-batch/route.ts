@@ -4,6 +4,7 @@ import { pendaftaran } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { catatAktivitas } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,15 @@ export async function PUT(request: Request) {
       db.update(pendaftaran).set({ pembahas: a.pembahas || null }).where(eq(pendaftaran.id, a.id))
     );
     await db.batch([first, ...rest]);
+
+    catatAktivitas({
+      kategori: "jadwal",
+      aksi: "pembahas.massal",
+      deskripsi: `Menyimpan pembahas untuk ${assignments.length} mahasiswa: {mahasiswa}`,
+      targetTipe: "pendaftaran",
+      pendaftaranIds: ids,
+      detail: { assignments },
+    });
 
     return NextResponse.json({ message: `${assignments.length} pembahas berhasil disimpan.` }, { status: 200 });
   } catch (error) {

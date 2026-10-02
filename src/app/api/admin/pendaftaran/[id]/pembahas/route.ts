@@ -4,6 +4,7 @@ import { pendaftaran } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { catatAktivitas } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,15 @@ export async function PUT(
     if (!updated.length) {
       return NextResponse.json({ error: "Pendaftaran tidak ditemukan." }, { status: 404 });
     }
+
+    catatAktivitas({
+      kategori: "jadwal",
+      aksi: "pembahas.ubah",
+      deskripsi: pembahas ? `Menetapkan pembahas "${pembahas}" untuk {mahasiswa}` : "Menghapus pembahas {mahasiswa}",
+      targetTipe: "pendaftaran",
+      targetId: id,
+      pendaftaranIds: [id],
+    });
 
     return NextResponse.json({
       message: "Pembahas berhasil diperbarui.",

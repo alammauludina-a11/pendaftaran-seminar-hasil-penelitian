@@ -1,20 +1,27 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, ReferenceLine
 } from "recharts";
-import { Loader2, Users, UserCheck, User, Clock, AlertCircle } from "lucide-react";
+import { Loader2, Users, UserX, LogIn, AlertCircle, CalendarDays, FileSpreadsheet, FileText, Info, KeyRound } from "lucide-react";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { drawPdfHeader, pdfTableOptions, formatAngkatan } from "@/lib/pdf-layout";
+import { formatTanggal, type LogData } from "./log-shared";
+import LogDetailPengguna from "./LogDetailPengguna";
+import LogKeamanan from "./LogKeamanan";
+import LogAktivitasAdmin from "./LogAktivitasAdmin";
 
-const COLORS = ["#3B82F6", "#10B981"]; // Blue for Mahasiswa, Green for Dosen
+type Tab = "login" | "keamanan" | "aktivitas";
 
 export default function AnalisisLog({ onBack }: { onBack?: () => void }) {
   const [isLoading, setIsLoading] = useState(true);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<LogData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [selectedUserHistory, setSelectedUserHistory] = useState<any | null>(null);
+  const [searchBelum, setSearchBelum] = useState("");
+  const [tab, setTab] = useState<Tab>("login");
 
   useEffect(() => {
     async function fetchData() {
@@ -32,21 +39,40 @@ export default function AnalisisLog({ onBack }: { onBack?: () => void }) {
     fetchData();
   }, []);
 
-  const filteredUsers = useMemo(() => {
-    if (!data?.userLogins) return [];
-    return data.userLogins.filter((u: any) => 
-      u.nama.toLowerCase().includes(search.toLowerCase()) || 
-      u.nipNim.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [data, search]);
+  const filteredBelumLogin = useMemo(() => {
+    if (!data?.belumLogin) return [];
+    const q = searchBelum.toLowerCase();
+    return data.belumLogin.filter(m => m.nama.toLowerCase().includes(q) || m.nipNim.toLowerCase().includes(q));
+  }, [data, searchBelum]);
 
-  const pieData = useMemo(() => {
-    if (!data) return [];
-    return [
-      { name: "Mahasiswa", value: data.mahasiswaLogins },
-      { name: "Dosen", value: data.dosenLogins }
-    ];
-  }, [data]);
+  const hasDailyLogins = useMemo(() => data?.daily.some(d => d.mahasiswa + d.dosen > 0) ?? false, [data]);
+
+  const exportBelumLoginExcel = () => {
+    if (!data) return;
+    const ws = XLSX.utils.json_to_sheet(data.belumLogin.map((m, i) => ({
+      No: i + 1,
+      NIM: m.nipNim,
+      Nama: m.nama,
+      Angkatan: formatAngkatan(m.angkatan),
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Belum Login");
+    XLSX.writeFile(wb, "Mahasiswa_Belum_Pernah_Login.xlsx");
+  };
+
+  const exportBelumLoginPdf = () => {
+    if (!data) return;
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const startY = drawPdfHeader(doc, "Mahasiswa Belum Pernah Login", [
+      `Total: ${data.belumLogin.length} dari ${data.kpi.totalMahasiswa} mahasiswa`,
+    ]);
+    autoTable(doc, pdfTableOptions(doc, startY, {
+      head: [["No", "NIM", "Nama", "Angkatan"]],
+      body: data.belumLogin.map((m, i) => [i + 1, m.nipNim, m.nama, formatAngkatan(m.angkatan)]),
+      columnStyles: { 0: { halign: "center", cellWidth: 12 }, 1: { cellWidth: 35 }, 3: { halign: "center", cellWidth: 28 } },
+    }));
+    doc.save("Mahasiswa_Belum_Pernah_Login.pdf");
+  };
 
   if (isLoading) {
     return (
@@ -57,7 +83,7 @@ export default function AnalisisLog({ onBack }: { onBack?: () => void }) {
     );
   }
 
-  if (error) {
+  if (error || !data) {
     return (
       <div className="bg-red-50 text-red-600 p-6 rounded-2xl flex flex-col items-center justify-center text-center">
         <AlertCircle className="w-10 h-10 mb-3 text-red-500" />
@@ -67,9 +93,11 @@ export default function AnalisisLog({ onBack }: { onBack?: () => void }) {
     );
   }
 
+  const persenBelum = data.kpi.totalMahasiswa ? Math.round((data.kpi.belumPernahLogin / data.kpi.totalMahasiswa) * 100) : 0;
+
   return (
     <div className="space-y-6">
-      <div className="mb-8 flex items-center gap-4">
+      <div className="mb-2 flex items-center gap-4">
         {onBack && (
           <button onClick={onBack} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500"><path d="m15 18-6-6 6-6"/></svg>
@@ -77,16 +105,50 @@ export default function AnalisisLog({ onBack }: { onBack?: () => void }) {
         )}
         <div>
           <h2 className="text-2xl font-bold text-[#06125C] mb-2">Analisis Log Aktivitas</h2>
-          <p className="text-slate-500">Pantau aktivitas login pengguna di dalam sistem Seminar Hub.</p>
+          <p className="text-slate-500">Pantau login, keamanan akun, dan aktivitas admin di dalam sistem Seminar Hub.</p>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div role="tablist" className="flex gap-1 p-1 bg-slate-100 rounded-xl w-full sm:w-fit overflow-x-auto">
+        {([
+          ["login", "Login"],
+          ["keamanan", "Keamanan"],
+          ["aktivitas", "Aktivitas Admin"],
+        ] as [Tab, string][]).map(([key, label]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors ${tab === key ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            {label}
+            {key === "keamanan" && (data.kpi.loginGagal24Jam > 0 || data.keamanan.gagalBeruntun.length > 0) && (
+              <span className="ml-2 inline-block w-2 h-2 rounded-full bg-rose-500 align-middle" aria-label="ada peringatan" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === "login" && (
+        <>
+
+      <div className="flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+        <Info className="w-4 h-4 shrink-0 mt-0.5" />
+        <p>
+          Pencatatan login lengkap dimulai {formatTanggal(data.pencatatanSejak, { day: "numeric", month: "long", year: "numeric" })}.
+          Login sebelum tanggal itu hanya tercatat bila pengguna belum logout, sehingga angka lama bisa lebih kecil dari kenyataan.
+          Mahasiswa yang sudah pernah mendaftar seminar dianggap sudah pernah login.
+        </p>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-slate-500 mb-1 uppercase tracking-wider">Total Login</p>
-            <h3 className="text-3xl font-black text-slate-800">{data?.totalLogins || 0}</h3>
+            <p className="text-sm font-semibold text-slate-500 mb-1 uppercase tracking-wider">Aktif 7 Hari</p>
+            <h3 className="text-3xl font-black text-slate-800">{data.kpi.aktif7Hari}</h3>
+            <p className="text-xs text-slate-400 mt-1">Mahasiswa &amp; dosen yang login</p>
           </div>
           <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-sm">
             <Users size={28} />
@@ -94,164 +156,170 @@ export default function AnalisisLog({ onBack }: { onBack?: () => void }) {
         </div>
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-slate-500 mb-1 uppercase tracking-wider">Login Mahasiswa</p>
-            <h3 className="text-3xl font-black text-slate-800">{data?.mahasiswaLogins || 0}</h3>
+            <p className="text-sm font-semibold text-slate-500 mb-1 uppercase tracking-wider">Login Hari Ini</p>
+            <h3 className="text-3xl font-black text-slate-800">{data.kpi.loginHariIni}</h3>
+            <p className="text-xs text-slate-400 mt-1">Mahasiswa &amp; dosen</p>
           </div>
           <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shadow-sm">
-            <User size={28} />
+            <LogIn size={28} />
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex items-center justify-between">
+        <a href="#belum-login" className="bg-white rounded-2xl p-6 shadow-sm border border-amber-200 flex items-center justify-between hover:bg-amber-50/40 transition-colors">
           <div>
-            <p className="text-sm font-semibold text-slate-500 mb-1 uppercase tracking-wider">Login Dosen</p>
-            <h3 className="text-3xl font-black text-slate-800">{data?.dosenLogins || 0}</h3>
+            <p className="text-sm font-semibold text-amber-700 mb-1 uppercase tracking-wider">Belum Pernah Login</p>
+            <h3 className="text-3xl font-black text-slate-800">{data.kpi.belumPernahLogin}</h3>
+            <p className="text-xs text-slate-400 mt-1">{persenBelum}% dari {data.kpi.totalMahasiswa} mahasiswa</p>
           </div>
-          <div className="w-14 h-14 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center shadow-sm">
-            <UserCheck size={28} />
+          <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shadow-sm">
+            <UserX size={28} />
           </div>
-        </div>
+        </a>
+        <button onClick={() => setTab("keamanan")} className={`text-left bg-white rounded-2xl p-6 shadow-sm border flex items-center justify-between transition-colors ${data.kpi.loginGagal24Jam > 0 ? "border-rose-200 hover:bg-rose-50/40" : "border-slate-200 hover:bg-slate-50"}`}>
+          <div>
+            <p className={`text-sm font-semibold mb-1 uppercase tracking-wider ${data.kpi.loginGagal24Jam > 0 ? "text-rose-700" : "text-slate-500"}`}>Login Gagal 24 Jam</p>
+            <h3 className="text-3xl font-black text-slate-800">{data.kpi.loginGagal24Jam}</h3>
+            <p className="text-xs text-slate-400 mt-1">Lihat tab Keamanan</p>
+          </div>
+          <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center shadow-sm">
+            <KeyRound size={28} />
+          </div>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chart */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-1 flex flex-col">
-          <h3 className="text-lg font-bold text-slate-800 mb-6">Proporsi Kelompok Pengguna</h3>
-          <div className="flex-grow flex items-center justify-center min-h-[300px]">
-            {data?.totalLogins > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip />
-                  <Legend />
-                </PieChart>
+        {/* Daily logins */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2 flex flex-col">
+          <div className="flex items-center gap-3 mb-4">
+            <CalendarDays className="w-5 h-5 text-indigo-600" />
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">Login per Hari</h3>
+              <p className="text-xs text-slate-500">30 hari terakhir · garis putus-putus menandai tanggal penting periode</p>
+            </div>
+          </div>
+          <div className="h-[300px]">
+            {hasDailyLogins ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.daily} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                  <XAxis dataKey="date" tickFormatter={(d) => formatTanggal(d)} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} minTickGap={16} />
+                  <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+                  <RechartsTooltip
+                    cursor={{ fill: '#F1F5F9' }}
+                    labelFormatter={(d) => formatTanggal(String(d), { weekday: "long", day: "numeric", month: "long" })}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Legend verticalAlign="top" height={30} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                  <Bar dataKey="mahasiswa" name="Mahasiswa" stackId="login" fill="#3B82F6" />
+                  <Bar dataKey="dosen" name="Dosen" stackId="login" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  {data.markers.map(m => (
+                    <ReferenceLine key={`${m.date}-${m.label}`} x={m.date} stroke="#F59E0B" strokeDasharray="4 4" />
+                  ))}
+                </BarChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-slate-400">Belum ada data login.</p>
+              <div className="flex items-center justify-center h-full text-sm text-slate-400">Belum ada login dalam 30 hari terakhir.</div>
             )}
           </div>
+          {data.markers.length > 0 && (
+            <ul className="mt-4 flex flex-wrap gap-2">
+              {data.markers.map(m => (
+                <li key={`${m.date}-${m.label}`} className="text-xs bg-amber-50 text-amber-800 border border-amber-100 rounded-lg px-2.5 py-1">
+                  <span className="font-semibold">{formatTanggal(m.date)}</span> · {m.label}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 lg:col-span-2 flex flex-col h-[500px]">
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between gap-4">
-            <h3 className="text-lg font-bold text-slate-800">Detail Log Pengguna</h3>
-            <input 
-              type="text" 
-              placeholder="Cari nama atau NIP/NIM..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 min-w-[250px]"
-            />
-          </div>
-          <div className="flex-grow overflow-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-slate-50 sticky top-0 shadow-sm border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-4 text-slate-600 font-semibold">Pengguna</th>
-                  <th className="px-6 py-4 text-slate-600 font-semibold">Tipe Akun</th>
-                  <th className="px-6 py-4 text-center text-slate-600 font-semibold">Jumlah Login</th>
-                  <th className="px-6 py-4 text-right text-slate-600 font-semibold">Login Terakhir</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((u: any) => (
-                    <tr 
-                      key={u.id} 
-                      onClick={() => setSelectedUserHistory(u)}
-                      className="hover:bg-indigo-50/50 cursor-pointer transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-slate-800">{u.nama}</div>
-                        <div className="text-xs text-slate-500">{u.nipNim}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-1 text-[11px] font-bold rounded-md uppercase tracking-wider ${u.role === 'mahasiswa' ? 'bg-blue-100 text-blue-700' : u.role === 'dosen' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center font-bold text-slate-700">
-                        {u.loginCount}
-                      </td>
-                      <td className="px-6 py-4 text-right text-slate-500">
-                        {u.lastLogin ? new Date(u.lastLogin).toLocaleString('id-ID', {
-                          day: '2-digit', month: 'short', year: 'numeric',
-                          hour: '2-digit', minute: '2-digit'
-                        }) : '-'}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-10 text-center text-slate-500">
-                      Tidak ada data log yang sesuai.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        {/* Adoption per angkatan */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+          <h3 className="text-lg font-bold text-slate-800 mb-1">Mahasiswa Sudah Login</h3>
+          <p className="text-xs text-slate-500 mb-6">Pernah login atau mendaftar seminar, per angkatan</p>
+          {data.adopsi.length > 0 ? (
+            <div className="space-y-5">
+              {data.adopsi.map(a => {
+                const persen = a.total ? Math.round((a.sudahLogin / a.total) * 100) : 0;
+                return (
+                  <div key={a.angkatan}>
+                    <div className="flex items-baseline justify-between mb-1.5">
+                      <span className="text-sm font-semibold text-slate-700">{formatAngkatan(a.angkatan) || a.angkatan}</span>
+                      <span className="text-xs text-slate-500"><span className="font-bold text-slate-800">{a.sudahLogin}</span> / {a.total} · {persen}%</span>
+                    </div>
+                    <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${persen}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">Belum ada data mahasiswa.</p>
+          )}
         </div>
       </div>
 
-      {/* History Modal */}
-      {selectedUserHistory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedUserHistory(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div>
-                <h3 className="font-bold text-slate-800 text-lg">Riwayat Login</h3>
-                <p className="text-sm text-slate-500">{selectedUserHistory.nama}</p>
-              </div>
-              <button 
-                onClick={() => setSelectedUserHistory(null)} 
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 hover:text-slate-700 transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-              </button>
-            </div>
-            <div className="overflow-y-auto p-2">
-              {selectedUserHistory.history && selectedUserHistory.history.length > 0 ? (
-                <ul className="divide-y divide-slate-100">
-                  {selectedUserHistory.history.map((dateStr: string, idx: number) => {
-                    const date = new Date(dateStr);
-                    return (
-                      <li key={idx} className="px-5 py-3 hover:bg-slate-50 flex items-center justify-between rounded-xl">
-                        <span className="text-sm font-bold text-slate-600 flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]">
-                            {selectedUserHistory.history.length - idx}
-                          </span>
-                          Login ke-{selectedUserHistory.history.length - idx}
-                        </span>
-                        <span className="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">
-                          {date.toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <div className="p-8 text-center flex flex-col items-center justify-center">
-                  <Clock className="w-10 h-10 text-slate-300 mb-3" />
-                  <p className="text-slate-500 font-medium">Tidak ada riwayat detail</p>
-                </div>
-              )}
-            </div>
+      {/* Never logged in */}
+      <div id="belum-login" className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[500px] scroll-mt-6">
+        <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Mahasiswa Belum Pernah Login</h3>
+            <p className="text-xs text-slate-500">{data.belumLogin.length} mahasiswa · berisiko terlewat pendaftaran seminar</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              placeholder="Cari nama atau NIM..."
+              value={searchBelum}
+              onChange={(e) => setSearchBelum(e.target.value)}
+              className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 sm:min-w-[220px]"
+            />
+            <button onClick={exportBelumLoginExcel} disabled={data.belumLogin.length === 0} className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border border-emerald-200 text-emerald-700 bg-white hover:bg-emerald-50 disabled:opacity-50">
+              <FileSpreadsheet className="w-4 h-4" /> Excel
+            </button>
+            <button onClick={exportBelumLoginPdf} disabled={data.belumLogin.length === 0} className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border border-rose-200 text-rose-700 bg-white hover:bg-rose-50 disabled:opacity-50">
+              <FileText className="w-4 h-4" /> PDF
+            </button>
           </div>
         </div>
+        <div className="overflow-auto">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-slate-50 sticky top-0 shadow-sm border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-3 text-slate-600 font-semibold w-16">No</th>
+                <th className="px-6 py-3 text-slate-600 font-semibold">NIM</th>
+                <th className="px-6 py-3 text-slate-600 font-semibold">Nama</th>
+                <th className="px-6 py-3 text-slate-600 font-semibold">Angkatan</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredBelumLogin.length > 0 ? (
+                filteredBelumLogin.map((m, i) => (
+                  <tr key={m.nipNim}>
+                    <td className="px-6 py-3 text-slate-500">{i + 1}</td>
+                    <td className="px-6 py-3 text-slate-600">{m.nipNim}</td>
+                    <td className="px-6 py-3 font-medium text-slate-800">{m.nama}</td>
+                    <td className="px-6 py-3 text-slate-600">{formatAngkatan(m.angkatan) || "-"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-6 py-10 text-center text-slate-500">
+                    {data.belumLogin.length === 0 ? "Semua mahasiswa sudah pernah login." : "Tidak ada yang cocok dengan pencarian."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <LogDetailPengguna users={data.userLogins} />
+        </>
       )}
+
+      {tab === "keamanan" && <LogKeamanan data={data.keamanan} loginGagal24Jam={data.kpi.loginGagal24Jam} />}
+
+      {tab === "aktivitas" && <LogAktivitasAdmin />}
     </div>
   );
 }

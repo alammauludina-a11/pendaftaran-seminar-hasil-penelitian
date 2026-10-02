@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { pendaftaran, kelasSeminar, slotWaktu, users } from "@/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { getWaktuMulaiPendaftaran } from "@/lib/jadwal";
+import { catatAktivitas } from "@/lib/audit";
 
 export async function PUT(
   request: Request,
@@ -29,6 +30,7 @@ export async function PUT(
       return NextResponse.json({ error: "Mahasiswa yang sudah difinalisasi tidak dapat dipindah kelas. Batalkan finalisasi terlebih dahulu." }, { status: 400 });
     }
 
+    let namaKelasTujuan: string | null = null;
     if (kelasSeminarId !== null) {
       if (reg.statusVerifikasi !== "disetujui") {
         return NextResponse.json({ error: "Hanya pendaftaran yang sudah disetujui yang dapat dimasukkan ke kelas." }, { status: 400 });
@@ -39,6 +41,7 @@ export async function PUT(
       if (targetClass.length === 0) {
         return NextResponse.json({ error: "Kelas tujuan tidak ditemukan" }, { status: 404 });
       }
+      namaKelasTujuan = targetClass[0].namaKelas;
       if (targetClass[0].periodeId !== reg.periodeId) {
         return NextResponse.json({ error: "Kelas tujuan berada di periode/jenis seminar yang berbeda." }, { status: 400 });
       }
@@ -68,6 +71,16 @@ export async function PUT(
     await db.update(pendaftaran)
       .set({ kelasSeminarId })
       .where(eq(pendaftaran.id, id));
+
+    catatAktivitas({
+      kategori: "kelas",
+      aksi: kelasSeminarId !== null ? "kelas.pindah" : "kelas.keluarkan",
+      deskripsi: kelasSeminarId !== null ? `Memindahkan {mahasiswa} ke Kelas ${namaKelasTujuan}` : "Mengeluarkan {mahasiswa} dari kelas",
+      targetTipe: "pendaftaran",
+      targetId: id,
+      pendaftaranIds: [id],
+      detail: { dariKelasId: reg.kelasSeminarId, keKelasId: kelasSeminarId },
+    });
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

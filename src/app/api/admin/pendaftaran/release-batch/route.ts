@@ -4,6 +4,7 @@ import { pendaftaran } from "@/db/schema";
 import { eq, and, inArray, isNotNull } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { catatAktivitas } from "@/lib/audit";
 
 export async function PUT(request: Request) {
   try {
@@ -27,6 +28,17 @@ export async function PUT(request: Request) {
         ? and(inArray(pendaftaran.id, ids), eq(pendaftaran.isFinalized, true), isNotNull(pendaftaran.ruanganDisetujui))
         : inArray(pendaftaran.id, ids))
       .returning({ id: pendaftaran.id });
+
+    if (updated.length > 0) {
+      catatAktivitas({
+        kategori: "jadwal",
+        aksi: isReleased ? "jadwal.rilis_massal" : "jadwal.tarik_massal",
+        deskripsi: `${isReleased ? "Merilis" : "Menarik"} jadwal ${updated.length} pendaftaran: {mahasiswa}`,
+        targetTipe: "pendaftaran",
+        pendaftaranIds: updated.map(u => u.id),
+        detail: { ids: updated.map(u => u.id) },
+      });
+    }
 
     return NextResponse.json({
       message: `${updated.length} pendaftaran berhasil ${isReleased ? "dirilis" : "ditarik"}.`,

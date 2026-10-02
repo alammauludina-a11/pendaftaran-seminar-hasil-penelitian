@@ -4,6 +4,9 @@ import { db } from "@/db";
 import { periode, pendaftaran } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { autoGenerateSlots } from "@/lib/slot-generator";
+import { catatAktivitas } from "@/lib/audit";
+
+const labelJenis = (jenis?: string | null) => (jenis === "kolokium" ? "Kolokium" : "Seminar Hasil");
 
 export async function GET(
   request: Request,
@@ -69,6 +72,17 @@ export async function PUT(
       return NextResponse.json({ error: "Periode tidak ditemukan" }, { status: 404 });
     }
 
+    const p = updatedPeriode[0];
+    const statusPerubahan = body.isDraft === false ? " (dipublikasikan)" : body.isOpen === true ? " (pendaftaran dibuka)" : body.isOpen === false ? " (pendaftaran ditutup)" : "";
+    catatAktivitas({
+      kategori: "periode",
+      aksi: "periode.ubah",
+      deskripsi: `Mengubah periode ${labelJenis(p.jenisSeminar)} ${p.angkatan}${statusPerubahan}`,
+      targetTipe: "periode",
+      targetId: id,
+      detail: updateData,
+    });
+
     return NextResponse.json({
       message: "Periode berhasil diupdate.",
       periode: { ...updatedPeriode[0], forcedClasses: [], cancelledClasses: [] }
@@ -98,7 +112,16 @@ export async function DELETE(
       return NextResponse.json({ error: "Periode tidak dapat dihapus karena sudah memiliki pendaftar." }, { status: 400 });
     }
 
+    const [hapus] = await db.select({ angkatan: periode.angkatan, jenisSeminar: periode.jenisSeminar }).from(periode).where(eq(periode.id, id)).limit(1);
     await db.delete(periode).where(eq(periode.id, id));
+
+    catatAktivitas({
+      kategori: "periode",
+      aksi: "periode.hapus",
+      deskripsi: hapus ? `Menghapus periode ${labelJenis(hapus.jenisSeminar)} ${hapus.angkatan}` : `Menghapus periode #${id}`,
+      targetTipe: "periode",
+      targetId: id,
+    });
 
     return NextResponse.json({
       message: "Periode berhasil dihapus."

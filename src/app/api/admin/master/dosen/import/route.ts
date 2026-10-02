@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { inArray } from "drizzle-orm";
+import { catatAktivitas } from "@/lib/audit";
 
 export async function POST(request: Request) {
   try {
@@ -69,6 +70,8 @@ export async function POST(request: Request) {
       jabatan: d.jabatan || "Pengajar",
       account: null,
     }));
+
+    catatAktivitas({ kategori: "master", aksi: "master.impor", deskripsi: `Mengimpor ${insertedUsers.length} data dosen dari file`, targetTipe: "dosen" });
 
     return NextResponse.json({
       message: `Berhasil import ${insertedUsers.length} data dosen.`,

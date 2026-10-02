@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { pendaftaran, moderator } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/admin-auth";
+import { catatAktivitas } from "@/lib/audit";
 
 export async function PUT(
   request: Request,
@@ -42,6 +43,15 @@ export async function PUT(
       .set({ isFinalized: true, isReleased: true })
       .where(eq(pendaftaran.id, id))
       .returning();
+
+    catatAktivitas({
+      kategori: "jadwal",
+      aksi: "jadwal.finalisasi",
+      deskripsi: "Memfinalisasi dan merilis jadwal {mahasiswa}",
+      targetTipe: "pendaftaran",
+      targetId: id,
+      pendaftaranIds: [id],
+    });
 
     return NextResponse.json({
       message: "Pendaftaran berhasil difinalisasi.",

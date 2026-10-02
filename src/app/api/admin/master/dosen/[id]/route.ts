@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { catatAktivitas, labelUsers } from "@/lib/audit";
 
 export async function DELETE(
   request: Request,
@@ -17,8 +18,11 @@ export async function DELETE(
 
     const { id } = await params;
 
+    const label = await labelUsers([id]);
     // Delete user (cascades to account, session via schema FK)
     await db.delete(users).where(eq(users.id, id));
+
+    catatAktivitas({ kategori: "master", aksi: "master.hapus", deskripsi: `Menghapus dosen ${label}`, targetTipe: "dosen", targetId: id });
 
     return NextResponse.json({ message: "Data dosen berhasil dihapus." }, { status: 200 });
   } catch (error) {
@@ -60,6 +64,8 @@ export async function PUT(
     if (updated.length === 0) {
       return NextResponse.json({ error: "Data dosen tidak ditemukan." }, { status: 404 });
     }
+
+    catatAktivitas({ kategori: "master", aksi: "master.ubah", deskripsi: `Mengubah data dosen ${name} (${nip})`, targetTipe: "dosen", targetId: id });
 
     return NextResponse.json({
       message: "Data dosen berhasil diubah.",

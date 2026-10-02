@@ -113,7 +113,7 @@ export default function MahasiswaDashboard() {
     }
   };
 
-  const [masterDosen, setMasterDosen] = useState<string[]>([]);
+  const [masterDosen, setMasterDosen] = useState<{ id: string; nama: string }[]>([]);
 
   // States for Pengumuman Filter
   const [pengumumanSearch, setPengumumanSearch] = useState("");
@@ -914,14 +914,14 @@ export default function MahasiswaDashboard() {
                     <label className="block text-sm font-medium text-slate-700 mb-1">Dosen Pembimbing 1 <span className="text-red-500">*</span></label>
                     <div className="relative">
                       <select 
-                        name="dospem1_nama"
+                        name="dospem1_id"
                         required
                         value={selectedDospem1}
                         onChange={e => { setSelectedDospem1(e.target.value); fetchRuanganData(e.target.value, selectedDospem2); }}
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#06125C]/20 focus:border-[#06125C] transition-all outline-none text-slate-700 appearance-none"
                       >
                         <option value="">Pilih Dosen Pembimbing 1</option>
-                        {masterDosen.map((dosen, i) => <option key={i} value={dosen} disabled={dosen === selectedDospem2}>{dosen}</option>)}
+                        {masterDosen.map(dosen => <option key={dosen.id} value={dosen.id} disabled={dosen.id === selectedDospem2}>{dosen.nama}</option>)}
                       </select>
                       <div className="absolute right-4 top-3.5 text-slate-400 pointer-events-none">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -932,13 +932,13 @@ export default function MahasiswaDashboard() {
                     <label className="block text-sm font-medium text-slate-700 mb-1">Dosen Pembimbing 2 <span className="text-slate-400 font-normal">(Opsional)</span></label>
                     <div className="relative">
                       <select 
-                        name="dospem2_nama"
+                        name="dospem2_id"
                         value={selectedDospem2}
                         onChange={e => { setSelectedDospem2(e.target.value); fetchRuanganData(selectedDospem1, e.target.value); }}
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#06125C]/20 focus:border-[#06125C] transition-all outline-none text-slate-700 appearance-none"
                       >
                         <option value="">Pilih Dosen Pembimbing 2 (opsional)</option>
-                        {masterDosen.map((dosen, i) => <option key={i} value={dosen} disabled={dosen === selectedDospem1}>{dosen}</option>)}
+                        {masterDosen.map(dosen => <option key={dosen.id} value={dosen.id} disabled={dosen.id === selectedDospem1}>{dosen.nama}</option>)}
                       </select>
                       <div className="absolute right-4 top-3.5 text-slate-400 pointer-events-none">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>

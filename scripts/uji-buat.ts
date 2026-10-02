@@ -101,6 +101,7 @@ async function main() {
         userId: ids.get(m.username)!,
         periodeId: kolokium.id,
         judulPenelitian: `Penelitian Uji ${i + 1}`,
+        dospem1Id: ids.get(DOSEN_UJI[0].username)!,
         dospem1: DOSEN_UJI[0].nama,
         tanggalKolokium,
         statusVerifikasi: "disetujui",

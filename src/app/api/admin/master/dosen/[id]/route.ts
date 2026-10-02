@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { users } from "@/db/schema";
+import { db, transaksi } from "@/db";
+import { users, pendaftaran } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -49,17 +49,25 @@ export async function PUT(
       return NextResponse.json({ error: "NIP dan Nama wajib diisi." }, { status: 400 });
     }
 
-    const updated = await db
-      .update(users)
-      .set({
-        nipNim: nip,
-        nama: name,
-        prodi: prodi,
-        jabatan: jabatan,
-        statusDosen: statusDosen,
-      })
-      .where(eq(users.id, id))
-      .returning();
+    // The dospem names stored on registrations are a display copy: rename them together with the dosen
+    const updated = await transaksi(async (tx) => {
+      const updated = await tx
+        .update(users)
+        .set({
+          nipNim: nip,
+          nama: name,
+          prodi: prodi,
+          jabatan: jabatan,
+          statusDosen: statusDosen,
+        })
+        .where(eq(users.id, id))
+        .returning();
+      if (updated.length > 0) {
+        await tx.update(pendaftaran).set({ dospem1: name }).where(eq(pendaftaran.dospem1Id, id));
+        await tx.update(pendaftaran).set({ dospem2: name }).where(eq(pendaftaran.dospem2Id, id));
+      }
+      return updated;
+    });
 
     if (updated.length === 0) {
       return NextResponse.json({ error: "Data dosen tidak ditemukan." }, { status: 404 });

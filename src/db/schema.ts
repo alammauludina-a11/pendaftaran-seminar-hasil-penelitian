@@ -50,6 +50,9 @@ export const pendaftaran = sqliteTable("pendaftaran", {
   
   judulPenelitian: text("judul_penelitian"),
   konsentrasi: text("konsentrasi"),
+  // Dospem identity is the user id; the name columns are a display copy (kept in sync when a dosen is renamed)
+  dospem1Id: text("dospem1_id").references(() => users.id, { onDelete: "set null" }),
+  dospem2Id: text("dospem2_id").references(() => users.id, { onDelete: "set null" }),
   dospem1: text("dospem1"),
   dospem2: text("dospem2"),
   tanggalKolokium: text("tanggal_kolokium"),

@@ -22,6 +22,8 @@ export async function GET() {
       prodi: users.prodi,
       dospem: pendaftaran.dospem1,
       dospem2: pendaftaran.dospem2,
+      dospem1Id: pendaftaran.dospem1Id,
+      dospem2Id: pendaftaran.dospem2Id,
       title: pendaftaran.judulPenelitian,
       status: pendaftaran.statusVerifikasi,
       note: pendaftaran.catatanAdmin,

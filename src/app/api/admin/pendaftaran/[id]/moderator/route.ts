@@ -4,7 +4,7 @@ import { pendaftaran, kelasSeminar, moderator, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { findDosenClash, getWaktuMulaiPendaftaran } from "@/lib/jadwal";
+import { findDosenClash, getWaktuMulaiPendaftaran, isPembimbing } from "@/lib/jadwal";
 import { catatAktivitas } from "@/lib/audit";
 
 
@@ -44,7 +44,7 @@ export async function PUT(
       }
       const dosenName = dosenUser[0].nama;
       namaModerator = dosenName;
-      if (dosenName && (pend.dospem1 === dosenName || pend.dospem2 === dosenName)) {
+      if (isPembimbing(pend, dosenId)) {
         return NextResponse.json({ error: "Dosen pembimbing tidak dapat dijadikan moderator untuk mahasiswanya sendiri." }, { status: 400 });
       }
 
@@ -52,7 +52,7 @@ export async function PUT(
       const clash = await transaksi(async (tx) => {
         // Validate: the dosen must not have another duty (pembimbing / moderator) at the same time
         const waktuMulai = await getWaktuMulaiPendaftaran(pend.id, tx);
-        if (waktuMulai && dosenName) {
+        if (waktuMulai) {
           const clash = await findDosenClash({ dosenId, dosenName, waktuMulai, excludePendaftaranId: pend.id }, tx);
           if (clash) return clash;
         }

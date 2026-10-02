@@ -115,8 +115,8 @@ export async function GET(request: Request) {
     });
 
     // Fetch Master Dosen
-    const dosenData = await db.select({ nama: users.nama }).from(users).where(eq(users.role, "dosen"));
-    const masterDosen = dosenData.map(d => d.nama).filter(Boolean) as string[];
+    const masterDosen = (await db.select({ id: users.id, nama: users.nama }).from(users).where(eq(users.role, "dosen")))
+      .filter(d => d.nama);
 
     // Fetch completed kolokium date
     let riwayatTanggalKolokium = null;

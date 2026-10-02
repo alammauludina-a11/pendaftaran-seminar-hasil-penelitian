@@ -758,13 +758,13 @@ export default function DosenDashboard() {
                                                 </div>
                                                 {/* Action area */}
                                                 <div className="flex flex-col gap-1.5 shrink-0">
-                                                  {(!m.hasModerator || (m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama)) && (
+                                                  {(!m.hasModerator || m.isMyStudent) && (
                                                     <button
                                                       onClick={() => handlePilihModerator(m.pendaftaranId)}
-                                                      disabled={isSubmittingModerasi || (m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) || m.hasModerator || m.isPast}
-                                                      className={`shrink-0 px-3 py-1.5 rounded-lg font-semibold text-[11px] transition-colors flex items-center justify-center gap-1.5 ${(m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) ? "bg-slate-200 text-slate-400 cursor-not-allowed" : "bg-[#06125C] hover:bg-[#06125C]/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"}`}
+                                                      disabled={isSubmittingModerasi || m.isMyStudent || m.hasModerator || m.isPast}
+                                                      className={`shrink-0 px-3 py-1.5 rounded-lg font-semibold text-[11px] transition-colors flex items-center justify-center gap-1.5 ${m.isMyStudent ? "bg-slate-200 text-slate-400 cursor-not-allowed" : "bg-[#06125C] hover:bg-[#06125C]/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"}`}
                                                     >
-                                                      <ShieldCheck size={14} /> {(m.dospem === dosenUser?.nama || m.dospem2 === dosenUser?.nama) ? "Anda Pembimbing" : isSubmittingModerasi ? "..." : "Pilih"}
+                                                      <ShieldCheck size={14} /> {m.isMyStudent ? "Anda Pembimbing" : isSubmittingModerasi ? "..." : "Pilih"}
                                                     </button>
                                                   )}
                                                   {m.isMyModeration && !m.isPast && (!m.batalStatus || m.batalStatus === "ditolak") && (

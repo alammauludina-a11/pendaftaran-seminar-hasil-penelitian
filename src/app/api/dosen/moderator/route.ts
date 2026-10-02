@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { findDosenClash, getWaktuMulaiPendaftaran } from "@/lib/jadwal";
+import { findDosenClash, getWaktuMulaiPendaftaran, isPembimbing } from "@/lib/jadwal";
 import { db, transaksi } from "@/db";
 import { moderator, kelasSeminar, pendaftaran, users, slotWaktu, periode } from "@/db/schema";
 import { eq, isNull, and, desc, or } from "drizzle-orm";
@@ -20,8 +20,6 @@ export async function GET(request: Request) {
     const reqPeriodeId = searchParams.get("periodeId");
 
     const currentUserId = session.user.id;
-    const dosenUser = await db.select().from(users).where(eq(users.id, currentUserId)).limit(1);
-    const dosenName = dosenUser[0]?.nama;
 
     const allPeriodeData = await db.select().from(periode).orderBy(desc(periode.createdAt));
     let activePeriodeData = null;
@@ -51,6 +49,8 @@ export async function GET(request: Request) {
       judul: pendaftaran.judulPenelitian,
       dospem: pendaftaran.dospem1,
       dospem2: pendaftaran.dospem2,
+      dospem1Id: pendaftaran.dospem1Id,
+      dospem2Id: pendaftaran.dospem2Id,
       room: pendaftaran.ruanganDisetujui,
       waktuMulai: slotWaktu.waktuMulai,
       waktuSelesai: slotWaktu.waktuSelesai,
@@ -173,6 +173,7 @@ export async function GET(request: Request) {
           dateStr: dateStr,
           time: `${startTimeStr} - ${endTimeStr}`,
           isMyModeration: s.moderatorId === currentUserId,
+          isMyStudent: isPembimbing(s, currentUserId),
           hasModerator: !!s.moderatorId,
           batalStatus: s.moderatorId === currentUserId ? s.batalStatus : null,
           isPast: sIsPast,
@@ -181,7 +182,7 @@ export async function GET(request: Request) {
         };
       });
 
-      const isSupervisor = students.some(s => s.dospem === dosenName || s.dospem2 === dosenName);
+      const isSupervisor = students.some(s => s.isMyStudent);
       const userModeratesClass = students.some(s => s.isMyModeration);
 
       return {
@@ -256,7 +257,7 @@ export async function POST(request: Request) {
       if (targetPend[0].statusVerifikasi !== "disetujui" || !targetPend[0].kelasSeminarId) {
         return { error: "Jadwal ini belum tersedia untuk dipilih moderator.", status: 400 };
       }
-      if (dosenName && (targetPend[0].dospem1 === dosenName || targetPend[0].dospem2 === dosenName)) {
+      if (isPembimbing(targetPend[0], currentUserId)) {
         return { error: "Anda tidak dapat menjadi moderator untuk mahasiswa bimbingan Anda sendiri.", status: 400 };
       }
 
@@ -265,11 +266,9 @@ export async function POST(request: Request) {
       if (!waktuMulai || waktuMulai.getTime() <= Date.now()) {
         return { error: "Jadwal seminar ini sudah lewat atau belum ditentukan.", status: 400 };
       }
-      if (dosenName) {
-        const clash = await findDosenClash({ dosenId: currentUserId, dosenName, waktuMulai, excludePendaftaranId: targetPend[0].id }, tx);
-        if (clash) {
-          return { error: `Anda tidak dapat menjadi moderator pada jadwal ini karena bentrok: ${clash}`, status: 400 };
-        }
+      const clash = await findDosenClash({ dosenId: currentUserId, dosenName: dosenName || "Anda", waktuMulai, excludePendaftaranId: targetPend[0].id }, tx);
+      if (clash) {
+        return { error: `Anda tidak dapat menjadi moderator pada jadwal ini karena bentrok: ${clash}`, status: 400 };
       }
 
       await tx.insert(moderator).values({

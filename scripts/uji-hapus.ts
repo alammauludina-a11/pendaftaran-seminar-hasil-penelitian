@@ -9,7 +9,7 @@ import { db, transaksi } from "../src/db";
 import {
   users, account, session, loginLog, loginGagal, periode, pendaftaran, moderator, kelasSeminar, files, slotWaktu,
 } from "../src/db/schema";
-import { ANGKATAN_UJI, NIP_NIM_PREFIX, EMAIL_DOMAIN, DOSEN_UJI, JALANKAN, targetDatabase } from "./uji-shared";
+import { ANGKATAN_UJI, NIP_NIM_PREFIX, EMAIL_DOMAIN, JALANKAN, targetDatabase } from "./uji-shared";
 
 const fileId = (url: string | null) => (url?.startsWith("/api/files/") ? url.slice("/api/files/".length) : null);
 
@@ -95,11 +95,12 @@ async function main() {
   }
 
   // Real registrations that picked a test dosen as pembimbing can't be fixed automatically
-  const namaDosenUji = DOSEN_UJI.map(d => d.nama);
-  const dospemAsli = await db.select({ id: pendaftaran.id }).from(pendaftaran).where(and(
-    or(inArray(pendaftaran.dospem1, namaDosenUji), inArray(pendaftaran.dospem2, namaDosenUji)),
-    bukanUji,
-  ));
+  const dospemAsli = dosenIds.length
+    ? await db.select({ id: pendaftaran.id }).from(pendaftaran).where(and(
+        or(inArray(pendaftaran.dospem1Id, dosenIds), inArray(pendaftaran.dospem2Id, dosenIds)),
+        bukanUji,
+      ))
+    : [];
 
   console.log(`Akan dihapus    :`);
   console.log(`  - Akun uji       : ${akunUji.length}${akunUji.length ? ` (${akunUji.map(u => u.username).join(", ")})` : ""}`);

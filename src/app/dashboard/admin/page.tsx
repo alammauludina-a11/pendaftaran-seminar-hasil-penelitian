@@ -615,8 +615,8 @@ export default function AdminDashboard() {
   const rekapitulasiData = [...masterDosen]
     .filter(d => !rekapSearch || d.name.toLowerCase().includes(rekapSearch.toLowerCase()))
     .map(dosen => {
-    const moderatorCount = activePendaftaran.filter(p => p.moderator === dosen.name || (p.moderator && p.moderator.includes(dosen.name))).length;
-    const pembimbingCount = activePendaftaran.filter(p => (p.dospem && p.dospem.includes(dosen.name)) || (p.dospem2 && p.dospem2.includes(dosen.name))).length;
+    const moderatorCount = activePendaftaran.filter(p => p.moderatorId === dosen.id).length;
+    const pembimbingCount = activePendaftaran.filter(p => p.dospem1Id === dosen.id || p.dospem2Id === dosen.id).length;
     return { ...dosen, moderatorCount, pembimbingCount };
   }).sort((a, b) => {
     let valA = (a as any)[rekapSort.key];
@@ -2704,7 +2704,7 @@ export default function AdminDashboard() {
                               >
                                 <option value="">-- Pilih Moderator --</option>
                                 {masterDosen.map(d => {
-                                  const isSupervisor = d.name === item.dospem || d.name === item.dospem2;
+                                  const isSupervisor = d.id === item.dospem1Id || d.id === item.dospem2Id;
                                   return (
                                     <option key={d.id} value={d.id} disabled={isSupervisor}>
                                       {d.name}{isSupervisor ? " (Pembimbing — tidak bisa dipilih)" : ""}
@@ -2926,7 +2926,7 @@ export default function AdminDashboard() {
                                               <option value="">-- Pilih Pembahas --</option>
                                               {classPendaftaran.filter(c => c.id !== p.id).map(c => {
                                                 const value = `${c.name} (${c.nim})`;
-                                                const isSameDospem = [c.dospem, c.dospem2].some(d => d && (d === p.dospem || d === p.dospem2));
+                                                const isSameDospem = [c.dospem1Id, c.dospem2Id].some(d => d && (d === p.dospem1Id || d === p.dospem2Id));
                                                 const isAlreadyAssigned = assignedPembahasList.filter(x => x === value).length >= 2 && pembVal !== value;
 
                                                 return (

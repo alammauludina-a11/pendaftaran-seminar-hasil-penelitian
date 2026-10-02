@@ -1,5 +1,19 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Database & test
+
+Skema database diubah lewat **migrasi** (folder `drizzle/`), bukan `drizzle-kit push`.
+
+1. Ubah `src/db/schema.ts`.
+2. Buat file migrasi: `npm run db:generate -- --name nama_perubahan`, lalu periksa SQL di `drizzle/`.
+3. Jalankan `npm test`.
+4. Terapkan ke database (sesuai `DATABASE_URL` di `.env.local`): `npm run db:migrate`.
+
+Database yang dulu dibuat dengan `push` perlu dicatat sekali sebagai baseline:
+`npx tsx --env-file=.env.local scripts/migrasi-baseline.ts --jalankan`.
+
+`npm test` menjalankan test di `tests/` terhadap database SQLite sementara (tidak pernah memakai `.env.local`).
+
 ## Getting Started
 
 First, run the development server:

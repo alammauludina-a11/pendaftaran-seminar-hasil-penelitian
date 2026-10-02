@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { slotWaktu, pendaftaran, kelasSeminar, moderator, users } from "@/db/schema";
+import { slotWaktu, pendaftaran, kelasSeminar, moderator } from "@/db/schema";
 import { eq, isNotNull, ne, and, isNull } from "drizzle-orm";
-import { alias } from "drizzle-orm/sqlite-core";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { isValidSlotTime } from "@/lib/slot-rules";
@@ -13,9 +12,9 @@ export async function GET(request: Request) {
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userDospem1 = (session?.user as any)?.nama as string | undefined;
     const url = new URL(request.url);
-    const dospem1Param = url.searchParams.get("dospem1") || userDospem1 || "";
+    // Dosen user ids of the chosen pembimbing
+    const dospem1Param = url.searchParams.get("dospem1") || "";
     const dospem2Param = url.searchParams.get("dospem2") || "";
     const jenisSeminar = url.searchParams.get("jenisSeminar") || "kolokium";
 
@@ -26,22 +25,20 @@ export async function GET(request: Request) {
     const slots = (await db.select().from(slotWaktu)).sort((a, b) => a.id - b.id);
 
     // Get all active (non-rejected) registrations that have a slot, with their class info
-    const dosenUsers = alias(users, "dosenUsers");
     const activeRegistrations = await db
       .select({
         slotId: pendaftaran.slotWaktuId,
         kelasSeminarId: pendaftaran.kelasSeminarId,
         periodeId: pendaftaran.periodeId,
-        dospem1: pendaftaran.dospem1,
-        dospem2: pendaftaran.dospem2,
+        dospem1Id: pendaftaran.dospem1Id,
+        dospem2Id: pendaftaran.dospem2Id,
         waktuMulai: slotWaktu.waktuMulai,
         jenisSeminar: pendaftaran.jenisSeminar,
-        moderatorName: dosenUsers.nama,
+        moderatorId: moderator.dosenId,
       })
       .from(pendaftaran)
       .innerJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
       .leftJoin(moderator, eq(pendaftaran.id, moderator.pendaftaranId))
-      .leftJoin(dosenUsers, eq(moderator.dosenId, dosenUsers.id))
       .where(
         and(
           isNotNull(pendaftaran.slotWaktuId),
@@ -99,10 +96,9 @@ export async function GET(request: Request) {
       // Check dospem clash among ALL registrations (Kolokium & Hasil) because a lecturer can't be in two places at once
       let dospemClash = false;
       if (dospem1Param && allRegsOnSlot.length > 0) {
+        const mine = [dospem1Param, dospem2Param].filter(Boolean);
         dospemClash = allRegsOnSlot.some(r =>
-          (r.dospem1 && (r.dospem1 === dospem1Param || r.dospem1 === dospem2Param)) ||
-          (r.dospem2 && (r.dospem2 === dospem1Param || r.dospem2 === dospem2Param)) ||
-          (r.moderatorName && (r.moderatorName === dospem1Param || r.moderatorName === dospem2Param))
+          [r.dospem1Id, r.dospem2Id, r.moderatorId].some(id => id && mine.includes(id))
         );
       }
 

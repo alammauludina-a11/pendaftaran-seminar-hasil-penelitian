@@ -1,87 +1,14 @@
 import { NextResponse } from "next/server";
-import { db, transaksi, type Executor } from "@/db";
-import { pendaftaran, periode, slotWaktu, kelasSeminar, moderator, users, files } from "@/db/schema";
-import { isValidSlotTime } from "@/lib/slot-rules";
-import { eq, and, inArray, isNull, ne } from "drizzle-orm";
-import { alias } from "drizzle-orm/sqlite-core";
+import { db, transaksi } from "@/db";
+import { pendaftaran, periode, slotWaktu, kelasSeminar, users, files } from "@/db/schema";
+import { validasiSlot } from "@/lib/jadwal";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
 import crypto from "crypto";
 
-const toIsoWIB = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" }); // YYYY-MM-DD
-const todayIsoWIB = () => toIsoWIB(new Date());
-
-/**
- * Server-side slot rules, identical for kolokium & hasil_penelitian and matching /api/mahasiswa/slot:
- * valid time (no Sunday, no 12:00, 08-16 WIB), not in the past, inside the periode dates,
- * no pending class of the same seminar type on that time, no dospem/moderator clash.
- */
-async function validateSlot(opts: {
-  slotId: number;
-  jenisSeminar: string;
-  periode: { startDate: string | null; endDate: string | null };
-  dospem1: string;
-  dospem2: string;
-  excludePendaftaranId?: number;
-}, ex: Executor = db): Promise<{ waktuMulai: Date } | { error: string; status: number }> {
-  const slotRecord = await ex.select().from(slotWaktu).where(eq(slotWaktu.id, opts.slotId)).limit(1);
-  if (slotRecord.length === 0) {
-    return { error: "Slot jadwal tidak ditemukan.", status: 404 };
-  }
-  const waktuMulai = slotRecord[0].waktuMulai;
-
-  if (!isValidSlotTime(waktuMulai)) {
-    return { error: "Slot jadwal tidak valid (hari Minggu dan jam 12.00 tidak tersedia).", status: 400 };
-  }
-  if (new Date(waktuMulai).getTime() <= Date.now()) {
-    return { error: "Waktu slot jadwal sudah lewat. Silakan pilih slot lain.", status: 400 };
-  }
-  const slotIso = toIsoWIB(new Date(waktuMulai));
-  const { startDate, endDate } = opts.periode;
-  if ((startDate && slotIso < startDate) || (endDate && slotIso > endDate)) {
-    return { error: "Slot jadwal berada di luar rentang tanggal periode seminar.", status: 400 };
-  }
-
-  // All active registrations on this slot time (matched by time, not slot id: slot_waktu may contain duplicate rows)
-  const dosenUsers = alias(users, "dosenUsers");
-  const activeOnSlot = await ex
-    .select({
-      id: pendaftaran.id,
-      kelasSeminarId: pendaftaran.kelasSeminarId,
-      dospem1: pendaftaran.dospem1,
-      dospem2: pendaftaran.dospem2,
-      jenisSeminar: pendaftaran.jenisSeminar,
-      moderatorName: dosenUsers.nama,
-    })
-    .from(pendaftaran)
-    .innerJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
-    .leftJoin(moderator, eq(pendaftaran.id, moderator.pendaftaranId))
-    .leftJoin(dosenUsers, eq(moderator.dosenId, dosenUsers.id))
-    .where(
-      and(
-        eq(slotWaktu.waktuMulai, waktuMulai),
-        ne(pendaftaran.statusVerifikasi, "ditolak"),
-        opts.excludePendaftaranId ? ne(pendaftaran.id, opts.excludePendaftaranId) : undefined
-      )
-    );
-
-  // Pending class is checked per seminar type
-  if (activeOnSlot.some(r => r.jenisSeminar === opts.jenisSeminar && r.kelasSeminarId === null)) {
-    return { error: "Slot ini belum bisa dipilih karena pendaftar sebelumnya masih menunggu kelas terbentuk.", status: 409 };
-  }
-
-  // Dospem / moderator clash is checked across ALL seminar types (a lecturer can't be in two places at once)
-  const mine = [opts.dospem1, opts.dospem2].filter(Boolean);
-  const clash = activeOnSlot.some(r =>
-    [r.dospem1, r.dospem2, r.moderatorName].some(name => name && mine.includes(name))
-  );
-  if (clash) {
-    return { error: "Dosen Pembimbing Anda sudah terjadwal di slot jam yang sama pada kelas lain. Pilih jadwal lain.", status: 409 };
-  }
-
-  return { waktuMulai };
-}
+const todayIsoWIB = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" }); // YYYY-MM-DD
 
 export async function POST(request: Request) {
   try {
@@ -95,8 +22,8 @@ export async function POST(request: Request) {
     
     const judul_penelitian = ((formData.get("judul_penelitian") as string) || "").trim();
     const konsentrasi_penelitian = ((formData.get("konsentrasi_penelitian") as string) || "").trim();
-    const dospem1_nama = ((formData.get("dospem1_nama") as string) || "").trim();
-    const dospem2_nama = ((formData.get("dospem2_nama") as string) || "").trim();
+    const dospem1_id = ((formData.get("dospem1_id") as string) || "").trim();
+    const dospem2_id = ((formData.get("dospem2_id") as string) || "").trim();
     const tanggal_kolokium = formData.get("tanggal_seminar") as string || "";
     const jenisSeminar = formData.get("jenisSeminar") as string || "hasil_penelitian";
     const periodeId = formData.get("periodeId") ? parseInt(formData.get("periodeId") as string) : null;
@@ -112,19 +39,21 @@ export async function POST(request: Request) {
     if (jenisSeminar === "hasil_penelitian" && !konsentrasi_penelitian) {
       return NextResponse.json({ error: "Konsentrasi penelitian wajib dipilih." }, { status: 400 });
     }
-    if (!dospem1_nama) {
+    if (!dospem1_id) {
       return NextResponse.json({ error: "Dosen Pembimbing 1 wajib dipilih." }, { status: 400 });
     }
-    if (dospem2_nama && dospem2_nama === dospem1_nama) {
+    if (dospem2_id && dospem2_id === dospem1_id) {
       return NextResponse.json({ error: "Dosen Pembimbing 1 dan 2 tidak boleh orang yang sama." }, { status: 400 });
     }
     if (!slot_id || isNaN(slot_id)) {
       return NextResponse.json({ error: "Slot jadwal wajib dipilih." }, { status: 400 });
     }
-    const dosenNames = new Set(
-      (await db.select({ nama: users.nama }).from(users).where(eq(users.role, "dosen"))).map(d => d.nama)
-    );
-    if (!dosenNames.has(dospem1_nama) || (dospem2_nama && !dosenNames.has(dospem2_nama))) {
+    const dosenDipilih = await db.select({ id: users.id, nama: users.nama }).from(users)
+      .where(and(eq(users.role, "dosen"), inArray(users.id, [dospem1_id, dospem2_id].filter(Boolean))));
+    const namaDosen = new Map(dosenDipilih.map(d => [d.id, d.nama]));
+    const dospem1_nama = namaDosen.get(dospem1_id);
+    const dospem2_nama = dospem2_id ? namaDosen.get(dospem2_id) : "";
+    if (!dospem1_nama || dospem2_nama === undefined) {
       return NextResponse.json({ error: "Dosen pembimbing tidak ditemukan di data dosen." }, { status: 400 });
     }
 
@@ -259,12 +188,12 @@ export async function POST(request: Request) {
     }
 
     // Pre-check outside the transaction so an invalid slot fails fast, before any file is uploaded
-    const slotCheck = await validateSlot({
+    const slotCheck = await validasiSlot({
       slotId: slot_id,
       jenisSeminar,
       periode: p,
-      dospem1: dospem1_nama,
-      dospem2: dospem2_nama,
+      dospem1Id: dospem1_id,
+      dospem2Id: dospem2_id,
       excludePendaftaranId: alreadyInPeriode?.id,
     });
     if ("error" in slotCheck) {
@@ -291,6 +220,8 @@ export async function POST(request: Request) {
     const nilai = {
       judulPenelitian: judul_penelitian,
       konsentrasi: konsentrasi_penelitian,
+      dospem1Id: dospem1_id,
+      dospem2Id: dospem2_id || null,
       dospem1: dospem1_nama,
       dospem2: dospem2_nama,
       tanggalKolokium: finalTanggalKolokium,
@@ -312,12 +243,12 @@ export async function POST(request: Request) {
           return { error: "Anda sudah mendaftar pada periode ini.", status: 409 };
         }
 
-        const slot = await validateSlot({
+        const slot = await validasiSlot({
           slotId: slot_id,
           jenisSeminar,
           periode: p,
-          dospem1: dospem1_nama,
-          dospem2: dospem2_nama,
+          dospem1Id: dospem1_id,
+          dospem2Id: dospem2_id,
           excludePendaftaranId: current?.id,
         }, tx);
         if ("error" in slot) return slot;

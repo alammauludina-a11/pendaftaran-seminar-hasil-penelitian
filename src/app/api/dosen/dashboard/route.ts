@@ -67,8 +67,8 @@ export async function GET(request: Request) {
             eq(pendaftaran.statusVerifikasi, "disetujui"),
             isNotNull(pendaftaran.kelasSeminarId),
             or(
-              eq(pendaftaran.dospem1, dosenNama),
-              eq(pendaftaran.dospem2, dosenNama),
+              eq(pendaftaran.dospem1Id, session.user.id),
+              eq(pendaftaran.dospem2Id, session.user.id),
               eq(pendaftaran.pembahas, dosenNama)
             )
           )

@@ -42,9 +42,10 @@ export async function GET() {
       };
     });
 
-    const totalLogins = userLogins.reduce((acc, u) => acc + (u.loginCount || 0), 0);
     const mahasiswaLogins = userLogins.filter(u => u.role === 'mahasiswa').reduce((acc, u) => acc + (u.loginCount || 0), 0);
     const dosenLogins = userLogins.filter(u => u.role === 'dosen').reduce((acc, u) => acc + (u.loginCount || 0), 0);
+    // Total covers only mahasiswa + dosen so it matches the cards and pie chart (admin logins are excluded)
+    const totalLogins = mahasiswaLogins + dosenLogins;
 
     return NextResponse.json({
       userLogins: mappedLogins,

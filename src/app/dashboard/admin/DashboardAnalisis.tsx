@@ -3,12 +3,21 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  LineChart, Line
+  LabelList
 } from "recharts";
-import { Sparkles, Loader2, AlertCircle, Clock, Lightbulb, Layers, Filter } from "lucide-react";
+import { Sparkles, Loader2, AlertCircle, Clock, Lightbulb, Layers, Filter, Users } from "lucide-react";
 
 const COLORS = ["#3B82F6", "#8B5CF6", "#F59E0B", "#10B981", "#EF4444", "#EC4899", "#06B6D4"];
 const DURATION_LABELS = ["< 1 Bulan", "1 - 3 Bulan", "3 - 6 Bulan", "> 6 Bulan"];
+
+type FunnelRow = { name: string; kolokium: number; daftarHasil: number; disetujui: number; dirilis: number; selesai: number };
+const FUNNEL_STAGES: { key: keyof Omit<FunnelRow, "name">; label: string; color: string }[] = [
+  { key: "kolokium", label: "Kolokium selesai", color: "#6366F1" },
+  { key: "daftarHasil", label: "Daftar Seminar Hasil", color: "#8B5CF6" },
+  { key: "disetujui", label: "Pendaftaran disetujui", color: "#3B82F6" },
+  { key: "dirilis", label: "Jadwal dirilis", color: "#06B6D4" },
+  { key: "selesai", label: "Selesai Seminar Hasil", color: "#10B981" },
+];
 
 export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
   const [aiAnalysisTitles, setAiAnalysisTitles] = useState<string | null>(null);
@@ -20,6 +29,8 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
   const [durationData, setDurationData] = useState<any[]>([]);
   const [konsentrasiData, setKonsentrasiData] = useState<any[]>([]);
   const [titlesData, setTitlesData] = useState<string[]>([]);
+  const [tanpaKolokium, setTanpaKolokium] = useState(0);
+  const [funnelData, setFunnelData] = useState<FunnelRow[]>([]);
   const [dataError, setDataError] = useState<string | null>(null);
 
   // Filter State
@@ -34,6 +45,8 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
         setDurationData(data.durationData || []);
         setKonsentrasiData(data.konsentrasiData || []);
         setTitlesData(data.titles || []);
+        setTanpaKolokium(data.tanpaKolokium || 0);
+        setFunnelData(data.funnelData || []);
       } catch (err: any) {
         setDataError(err.message);
       } finally {
@@ -48,8 +61,18 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
     const angkatans = new Set<string>();
     durationData.forEach(d => angkatans.add(d.name));
     konsentrasiData.forEach(d => angkatans.add(d.name));
+    funnelData.forEach(d => angkatans.add(d.name));
     return Array.from(angkatans).sort();
-  }, [durationData, konsentrasiData]);
+  }, [durationData, konsentrasiData, funnelData]);
+
+  // Funnel totals for the selected angkatan (or summed across all)
+  const funnel = useMemo(() => {
+    const source = selectedAngkatan === "Semua" ? funnelData : funnelData.filter(d => d.name === selectedAngkatan);
+    return FUNNEL_STAGES.map(stage => ({
+      ...stage,
+      value: source.reduce((acc, row) => acc + (row[stage.key] || 0), 0),
+    }));
+  }, [funnelData, selectedAngkatan]);
 
   // Transformed Data for Chart 1: X = Duration, Lines/Bars = Angkatan
   const transformedDurationData = useMemo(() => {
@@ -66,27 +89,44 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
     });
   }, [durationData, selectedAngkatan]);
 
-  // Transformed Data for Chart 2: X = Konsentrasi, Lines/Bars = Angkatan
-  const transformedKonsentrasiData = useMemo(() => {
-    const filteredSource = selectedAngkatan === "Semua" 
-      ? konsentrasiData 
+  const hasDurationData = useMemo(
+    () => transformedDurationData.some(row =>
+      Object.entries(row).some(([k, v]) => k !== "name" && typeof v === "number" && v > 0)
+    ),
+    [transformedDurationData]
+  );
+
+  // Chart 2 data: konsentrasi sorted by total (desc), plus one row per angkatan for the comparison view
+  const konsentrasiChart = useMemo(() => {
+    const filteredSource = selectedAngkatan === "Semua"
+      ? konsentrasiData
       : konsentrasiData.filter(d => d.name === selectedAngkatan);
 
-    // Get all unique konsentrasi names
-    const konsentrasiNames = new Set<string>();
+    const totals: Record<string, number> = {};
     filteredSource.forEach(item => {
-      Object.keys(item).forEach(k => {
-        if (k !== "name") konsentrasiNames.add(k);
+      Object.entries(item).forEach(([k, v]) => {
+        if (k !== "name" && typeof v === "number") totals[k] = (totals[k] || 0) + v;
       });
     });
+    const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
 
-    return Array.from(konsentrasiNames).map(konsName => {
-      const row: any = { name: konsName };
-      filteredSource.forEach(angkatanData => {
-        row[angkatanData.name] = angkatanData[konsName] || 0;
+    const sorted = Object.entries(totals)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, jumlah]) => {
+        const persen = grandTotal ? Math.round((jumlah / grandTotal) * 100) : 0;
+        return { name, jumlah, persen, label: `${jumlah} · ${persen}%` };
+      });
+
+    const perAngkatan = filteredSource.map(item => {
+      const row: any = { name: item.name, __total: 0 };
+      sorted.forEach(k => {
+        row[k.name] = item[k.name] || 0;
+        row.__total += row[k.name];
       });
       return row;
     });
+
+    return { sorted, perAngkatan, angkatanCount: filteredSource.length };
   }, [konsentrasiData, selectedAngkatan]);
 
   // Keys (Angkatans) to plot as bars/lines
@@ -123,14 +163,17 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
     }
   };
 
+  // Renders **bold** as React elements so AI output (which may echo student-supplied titles) is never parsed as HTML
   const renderMarkdownText = (text: string) => {
     if (!text) return null;
     return text.split('\n').map((line, i) => (
-      <p 
-        key={i} 
-        className="mb-2 text-slate-600 leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
-      />
+      <p key={i} className="mb-2 text-slate-600 leading-relaxed">
+        {line.split(/(\*\*.*?\*\*)/g).map((part, j) =>
+          part.startsWith("**") && part.endsWith("**") && part.length > 4
+            ? <strong key={j}>{part.slice(2, -2)}</strong>
+            : part
+        )}
+      </p>
     ));
   };
 
@@ -192,7 +235,58 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
 
       {/* Grid Layout for Charts & Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+
+        {/* Funnel: Progres Mahasiswa */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col lg:col-span-2">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
+              <Users className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-800">Progres Mahasiswa</h3>
+              <p className="text-xs text-slate-500">Jumlah mahasiswa di tiap tahap, dari kolokium sampai selesai Seminar Hasil</p>
+            </div>
+          </div>
+          {funnel.every(s => s.value === 0) ? (
+            <div className="flex items-center justify-center h-32 text-sm text-slate-400">
+              Belum ada data kolokium maupun Seminar Hasil
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {funnel.map((stage, i) => {
+                  const base = Math.max(funnel[0].value, ...funnel.map(s => s.value), 1);
+                  const width = (stage.value / base) * 100;
+                  const persen = funnel[0].value ? Math.round((stage.value / funnel[0].value) * 100) : null;
+                  const drop = i > 0 ? funnel[i - 1].value - stage.value : 0;
+                  return (
+                    <div key={stage.key} className="grid grid-cols-[minmax(0,9rem)_1fr] sm:grid-cols-[11rem_1fr_9rem] items-center gap-x-3 gap-y-1">
+                      <span className="text-sm font-medium text-slate-600">{stage.label}</span>
+                      <div className="h-8 bg-slate-50 rounded-lg overflow-hidden">
+                        <div
+                          className="h-full rounded-lg flex items-center px-3 transition-all"
+                          style={{ width: `${Math.max(width, stage.value > 0 ? 4 : 0)}%`, backgroundColor: stage.color }}
+                        >
+                          <span className="text-xs font-bold text-white whitespace-nowrap">{stage.value}</span>
+                        </div>
+                      </div>
+                      <span className="col-start-2 sm:col-start-auto text-xs text-slate-500">
+                        {persen !== null && <span className="font-semibold text-slate-700">{persen}%</span>}
+                        {drop > 0 && <span className="ml-2 text-rose-500">−{drop} dari tahap sebelumnya</span>}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              {funnel[0].value - funnel[1].value > 0 && (
+                <p className="mt-5 text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+                  <strong>{funnel[0].value - funnel[1].value} mahasiswa</strong> sudah selesai kolokium tetapi belum mendaftar Seminar Hasil.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
         {/* Chart 1: Waktu Tempuh Per Durasi */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
           <div className="flex items-center gap-3 mb-6">
@@ -205,7 +299,7 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
             </div>
           </div>
           <div className="h-[300px] w-full mt-auto">
-            {transformedDurationData.length > 0 ? (
+            {hasDurationData ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={transformedDurationData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
@@ -228,10 +322,15 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-full text-sm text-slate-400">
-                Belum ada data pendaftaran seminar
+                Belum ada mahasiswa yang selesai Seminar Hasil Penelitian
               </div>
             )}
           </div>
+          {tanpaKolokium > 0 && (
+            <p className="text-xs text-slate-400 mt-3">
+              {tanpaKolokium} mahasiswa tidak dihitung karena data jadwal kolokiumnya tidak ditemukan.
+            </p>
+          )}
         </div>
 
         {/* Chart 2: Tren Konsentrasi Per Konsentrasi */}
@@ -242,36 +341,55 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-800">Tren Konsentrasi</h3>
-              <p className="text-xs text-slate-500">Jumlah mahasiswa berdasarkan program studi</p>
+              <p className="text-xs text-slate-500">
+                {konsentrasiChart.angkatanCount > 1
+                  ? "Komposisi konsentrasi per angkatan (pendaftar Seminar Hasil yang disetujui)"
+                  : "Pendaftar Seminar Hasil yang disetujui admin, per konsentrasi"}
+              </p>
             </div>
           </div>
           <div className="h-[300px] w-full mt-auto">
-            {transformedKonsentrasiData.length > 0 ? (
+            {konsentrasiChart.sorted.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-sm text-slate-400">
+                Belum ada pendaftaran Seminar Hasil yang disetujui admin
+              </div>
+            ) : konsentrasiChart.angkatanCount <= 1 ? (
+              // One angkatan: ranked horizontal bars with count and share
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={transformedKonsentrasiData} margin={{ top: 20, right: 30, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} padding={{ left: 30, right: 30 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} />
-                  <RechartsTooltip 
+                <BarChart data={konsentrasiChart.sorted} layout="vertical" margin={{ top: 0, right: 70, left: 0, bottom: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" width={150} axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 11, fill: '#475569' }} />
+                  <RechartsTooltip
+                    cursor={{ fill: '#F1F5F9' }}
+                    formatter={(value) => [`${value} mahasiswa`, "Jumlah"]}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   />
-                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                  {activeAngkatanKeys.map((angkatan, index) => (
-                    <Line 
-                      key={angkatan}
-                      type="monotone" 
-                      dataKey={angkatan} 
-                      stroke={COLORS[index % COLORS.length]} 
-                      strokeWidth={3} 
-                      activeDot={{ r: 6 }} 
-                    />
-                  ))}
-                </LineChart>
+                  <Bar dataKey="jumlah" fill="#8B5CF6" radius={[0, 4, 4, 0]} barSize={22}>
+                    <LabelList dataKey="label" position="right" style={{ fontSize: 11, fill: '#475569', fontWeight: 600 }} />
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-sm text-slate-400">
-                Belum ada data pendaftaran seminar
-              </div>
+              // Several angkatan: 100% stacked bars so shifts in konsentrasi share between angkatan are visible
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={konsentrasiChart.perAngkatan} layout="vertical" stackOffset="expand" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+                  <XAxis type="number" tickFormatter={(v) => `${Math.round(v * 100)}%`} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+                  <YAxis type="category" dataKey="name" width={70} axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 12, fill: '#475569' }} />
+                  <RechartsTooltip
+                    cursor={{ fill: '#F1F5F9' }}
+                    formatter={(value, name, item) => {
+                      const total = (item?.payload as any)?.__total || 0;
+                      const persen = total ? Math.round((Number(value) / total) * 100) : 0;
+                      return [`${value} (${persen}%)`, name];
+                    }}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Legend verticalAlign="top" iconType="circle" wrapperStyle={{ fontSize: '11px', paddingBottom: 8 }} />
+                  {konsentrasiChart.sorted.map((kons, index) => (
+                    <Bar key={kons.name} dataKey={kons.name} stackId="kons" fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
             )}
           </div>
         </div>

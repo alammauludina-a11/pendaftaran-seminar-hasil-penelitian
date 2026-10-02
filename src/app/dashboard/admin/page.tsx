@@ -2506,6 +2506,7 @@ export default function AdminDashboard() {
                     <table className="w-full text-left text-sm">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                         <tr>
+                          <th className="px-3 py-3 text-center w-px whitespace-nowrap">No</th>
                           {([
                             { label: "Mahasiswa", key: "name", width: "w-[14%]" },
                             { label: "Kelas", key: "kelas", width: "w-px whitespace-nowrap" },
@@ -2536,8 +2537,9 @@ export default function AdminDashboard() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {verifikasiList.map((item) => (
+                        {verifikasiList.map((item, idx) => (
                           <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-3 py-4 text-center text-slate-500 font-medium">{idx + 1}</td>
                             <td className="px-3 py-4">
                               <div className="font-semibold text-slate-800">{item.name}</div>
                               <div className="text-xs text-slate-500">{item.nim}</div>
@@ -2632,6 +2634,7 @@ export default function AdminDashboard() {
                     <table className="w-full text-left text-sm">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                         <tr>
+                          <th className="px-4 py-3 text-center w-px whitespace-nowrap">No</th>
                           <th className="px-4 py-3 w-[16%]">Mahasiswa</th>
                           <th className="px-4 py-3 w-[8%] whitespace-nowrap">Kelas</th>
                           <th className="px-4 py-3 w-[22%] whitespace-nowrap">Jadwal & Ruangan</th>
@@ -2643,8 +2646,9 @@ export default function AdminDashboard() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {filteredPendaftaran.filter(p => p.status === 'disetujui' && !p.isFinalized).map((item) => (
+                        {filteredPendaftaran.filter(p => p.status === 'disetujui' && !p.isFinalized).map((item, idx) => (
                           <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-4 text-center text-slate-500 font-medium">{idx + 1}</td>
                             <td className="px-4 py-4">
                               <div className="font-semibold text-slate-800">{item.name}</div>
                               <div className="text-xs text-slate-500">{item.nim}</div>
@@ -2819,7 +2823,7 @@ export default function AdminDashboard() {
                         ))}
                         {filteredPendaftaran.filter(p => p.status === 'disetujui' && !p.isFinalized).length === 0 && (
                           <tr>
-                            <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                            <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
                               Tidak ada pendaftaran yang perlu difinalisasi.
                             </td>
                           </tr>
@@ -3026,6 +3030,7 @@ export default function AdminDashboard() {
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-sm text-slate-500">
+                          <th className="px-3 py-3 font-semibold text-center w-px whitespace-nowrap">No</th>
                           {([
                             { label: "Mahasiswa", key: "name", width: "w-[22%]" },
                             { label: "Kelas", key: "kelas", width: "w-px whitespace-nowrap" },
@@ -3065,6 +3070,7 @@ export default function AdminDashboard() {
                               key={item.id}
                               className={`border-b border-slate-100 transition-colors hover:bg-slate-50/50 ${index === arr.length - 1 ? 'border-b-0' : ''}`}
                             >
+                              <td className="px-3 py-4 text-center text-slate-500 font-medium">{index + 1}</td>
                               <td className="px-3 py-4">
                                 <div className="font-bold text-[#06125C] flex flex-col gap-1 items-start">
                                   {item.name}
@@ -3131,7 +3137,7 @@ export default function AdminDashboard() {
                         })}
                         {displayFinalized.length === 0 && (
                           <tr>
-                            <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
+                            <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
                               Tidak ada jadwal yang sesuai dengan filter.
                             </td>
                           </tr>

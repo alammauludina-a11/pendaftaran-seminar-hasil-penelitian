@@ -14,6 +14,19 @@ Database yang dulu dibuat dengan `push` perlu dicatat sekali sebagai baseline:
 
 `npm test` menjalankan test di `tests/` terhadap database SQLite sementara (tidak pernah memakai `.env.local`).
 
+## Backup
+
+Backup disimpan di `~/Backup Seminar` (data harian `data/`, PDF `pdf/`). Skrip hanya membaca database.
+
+- Backup manual: `npx tsx --env-file=.env.local scripts/backup.ts`
+- Jadwal otomatis setiap malam 21.00: `bash scripts/backup-jadwal.sh pasang` (lalu `coba`, `status`, `lepas`).
+  Jalankan `pasang` lagi setelah mengubah `scripts/backup.ts` atau token database.
+- Restore (hanya ke database kosong):
+  `DATABASE_URL=... DATABASE_AUTH_TOKEN=... npx tsx scripts/restore.ts "~/Backup Seminar/data/data-YYYY-MM-DD.json.gz" --jalankan`
+
+Data disimpan 30 hari terakhir + tanggal 1 tiap bulan selama 12 bulan; PDF disimpan selamanya.
+Backup berisi data pribadi: jangan di-commit atau dibagikan.
+
 ## Getting Started
 
 First, run the development server:

@@ -1,6 +1,12 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
+// Seed data (users with the password "password123") is for a local database only, never for production
+if (!(process.env.DATABASE_URL || "file:").startsWith("file:")) {
+  console.error(`DIBATALKAN: seed hanya untuk database lokal (file:...), bukan ${process.env.DATABASE_URL?.split("//")[1]?.split(".")[0] ?? "database ini"}.`);
+  process.exit(1);
+}
+
 import { db } from "./index";
 import { users, periode, slotWaktu, pendaftaran } from "./schema";
 

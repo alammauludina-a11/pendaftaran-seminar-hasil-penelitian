@@ -2,6 +2,12 @@ import { auth } from "../src/lib/auth";
 import { db } from "../src/db";
 import { users, account } from "../src/db/schema";
 
+// Seed users have the password "password123": local databases only, never production
+if (!(process.env.DATABASE_URL || "file:").startsWith("file:")) {
+  console.error(`DIBATALKAN: seed hanya untuk database lokal (file:...), bukan ${process.env.DATABASE_URL?.split("//")[1]?.split(".")[0] ?? "database ini"}.`);
+  process.exit(1);
+}
+
 // Public sign-up is disabled and profile fields are not user-settable,
 // so seed users are inserted directly with a Better Auth password hash.
 async function createUser(data: { password: string; username: string } & Omit<typeof users.$inferInsert, "id">) {

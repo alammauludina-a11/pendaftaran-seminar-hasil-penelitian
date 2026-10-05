@@ -135,7 +135,7 @@ export async function GET() {
         name: angkatan,
         ...durationMap[angkatan],
         total: durasiHariByAngkatan[angkatan]?.length ?? 0,
-        medianBulan: medianHari === null ? null : Math.round((medianHari / 30) * 10) / 10,
+        medianHari,
       };
     }).sort(byAngkatan);
 

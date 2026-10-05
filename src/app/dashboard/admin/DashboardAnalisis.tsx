@@ -5,8 +5,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   LabelList, Cell
 } from "recharts";
-import { Sparkles, Loader2, AlertCircle, Clock, Lightbulb, Layers, Filter, Users } from "lucide-react";
+import { Sparkles, Loader2, AlertCircle, Clock, Lightbulb, Layers, Filter, Users, FileDown } from "lucide-react";
 import type { HasilAnalisisJudul } from "@/lib/analisis-judul";
+import { formatDurasi } from "@/lib/format-durasi";
 import AnalisisJudulPanel, { PergeseranTopik } from "./AnalisisJudulPanel";
 import InterpretasiAIPanel, { type HasilInterpretasi } from "./InterpretasiAIPanel";
 
@@ -16,7 +17,7 @@ const DURATION_LABELS = ["< 1 Bulan", "1 - 3 Bulan", "3 - 6 Bulan", "> 6 Bulan"]
 const DURATION_COLORS = ["#BFDBFE", "#60A5FA", "#2563EB", "#1E3A8A"];
 const BANDINGKAN = "__bandingkan";
 
-type DurationRow = { name: string; total: number; medianBulan: number | null } & Record<typeof DURATION_LABELS[number], number>;
+type DurationRow = { name: string; total: number; medianHari: number | null } & Record<typeof DURATION_LABELS[number], number>;
 type KonsentrasiRow = { name: string } & Record<string, number | string>;
 type FunnelRow = { name: string; kolokium: number; daftarHasil: number; disetujui: number; dirilis: number; selesai: number };
 const FUNNEL_STAGES: { key: keyof Omit<FunnelRow, "name">; label: string; color: string }[] = [
@@ -28,7 +29,6 @@ const FUNNEL_STAGES: { key: keyof Omit<FunnelRow, "name">; label: string; color:
 ];
 
 const TOOLTIP_STYLE = { borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' };
-const formatBulan = (bulan: number) => `${bulan.toLocaleString("id-ID", { maximumFractionDigits: 1 })} bulan`;
 const persenDari = (value: number, total: number) => (total ? Math.round((value / total) * 100) : 0);
 
 export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
@@ -100,7 +100,7 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
     const total = row?.total ?? 0;
     return {
       total,
-      medianBulan: row?.medianBulan ?? null,
+      medianHari: row?.medianHari ?? null,
       bars: DURATION_LABELS.map(label => {
         const jumlah = row?.[label] ?? 0;
         return { name: label, jumlah, label: `${jumlah} · ${persenDari(jumlah, total)}%` };
@@ -161,6 +161,38 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
       });
     return () => controller.abort();
   }, [memuatInterpretasi, selectedAngkatan]);
+
+  const [sedangMengunduh, setSedangMengunduh] = useState(false);
+
+  // Report for a prodi meeting: everything on this dashboard for one angkatan, plus the saved AI
+  // interpretation of the titles if there is one
+  const unduhLaporan = async () => {
+    if (isBandingkan || !selectedAngkatan) return;
+    setSedangMengunduh(true);
+    try {
+      const { buatLaporanAnalisisPdf } = await import("@/lib/laporan-analisis-pdf");
+      const doc = buatLaporanAnalisisPdf({
+        angkatan: selectedAngkatan,
+        progres: funnel.map(t => ({ label: t.label, jumlah: t.value })),
+        durasi: {
+          kategori: durasiSatu.bars.map(b => ({ label: b.name, jumlah: b.jumlah })),
+          total: durasiSatu.total,
+          medianHari: durasiSatu.medianHari,
+          tanpaKolokium: tanpaKolokium[selectedAngkatan] ?? 0,
+        },
+        konsentrasi: konsentrasiChart.sorted.map(k => ({ nama: k.name, jumlah: k.jumlah })),
+        hasil: judulByAngkatan[selectedAngkatan] ?? null,
+        interpretasi,
+      });
+      const tanggal = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" });
+      doc.save(`Laporan_Analisis_${selectedAngkatan.replace(/\s+/g, "_")}_${tanggal}.pdf`);
+    } catch (err) {
+      console.error("Gagal membuat laporan PDF:", err);
+      alert("Laporan PDF gagal dibuat. Silakan coba lagi.");
+    } finally {
+      setSedangMengunduh(false);
+    }
+  };
 
   const generateAIAnalysis = async () => {
     if (isBandingkan) return;
@@ -234,6 +266,17 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
+          {!isBandingkan && selectedAngkatan && (
+            <button
+              onClick={unduhLaporan}
+              disabled={sedangMengunduh || memuatInterpretasi}
+              title={interpretasi ? "Laporan memuat seluruh analisis angkatan ini dan interpretasi AI tersimpan" : "Laporan memuat seluruh analisis angkatan ini (interpretasi AI belum dibuat)"}
+              className="flex items-center justify-center gap-2 bg-[#06125C] hover:bg-[#0a1a7a] text-white px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {sedangMengunduh ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+              Unduh Laporan PDF
+            </button>
+          )}
           {/* Angkatan Filter Dropdown */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -379,10 +422,10 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
           {hasDurationData && (
             <div className="mt-4 flex flex-wrap gap-2">
               {(isBandingkan ? durasiBandingkan : durationData.filter(d => d.name === selectedAngkatan)).map(d => (
-                d.medianBulan !== null && (
+                d.medianHari !== null && (
                   <span key={d.name} className="text-xs bg-blue-50 text-blue-800 border border-blue-100 rounded-lg px-2.5 py-1">
                     {isBandingkan && <span className="font-semibold">{d.name} · </span>}
-                    Median <span className="font-semibold">{formatBulan(d.medianBulan)}</span> · {d.total} mahasiswa
+                    Median <span className="font-semibold">{formatDurasi(d.medianHari)}</span> · {d.total} mahasiswa
                   </span>
                 )
               ))}
@@ -458,7 +501,7 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
         {/* Analisis Judul Penelitian: rule-based results first, AI interpretation as a complement */}
         <div className="bg-slate-50/60 p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col lg:col-span-2">
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
               <Lightbulb className="w-5 h-5 text-emerald-700" />
             </div>
             <div>

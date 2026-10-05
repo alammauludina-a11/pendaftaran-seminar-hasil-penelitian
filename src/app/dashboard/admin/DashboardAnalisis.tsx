@@ -6,6 +6,9 @@ import {
   LabelList, Cell
 } from "recharts";
 import { Sparkles, Loader2, AlertCircle, Clock, Lightbulb, Layers, Filter, Users } from "lucide-react";
+import type { HasilAnalisisJudul } from "@/lib/analisis-judul";
+import AnalisisJudulPanel, { PergeseranTopik } from "./AnalisisJudulPanel";
+import InterpretasiAIPanel, { type HasilInterpretasi } from "./InterpretasiAIPanel";
 
 const COLORS = ["#3B82F6", "#8B5CF6", "#F59E0B", "#10B981", "#EF4444", "#EC4899", "#06B6D4"];
 const DURATION_LABELS = ["< 1 Bulan", "1 - 3 Bulan", "3 - 6 Bulan", "> 6 Bulan"] as const;
@@ -30,7 +33,7 @@ const persenDari = (value: number, total: number) => (total ? Math.round((value 
 
 export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
   // AI result per angkatan, so switching angkatan back and forth keeps earlier analyses
-  const [aiByAngkatan, setAiByAngkatan] = useState<Record<string, string>>({});
+  const [aiByAngkatan, setAiByAngkatan] = useState<Record<string, HasilInterpretasi>>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +41,7 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [durationData, setDurationData] = useState<DurationRow[]>([]);
   const [konsentrasiData, setKonsentrasiData] = useState<KonsentrasiRow[]>([]);
-  const [titlesByAngkatan, setTitlesByAngkatan] = useState<Record<string, string[]>>({});
+  const [judulByAngkatan, setJudulByAngkatan] = useState<Record<string, HasilAnalisisJudul>>({});
   const [tanpaKolokium, setTanpaKolokium] = useState<Record<string, number>>({});
   const [funnelData, setFunnelData] = useState<FunnelRow[]>([]);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -55,7 +58,7 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
         const data = await res.json();
         setDurationData(data.durationData || []);
         setKonsentrasiData(data.konsentrasiData || []);
-        setTitlesByAngkatan(data.titles || {});
+        setJudulByAngkatan(data.judul || {});
         setTanpaKolokium(data.tanpaKolokium || {});
         setFunnelData(data.funnelData || []);
 
@@ -141,8 +144,7 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
   }, [konsentrasiData, selectedAngkatan, isBandingkan]);
 
   // ---- AI ----
-  const titlesData = titlesByAngkatan[selectedAngkatan] ?? [];
-  const aiAnalysisTitles = aiByAngkatan[selectedAngkatan] ?? null;
+  const interpretasi = aiByAngkatan[selectedAngkatan] ?? null;
 
   const generateAIAnalysis = async () => {
     if (isBandingkan) return;
@@ -153,9 +155,8 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
       const res = await fetch("/api/admin/analisis/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          titles: titlesData
-        })
+        // The server builds the summary from the database; only the angkatan is sent
+        body: JSON.stringify({ angkatan })
       });
 
       const data = await res.json();
@@ -166,26 +167,12 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
           : data.error?.message || "Gagal mendapatkan analisis";
         throw new Error(errMsg);
       }
-      setAiByAngkatan(prev => ({ ...prev, [angkatan]: data.titles }));
+      setAiByAngkatan(prev => ({ ...prev, [angkatan]: data }));
     } catch (err: any) {
       setError(err.message);
     } finally {
       setIsGenerating(false);
     }
-  };
-
-  // Renders **bold** as React elements so AI output (which may echo student-supplied titles) is never parsed as HTML
-  const renderMarkdownText = (text: string) => {
-    if (!text) return null;
-    return text.split('\n').map((line, i) => (
-      <p key={i} className="mb-2 text-slate-600 leading-relaxed">
-        {line.split(/(\*\*.*?\*\*)/g).map((part, j) =>
-          part.startsWith("**") && part.endsWith("**") && part.length > 4
-            ? <strong key={j}>{part.slice(2, -2)}</strong>
-            : part
-        )}
-      </p>
-    ));
   };
 
   if (isLoadingData) {
@@ -448,75 +435,75 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
           </div>
         </div>
 
-        {/* Column 3: Analisis Judul Penelitian */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 flex flex-col bg-gradient-to-b from-emerald-50/30 to-transparent lg:col-span-2">
-
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                <Lightbulb className="w-5 h-5 text-emerald-700" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-800">Analisis Judul Penelitian</h3>
-                <p className="text-xs text-slate-500">
-                  {isBandingkan ? "Tingkat kesamaan dan keunikan judul" : `Tingkat kesamaan dan keunikan judul ${selectedAngkatan}`}
-                </p>
-              </div>
+        {/* Analisis Judul Penelitian: rule-based results first, AI interpretation as a complement */}
+        <div className="bg-slate-50/60 p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col lg:col-span-2">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+              <Lightbulb className="w-5 h-5 text-emerald-700" />
             </div>
-
-            <button
-              onClick={generateAIAnalysis}
-              disabled={isGenerating || isBandingkan}
-              title={isBandingkan ? "Pilih satu angkatan untuk menganalisis judul" : undefined}
-              className="flex items-center gap-2 bg-white border border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {isGenerating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4" />
-              )}
-              {isGenerating ? "Menganalisis..." : "Generate AI Insights"}
-            </button>
+            <div>
+              <h3 className="text-base font-bold text-slate-800">Analisis Judul Penelitian</h3>
+              <p className="text-xs text-slate-500">
+                {isBandingkan
+                  ? "Pergeseran topik antar angkatan, dari judul Seminar Hasil yang disetujui"
+                  : `Topik, objek, kemiripan dan keunikan judul Seminar Hasil ${selectedAngkatan} yang disetujui`}
+              </p>
+            </div>
           </div>
 
-          {/* AI Error Alert Specific to Title */}
-          {error && !isBandingkan && (
-            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-start gap-3 mb-4">
-              <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold mb-1">Gagal Menghasilkan Analisis</p>
-                <p className="text-sm">{error}</p>
-                <button
-                  onClick={generateAIAnalysis}
-                  disabled={isGenerating}
-                  className="mt-2 text-xs font-semibold underline hover:no-underline disabled:opacity-50"
-                >
-                  Coba lagi
-                </button>
-              </div>
+          {isBandingkan ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <PergeseranTopik perAngkatan={judulByAngkatan} angkatanList={[...allAngkatan].reverse()} />
             </div>
+          ) : (
+            <AnalisisJudulPanel hasil={judulByAngkatan[selectedAngkatan]} />
           )}
 
-          <div className="flex-grow flex flex-col justify-center">
-            {isBandingkan ? (
-              <div className="text-center py-10 px-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                <Lightbulb className="w-8 h-8 mx-auto text-slate-300 mb-3" />
-                <p className="text-sm font-medium text-slate-500 mb-1">Pilih satu angkatan</p>
-                <p className="text-xs text-slate-400 max-w-[280px] mx-auto">Analisis judul dilakukan per angkatan agar tema yang muncul tidak tercampur antar angkatan.</p>
+          {/* AI interpretation (complement) */}
+          <div className="mt-4 bg-white rounded-xl border border-emerald-100 p-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Sparkles className="w-4 h-4 text-emerald-600" /> Interpretasi AI</h4>
+                <p className="text-xs text-slate-500">Pelengkap. Hasil di atas tetap tersedia tanpa AI.</p>
               </div>
-            ) : aiAnalysisTitles ? (
-              <div className="bg-white/80 p-5 rounded-xl border border-emerald-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-400 to-emerald-600"></div>
-                <div className="prose prose-sm prose-slate max-w-none ml-2">
-                  {renderMarkdownText(aiAnalysisTitles)}
+              <button
+                onClick={generateAIAnalysis}
+                disabled={isGenerating || isBandingkan}
+                title={isBandingkan ? "Pilih satu angkatan untuk interpretasi AI" : undefined}
+                className="flex items-center gap-2 bg-white border border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {isGenerating ? "Menganalisis..." : "Buat Interpretasi"}
+              </button>
+            </div>
+
+            {error && !isBandingkan && (
+              <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-start gap-3 mb-4">
+                <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold mb-1">Gagal Menghasilkan Interpretasi</p>
+                  <p className="text-sm">{error}</p>
+                  <button
+                    onClick={generateAIAnalysis}
+                    disabled={isGenerating}
+                    className="mt-2 text-xs font-semibold underline hover:no-underline disabled:opacity-50"
+                  >
+                    Coba lagi
+                  </button>
                 </div>
               </div>
+            )}
+
+            {isBandingkan ? (
+              <p className="text-sm text-slate-500">Interpretasi AI dibuat per angkatan. Pilih satu angkatan untuk membuatnya.</p>
+            ) : interpretasi ? (
+              <InterpretasiAIPanel hasil={interpretasi} />
             ) : (
-              <div className="text-center py-10 px-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                <Lightbulb className="w-8 h-8 mx-auto text-slate-300 mb-3" />
-                <p className="text-sm font-medium text-slate-500 mb-1">Belum ada analisis</p>
-                <p className="text-xs text-slate-400 max-w-[250px] mx-auto">Klik tombol Generate AI Insights untuk membedah ringkasan keunikan judul mahasiswa.</p>
-              </div>
+              <p className="text-sm text-slate-500">
+                Belum ada interpretasi. Klik <span className="font-medium">Buat Interpretasi</span> agar AI menafsirkan hasil olahan di atas:
+                tema besar, temuan, penilaian judul mirip, celah topik, dan rekomendasi untuk admin serta Kaprodi/Sekprodi.
+                Yang dikirim ke AI hanya ringkasan angka dan judul, tanpa nama atau NIM.
+              </p>
             )}
           </div>
         </div>

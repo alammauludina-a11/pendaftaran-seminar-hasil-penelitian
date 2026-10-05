@@ -3,6 +3,8 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { db } from "@/db";
 import { pendaftaran, users, periode, slotWaktu } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { analisisJudul } from "@/lib/analisis-judul";
+import { ambilJudulDisetujui } from "@/lib/analisis-judul-db";
 
 /** Sort "AKN 60", "AKN 61", ... by their number instead of as plain text. */
 const byAngkatan = (a: { name: string }, b: { name: string }) =>
@@ -27,7 +29,6 @@ export async function GET() {
         angkatan: periode.angkatan,
         prodi: users.prodi,
         konsentrasi: pendaftaran.konsentrasi,
-        judulPenelitian: pendaftaran.judulPenelitian,
         isReleased: pendaftaran.isReleased,
         statusVerifikasi: pendaftaran.statusVerifikasi,
         hasilWaktuMulai: slotWaktu.waktuMulai,
@@ -86,7 +87,6 @@ export async function GET() {
 
     const durationMap: Record<string, { "< 1 Bulan": number, "1 - 3 Bulan": number, "3 - 6 Bulan": number, "> 6 Bulan": number }> = {};
     const konsentrasiMap: Record<string, Record<string, number>> = {};
-    const titlesByAngkatan: Record<string, string[]> = {};
     const durasiHariByAngkatan: Record<string, number[]> = {};
 
     for (const row of rawData) {
@@ -102,16 +102,12 @@ export async function GET() {
         konsentrasiMap[angkatan][kons] = (konsentrasiMap[angkatan][kons] || 0) + 1;
       }
 
-      // Duration and title analysis only cover students who have finished the seminar
+      // Duration only covers students who have finished the seminar
       if (!row.isReleased || !row.hasilWaktuMulai) continue;
       if (new Date(row.hasilWaktuMulai) > now) continue;
 
       if (!durationMap[angkatan]) {
         durationMap[angkatan] = { "< 1 Bulan": 0, "1 - 3 Bulan": 0, "3 - 6 Bulan": 0, "> 6 Bulan": 0 };
-      }
-
-      if (row.judulPenelitian) {
-        (titlesByAngkatan[angkatan] ??= []).push(row.judulPenelitian);
       }
 
       // Resolve the actual kolokium date from the student's kolokium pendaftaran slot
@@ -157,15 +153,16 @@ export async function GET() {
       selesai: funnelMap[angkatan].selesai.size,
     })).sort(byAngkatan);
 
-    // Keep the AI prompt small: the latest 100 titles per angkatan
-    const titles = Object.fromEntries(Object.entries(titlesByAngkatan).map(([a, list]) => [a, list.slice(-100)]));
+    // Title analysis covers every approved registration, not only finished seminars
+    const judulByAngkatan = await ambilJudulDisetujui();
+    const judul = Object.fromEntries(Object.entries(judulByAngkatan).map(([a, list]) => [a, analisisJudul(list)]));
 
     return NextResponse.json({
       durationData,
       konsentrasiData,
       tanpaKolokium,
       funnelData,
-      titles
+      judul
     }, { status: 200 });
 
   } catch (error: any) {

@@ -1,6 +1,21 @@
 import { NextResponse } from 'next/server';
+import { createHash } from "node:crypto";
 import { requireAdmin } from "@/lib/admin-auth";
 import { GoogleGenAI } from '@google/genai';
+import { analisisJudul } from "@/lib/analisis-judul";
+import { ambilJudulDisetujui } from "@/lib/analisis-judul-db";
+import {
+  MIN_JUDUL, SKEMA_INTERPRETASI, VERSI_PROMPT, buatPrompt, cariPembanding, rapikanInterpretasi, susunRingkasanAI,
+  type Interpretasi,
+} from "@/lib/interpretasi-judul";
+
+const MODEL = 'gemini-3.6-flash';
+
+// Same data + same prompt version → same answer, so repeat clicks don't call Gemini again.
+// In-memory is enough: the app runs as a single server and a restart only costs one extra call.
+type Tersimpan = { interpretasi: Interpretasi; dibuatPada: string };
+const cache = new Map<string, Tersimpan>();
+const MAKS_CACHE = 30;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -9,10 +24,12 @@ async function generateWithRetry(ai: GoogleGenAI, prompt: string, maxRetries = 3
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: MODEL,
         contents: prompt,
         config: {
           responseMimeType: "application/json",
+          responseJsonSchema: SKEMA_INTERPRETASI,
+          temperature: 0.3,
         }
       });
       const resultText = response.text;
@@ -40,8 +57,34 @@ export async function POST(request: Request) {
     const denied = await requireAdmin();
     if (denied) return denied;
 
-    const data = await request.json();
-    
+    const body = await request.json().catch(() => ({}));
+    const angkatan = typeof body?.angkatan === "string" ? body.angkatan : "";
+    if (!angkatan) {
+      return NextResponse.json({ error: "Angkatan wajib dipilih." }, { status: 400 });
+    }
+
+    // The summary is built here from the database, never from data sent by the browser
+    const semuaJudul = await ambilJudulDisetujui();
+    const daftar = semuaJudul[angkatan] ?? [];
+    if (daftar.length < MIN_JUDUL) {
+      return NextResponse.json({
+        error: `Interpretasi AI membutuhkan minimal ${MIN_JUDUL} judul yang disetujui. Angkatan ${angkatan} baru memiliki ${daftar.length} judul.`,
+      }, { status: 400 });
+    }
+
+    const angkatanPembanding = cariPembanding(angkatan, semuaJudul);
+    const ringkasan = susunRingkasanAI(
+      angkatan,
+      analisisJudul(daftar, { batas: 30 }),
+      angkatanPembanding ? { angkatan: angkatanPembanding, hasil: analisisJudul(semuaJudul[angkatanPembanding], { batas: 30 }) } : undefined,
+    );
+
+    const kunci = createHash("sha256").update(VERSI_PROMPT + JSON.stringify(ringkasan)).digest("hex");
+    const tersimpan = cache.get(kunci);
+    if (tersimpan) {
+      return NextResponse.json({ ...tersimpan, model: MODEL, pembanding: angkatanPembanding, dariCache: true });
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ 
@@ -50,37 +93,17 @@ export async function POST(request: Request) {
     }
 
     const ai = new GoogleGenAI({ apiKey });
-    
-    const prompt = `
-Anda adalah asisten yang membantu admin program studi membaca pola umum dari daftar judul tugas akhir mahasiswa berikut. Ini BUKAN alat pengukuran kemiripan yang presisi — tugas Anda hanya memberikan observasi kualitatif awal yang bisa jadi bahan diskusi lebih lanjut oleh manusia.
+    const resultText = await generateWithRetry(ai, buatPrompt(ringkasan));
+    const interpretasi = rapikanInterpretasi(JSON.parse(resultText), ringkasan, daftar);
+    if (interpretasi.ringkasanEksekutif.length === 0) {
+      throw new Error("Jawaban AI tidak lengkap. Silakan coba lagi.");
+    }
 
-Jika daftar judul di atas kosong (tidak ada data), berikan respons (di dalam field "titles") dengan persis kalimat ini: "Belum ada mahasiswa yang selesai Seminar Hasil Penelitian, sehingga analisis judul belum bisa dilakukan." dan JANGAN berikan analisis lainnya.
+    const hasil: Tersimpan = { interpretasi, dibuatPada: new Date().toISOString() };
+    if (cache.size >= MAKS_CACHE) cache.delete(cache.keys().next().value!);
+    cache.set(kunci, hasil);
 
-Jika daftar judul tidak kosong, buatlah ringkasan (maksimal 3 paragraf) dengan bahasa Indonesia yang santai, lugas, dan mudah dipahami (hindari bahasa akademis yang kaku).
-
-Dalam ringkasan ini, sampaikan:
-1. Apakah ada beberapa judul yang tampak mengangkat tema atau topik serupa, dan sebutkan tema tersebut secara umum (tanpa menyebut angka atau persentase pasti, karena Anda tidak melakukan perhitungan kemiripan numerik apa pun).
-2. Judul-judul mana yang terlihat menonjol karena pendekatan atau topiknya berbeda dari mayoritas.
-3. 1–2 tren topik yang paling sering muncul, dijelaskan secara deskriptif.
-
-ATURAN PENTING:
-- JANGAN menyebutkan angka, persentase, atau perkiraan kuantitatif apa pun (misalnya "40% mahasiswa...", "sekitar 5 judul..."), karena Anda hanya membaca judul secara tekstual, bukan menghitung kemiripan secara matematis. Gunakan kata seperti "beberapa", "sebagian kecil", "cukup banyak" jika perlu menggambarkan proporsi secara kasar.
-- Jangan mengklaim kepastian ("judul A dan B pasti mirip") — gunakan bahasa dugaan ("judul A dan B tampak membahas topik yang berdekatan").
-- Fokus pada pola tema/topik, bukan kesamaan struktur kalimat atau gaya penulisan judul.
-
-Daftar judul:
-${JSON.stringify(data.titles, null, 2)}
-
-Format response harus tepat dalam bentuk JSON murni dengan format seperti ini:
-{
-  "titles": "Isi analisis judul (bisa pakai markdown formatting seperti **bold**)..."
-}
-`;
-
-    const resultText = await generateWithRetry(ai, prompt);
-    const parsed = JSON.parse(resultText);
-    
-    return NextResponse.json(parsed);
+    return NextResponse.json({ ...hasil, model: MODEL, pembanding: angkatanPembanding, dariCache: false });
   } catch (error: any) {
     console.error('Gemini API Error:', error);
     

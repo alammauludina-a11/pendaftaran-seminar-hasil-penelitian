@@ -7,9 +7,11 @@ import type { Interpretasi } from "@/lib/interpretasi-judul";
 export type HasilInterpretasi = {
   interpretasi: Interpretasi;
   dibuatPada: string;
+  dibuatOleh: string | null;
   model: string;
   pembanding: string | null;
-  dariCache: boolean;
+  /** The approved titles (or the prompt) changed since this interpretation was made. */
+  kedaluwarsa: boolean;
 };
 
 function Bagian({ icon, judul, jumlah, terbuka = false, children }: { icon: React.ReactNode; judul: string; jumlah?: number; terbuka?: boolean; children: React.ReactNode }) {
@@ -38,6 +40,13 @@ export default function InterpretasiAIPanel({ hasil }: { hasil: HasilInterpretas
 
   return (
     <div className="space-y-3">
+      {hasil.kedaluwarsa && (
+        <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+          <p>Data judul sudah berubah sejak interpretasi ini dibuat. Angka di bawah mungkin tidak lagi sama dengan hasil olahan di atas. Klik <span className="font-semibold">Buat Ulang</span> untuk memperbarui.</p>
+        </div>
+      )}
+
       {/* Executive summary: always visible, readable in 30 seconds */}
       <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
         <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-2">Ringkasan Eksekutif</p>
@@ -92,6 +101,9 @@ export default function InterpretasiAIPanel({ hasil }: { hasil: HasilInterpretas
 
       {x.penilaianJudulMirip.length > 0 && (
         <Bagian icon={<ListChecks className="w-4 h-4" />} judul="Penilaian Judul Mirip" jumlah={x.penilaianJudulMirip.length}>
+          <p className="text-sm text-slate-700 mb-2">
+            <span className="font-bold text-rose-700">{x.ringkasanJudulMirip.substansial}</span> dari {x.ringkasanJudulMirip.dinilai} pasangan teratas dinilai substansial.
+          </p>
           <p className="text-xs text-slate-500 mb-3">
             <span className="font-semibold text-rose-700">Substansial</span>: fokus kajian dan objek sama, perlu dicek.
             {" "}<span className="font-semibold text-slate-700">Permukaan</span>: hanya pola atau objeknya yang sama.
@@ -163,7 +175,7 @@ export default function InterpretasiAIPanel({ hasil }: { hasil: HasilInterpretas
       )}
 
       <p className="text-xs text-slate-400">
-        Dibuat {dibuat} WIB · {hasil.model}{hasil.dariCache ? " · hasil tersimpan" : ""}
+        Dibuat {dibuat} WIB{hasil.dibuatOleh ? ` oleh ${hasil.dibuatOleh}` : ""} · {hasil.model}
         {hasil.pembanding ? ` · dibandingkan dengan ${hasil.pembanding}` : ""}.
         Interpretasi AI adalah bahan pertimbangan, bukan keputusan. Angka berasal dari sistem.
       </p>

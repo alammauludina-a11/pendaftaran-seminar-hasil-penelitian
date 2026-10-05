@@ -18,6 +18,8 @@ export type Hitungan = { nama: string; jumlah: number };
 export type PasanganMirip = {
   skor: number;
   kembar: boolean;
+  /** Same set of topics and the same object; only the location/index differs. */
+  topikDanObjekSama: boolean;
   topikSama: string[];
   a: Omit<JudulInput, "konsentrasi"> & { konsentrasi: string | null };
   b: Omit<JudulInput, "konsentrasi"> & { konsentrasi: string | null };
@@ -189,11 +191,15 @@ export function analisisJudul(daftar: JudulInput[], opsi: { batas?: number } = {
       const skor = kembar ? 1 : kemiripanJaccard(tokens[i], tokens[j]);
       if (kembar || (skor >= AMBANG_MIRIP && topikSama.length > 0)) {
         const pick = (u: typeof urai[number]) => ({ id: u.id, judul: u.judul, nama: u.nama, nim: u.nim, konsentrasi: u.konsentrasi });
-        judulMirip.push({ skor: Math.round(skor * 100) / 100, kembar, topikSama: topikSama.map(rapikanLabel), a: pick(urai[i]), b: pick(urai[j]) });
+        const topikDanObjekSama = !kembar
+          && urai[i].objek !== null && urai[i].objek === urai[j].objek
+          && urai[i].topik.length === urai[j].topik.length && topikSama.length === urai[i].topik.length;
+        judulMirip.push({ skor: Math.round(skor * 100) / 100, kembar, topikDanObjekSama, topikSama: topikSama.map(rapikanLabel), a: pick(urai[i]), b: pick(urai[j]) });
       }
     }
   }
-  judulMirip.sort((a, b) => Number(b.kembar) - Number(a.kembar) || b.skor - a.skor);
+  judulMirip.sort((a, b) =>
+    Number(b.kembar) - Number(a.kembar) || Number(b.topikDanObjekSama) - Number(a.topikDanObjekSama) || b.skor - a.skor);
 
   // Most unique titles: average rarity (inverse document frequency) of their topics
   const judulUnik = urai

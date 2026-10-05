@@ -5,10 +5,17 @@
 import { normalisasi, uraiJudul, type HasilAnalisisJudul, type JudulInput } from "@/lib/analisis-judul";
 
 /** Bump when the prompt or schema changes, so cached interpretations are not reused. */
-export const VERSI_PROMPT = "2026-10-03.1";
+export const VERSI_PROMPT = "2026-10-05.3";
 /** Below this many titles there is not enough material for a meaningful interpretation. */
 export const MIN_JUDUL = 10;
 const MAKS_PASANGAN_MIRIP = 15;
+
+/**
+ * How the system classified a similar pair before the AI sees it. "kembar" and "topik-objek-sama" are
+ * clear cases decided by the system; only "mirip" is left to the AI's judgement.
+ */
+export type TingkatSistem = "kembar" | "topik-objek-sama" | "mirip";
+const PASTI_SUBSTANSIAL: TingkatSistem[] = ["kembar", "topik-objek-sama"];
 
 export type RingkasanAI = {
   angkatan: string;
@@ -21,7 +28,7 @@ export type RingkasanAI = {
   objek: { nama: string; jumlahJudul: number }[];
   lokasi: { nama: string; jumlahJudul: number }[];
   perKonsentrasi: { konsentrasi: string; jumlahJudul: number; topikTeratas: string[]; objekTeratas: string[] }[];
-  judulMirip: { nomor: number; tingkatSistem: "kembar" | "mirip"; skor: number; judulA: string; judulB: string; konsentrasiA: string | null; konsentrasiB: string | null; topikSama: string[] }[];
+  judulMirip: { nomor: number; tingkatSistem: TingkatSistem; skor: number; judulA: string; judulB: string; konsentrasiA: string | null; konsentrasiB: string | null; topikSama: string[] }[];
   judulUnik: { judul: string; topik: string[] }[];
   pembanding: { angkatan: string; jumlahJudul: number; topTopik: { topik: string; jumlahJudul: number }[] } | null;
 };
@@ -31,6 +38,8 @@ export type Interpretasi = {
   tema: { nama: string; topik: string[]; jumlahJudul: number; catatan: string }[];
   temuan: { judul: string; penjelasan: string; bukti: string; jenis: "info" | "perhatian" }[];
   penilaianJudulMirip: { nomor: number; judulA: string; judulB: string; tingkat: "substansial" | "permukaan"; alasan: string }[];
+  /** Counted by the system from penilaianJudulMirip, so the summary never relies on an AI-written number. */
+  ringkasanJudulMirip: { dinilai: number; substansial: number };
   kesesuaianKonsentrasi: { konsentrasi: string; catatan: string }[];
   celahTopik: { konsentrasi: string; saran: string; alasan: string }[];
   rekomendasi: { admin: string[]; pimpinanProdi: string[] };
@@ -56,7 +65,7 @@ export function susunRingkasanAI(angkatan: string, hasil: HasilAnalisisJudul, pe
     })),
     judulMirip: hasil.judulMirip.slice(0, MAKS_PASANGAN_MIRIP).map((p, i) => ({
       nomor: i + 1,
-      tingkatSistem: p.kembar ? "kembar" : "mirip",
+      tingkatSistem: (p.kembar ? "kembar" : p.topikDanObjekSama ? "topik-objek-sama" : "mirip") as TingkatSistem,
       skor: p.skor,
       judulA: p.a.judul,
       judulB: p.b.judul,
@@ -90,12 +99,24 @@ ATURAN
    Gunakan HANYA topik dari daftar topTopik dan tulis persis sama. Jangan isi jumlah judul; sistem yang menghitungnya.
 4. "penilaianJudulMirip": untuk setiap pasangan di judulMirip, sebut nomornya dan nilai apakah tumpang tindihnya
    "substansial" (fokus kajian dan objek sama) atau "permukaan" (pola kalimat, topik umum, atau objek sama, tetapi
-   fokus kajian berbeda). Beri alasan satu kalimat.
+   fokus kajian berbeda). Beri alasan satu kalimat. Pasangan dengan tingkatSistem "kembar" atau "topik-objek-sama"
+   sudah dipastikan sistem sebagai "substansial"; nilai dengan cermat terutama pasangan bertingkat "mirip".
+   Catatan: judulMirip hanya berisi pasangan teratas, sedangkan "jumlahMirip" juga mencakup kemiripan ringan.
 5. "kesesuaianKonsentrasi": tulis hanya bila ada hal yang layak dicermati, misalnya topik atau objek yang tampak jauh
    dari bidang konsentrasinya. Boleh kosong.
 6. "celahTopik": tema yang lazim untuk suatu konsentrasi tetapi tidak atau jarang muncul di data. Maksimal 4.
-7. "rekomendasi.admin": tindakan operasional (misalnya mengecek pasangan judul kembar). "rekomendasi.pimpinanProdi":
-   pertimbangan kebijakan akademik untuk Kaprodi/Sekprodi. Masing-masing maksimal 4.
+7. "rekomendasi.admin": tindakan operasional. "rekomendasi.pimpinanProdi": pertimbangan kebijakan akademik untuk
+   Kaprodi/Sekprodi. Masing-masing maksimal 4.
+   - Jangan menyarankan memeriksa semua judul mirip atau menyebut "jumlahMirip" sebagai daftar yang harus dicek.
+   - Rekomendasi tentang judul mirip hanya boleh merujuk pasangan yang Anda nilai "substansial", dengan menyebut
+     nomornya (misalnya "pasangan #1, #2, dan #5"), bukan jumlahnya. Bila tidak ada yang substansial, jangan buat
+     rekomendasi tentang judul mirip.
+   - Setiap rekomendasi harus menyebut objek tindakannya (topik, konsentrasi, objek penelitian, atau nomor pasangan)
+     dan bersandar pada data atau temuan. Hindari saran umum seperti "meninjau distribusi judul".
+   - Pasangan judul mirip hanya dibahas di "rekomendasi.admin". "rekomendasi.pimpinanProdi" membahas pola angkatan
+     (sebaran topik, objek, kesesuaian konsentrasi, celah topik), bukan pasangan judul tertentu.
+   - Jangan mengulang rekomendasi yang sama di kedua daftar.
+   - Tulis sebagai kalimat perintah yang diawali huruf kapital, misalnya "Konfirmasi ke ..." atau "Pertimbangkan ...".
 8. Jangan menilai atau menyalahkan dosen pembimbing, mahasiswa, atau konsentrasi tertentu. Bahas pola, bukan orang.
    Jangan menilai kualitas atau kelayakan judul individu.
 9. Bila "pembanding" berisi data angkatan sebelumnya, bahas pergeseran topik di "temuan".
@@ -154,6 +175,7 @@ export const SKEMA_INTERPRETASI = {
 const str = (v: unknown, maks = 600) => (typeof v === "string" ? v.trim().slice(0, maks) : "");
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const strs = (v: unknown, maksItem: number) => arr(v).map(x => str(x)).filter(Boolean).slice(0, maksItem);
+const kapital = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
 
 /**
@@ -194,15 +216,29 @@ export function rapikanInterpretasi(mentah: unknown, ringkasan: RingkasanAI, daf
         nomor: ref.nomor,
         judulA: ref.judulA,
         judulB: ref.judulB,
-        tingkat: (p.tingkat === "substansial" ? "substansial" : "permukaan") as "substansial" | "permukaan",
+        // Clear cases decided by the system stay substantial, whatever the model says
+        tingkat: (PASTI_SUBSTANSIAL.includes(ref.tingkatSistem) || p.tingkat === "substansial" ? "substansial" : "permukaan") as "substansial" | "permukaan",
         alasan: str(p.alasan, 300),
       };
-    })
-    .sort((a, b) => a.nomor - b.nomor);
+    });
+  // Pairs the system already decided are always listed, even if the model skipped them
+  for (const ref of ringkasan.judulMirip) {
+    if (sudah.has(ref.nomor) || !PASTI_SUBSTANSIAL.includes(ref.tingkatSistem)) continue;
+    penilaianJudulMirip.push({
+      nomor: ref.nomor,
+      judulA: ref.judulA,
+      judulB: ref.judulB,
+      tingkat: "substansial",
+      alasan: ref.tingkatSistem === "kembar"
+        ? "Ditetapkan sistem: kedua judul identik."
+        : "Ditetapkan sistem: topik dan objek penelitian sama, hanya lokasi atau cakupan yang berbeda.",
+    });
+  }
+  penilaianJudulMirip.sort((a, b) => a.nomor - b.nomor);
 
   const rek = obj(raw.rekomendasi);
   return {
-    ringkasanEksekutif: strs(raw.ringkasanEksekutif, 3),
+    ringkasanEksekutif: strs(raw.ringkasanEksekutif, 3).map(kapital),
     tema,
     temuan: arr(raw.temuan)
       .map(t => obj(t))
@@ -215,6 +251,10 @@ export function rapikanInterpretasi(mentah: unknown, ringkasan: RingkasanAI, daf
       .filter(t => t.judul && t.penjelasan)
       .slice(0, 6),
     penilaianJudulMirip,
+    ringkasanJudulMirip: {
+      dinilai: penilaianJudulMirip.length,
+      substansial: penilaianJudulMirip.filter(p => p.tingkat === "substansial").length,
+    },
     kesesuaianKonsentrasi: arr(raw.kesesuaianKonsentrasi)
       .map(k => obj(k))
       .map(k => ({ konsentrasi: str(k.konsentrasi, 80), catatan: str(k.catatan) }))
@@ -225,7 +265,7 @@ export function rapikanInterpretasi(mentah: unknown, ringkasan: RingkasanAI, daf
       .map(c => ({ konsentrasi: str(c.konsentrasi, 80), saran: str(c.saran, 200), alasan: str(c.alasan, 300) }))
       .filter(c => c.saran)
       .slice(0, 4),
-    rekomendasi: { admin: strs(rek.admin, 4), pimpinanProdi: strs(rek.pimpinanProdi, 4) },
+    rekomendasi: { admin: strs(rek.admin, 4).map(kapital), pimpinanProdi: strs(rek.pimpinanProdi, 4).map(kapital) },
   };
 }
 

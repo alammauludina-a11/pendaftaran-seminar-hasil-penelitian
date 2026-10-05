@@ -42,7 +42,7 @@ describe("rapikanInterpretasi", () => {
     ],
     kesesuaianKonsentrasi: [{ konsentrasi: "", catatan: "tanpa nama" }],
     celahTopik: [1, 2, 3, 4, 5].map(i => ({ konsentrasi: "Audit", saran: `Saran ${i}`, alasan: "x" })),
-    rekomendasi: { admin: ["Cek judul kembar"], pimpinanProdi: "bukan array" },
+    rekomendasi: { admin: ["cek pasangan #1"], pimpinanProdi: "bukan array" },
   };
   const hasil = rapikanInterpretasi(mentah, ringkasan, daftar);
 
@@ -68,7 +68,32 @@ describe("rapikanInterpretasi", () => {
     assert.equal(hasil.temuan[0].jenis, "info");
     assert.equal(hasil.kesesuaianKonsentrasi.length, 0);
     assert.equal(hasil.celahTopik.length, 4);
-    assert.deepEqual(hasil.rekomendasi, { admin: ["Cek judul kembar"], pimpinanProdi: [] });
+    assert.deepEqual(hasil.rekomendasi, { admin: ["Cek pasangan #1"], pimpinanProdi: [] });
+  });
+
+  it("selalu menilai pasangan kembar sebagai substansial dan menghitung ringkasannya sendiri", () => {
+    const x = rapikanInterpretasi(
+      { ringkasanEksekutif: ["satu"], penilaianJudulMirip: [{ nomor: 1, tingkat: "permukaan", alasan: "AI keliru" }] },
+      ringkasan,
+      daftar,
+    );
+    assert.equal(ringkasan.judulMirip[0].tingkatSistem, "kembar");
+    assert.equal(x.penilaianJudulMirip[0].tingkat, "substansial");
+    assert.deepEqual(x.ringkasanJudulMirip, { dinilai: 1, substansial: 1 });
+    assert.deepEqual(x.ringkasanEksekutif, ["Satu"]);
+  });
+
+  it("tetap mencantumkan pasangan yang sudah dipastikan sistem walau dilewati AI", () => {
+    const tigaJudul = [
+      judul(1, "Pengaruh Likuiditas terhadap Nilai Perusahaan pada Perusahaan Farmasi di Bursa Efek Indonesia"),
+      judul(2, "Pengaruh Likuiditas terhadap Nilai Perusahaan pada Perusahaan Farmasi di Bursa Efek Indonesia"),
+      judul(3, "Analisis Pengaruh Likuiditas terhadap Nilai Perusahaan pada Perusahaan Farmasi di Indeks LQ45"),
+    ];
+    const r = susunRingkasanAI("AKN 60", analisisJudul(tigaJudul, { batas: 30 }));
+    assert.deepEqual(r.judulMirip.map(p => p.tingkatSistem), ["kembar", "topik-objek-sama", "topik-objek-sama"]);
+    const x = rapikanInterpretasi({ ringkasanEksekutif: ["a"], penilaianJudulMirip: [] }, r, tigaJudul);
+    assert.deepEqual(x.penilaianJudulMirip.map(p => [p.nomor, p.tingkat]), [[1, "substansial"], [2, "substansial"], [3, "substansial"]]);
+    assert.match(x.penilaianJudulMirip[0].alasan, /Ditetapkan sistem/);
   });
 
   it("tidak gagal bila jawaban AI bukan objek", () => {

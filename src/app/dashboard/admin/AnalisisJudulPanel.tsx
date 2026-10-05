@@ -8,6 +8,7 @@ const BATAS_AWAL_MIRIP = 8;
 
 function tingkatMirip(p: PasanganMirip) {
   if (p.kembar) return { label: "Kembar", cls: "bg-rose-100 text-rose-700" };
+  if (p.topikDanObjekSama) return { label: "Topik & objek sama", cls: "bg-rose-50 text-rose-700" };
   if (p.skor >= 0.85) return { label: "Sangat mirip", cls: "bg-amber-100 text-amber-800" };
   return { label: "Mirip", cls: "bg-slate-100 text-slate-600" };
 }

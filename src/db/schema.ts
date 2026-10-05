@@ -186,3 +186,19 @@ export const logAktivitas = sqliteTable("log_aktivitas", {
   ipAddress: text("ip_address"),
   createdAt: integer("created_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 }, (t) => [index("log_aktivitas_created_at_idx").on(t.createdAt)]);
+
+// Saved AI interpretations of Analisis Judul, so what Kaprodi/Sekprodi read stays the same across
+// server restarts until someone explicitly regenerates it. `kunciData` is a hash of the summary sent
+// to the AI plus the prompt version; when it no longer matches the current data the result is stale.
+export const interpretasiJudul = sqliteTable("interpretasi_judul", {
+  id: text("id").primaryKey(), // crypto.randomUUID()
+  angkatan: text("angkatan").notNull(),
+  kunciData: text("kunci_data").notNull(),
+  versiPrompt: text("versi_prompt").notNull(),
+  model: text("model").notNull(),
+  pembanding: text("pembanding"),
+  hasil: text("hasil").notNull(), // JSON Interpretasi
+  dibuatOlehId: text("dibuat_oleh_id"),
+  dibuatOlehNama: text("dibuat_oleh_nama"),
+  createdAt: integer("created_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [index("interpretasi_judul_angkatan_idx").on(t.angkatan, t.createdAt)]);

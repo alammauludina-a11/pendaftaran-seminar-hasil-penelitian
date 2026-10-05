@@ -33,7 +33,8 @@ const persenDari = (value: number, total: number) => (total ? Math.round((value 
 
 export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
   // AI result per angkatan, so switching angkatan back and forth keeps earlier analyses
-  const [aiByAngkatan, setAiByAngkatan] = useState<Record<string, HasilInterpretasi>>({});
+  // Saved AI interpretation per angkatan: undefined = not loaded yet, null = none saved
+  const [aiByAngkatan, setAiByAngkatan] = useState<Record<string, HasilInterpretasi | null>>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -145,10 +146,29 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
 
   // ---- AI ----
   const interpretasi = aiByAngkatan[selectedAngkatan] ?? null;
+  const memuatInterpretasi = !isBandingkan && !!selectedAngkatan && !(selectedAngkatan in aiByAngkatan);
+
+  // Load the saved interpretation when an angkatan is opened, so everyone reads the same version
+  useEffect(() => {
+    if (!memuatInterpretasi) return;
+    const angkatan = selectedAngkatan;
+    const controller = new AbortController();
+    fetch(`/api/admin/analisis/gemini?angkatan=${encodeURIComponent(angkatan)}`, { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => setAiByAngkatan(prev => ({ ...prev, [angkatan]: data.tersimpan ?? null })))
+      .catch(err => {
+        if (err.name !== "AbortError") setAiByAngkatan(prev => ({ ...prev, [angkatan]: null }));
+      });
+    return () => controller.abort();
+  }, [memuatInterpretasi, selectedAngkatan]);
 
   const generateAIAnalysis = async () => {
     if (isBandingkan) return;
     const angkatan = selectedAngkatan;
+    const buatUlang = !!interpretasi;
+    if (buatUlang && !window.confirm("Buat ulang interpretasi AI untuk angkatan ini? Hasil baru akan menggantikan yang tampil sekarang (versi lama tetap tersimpan di database).")) {
+      return;
+    }
     setIsGenerating(true);
     setError(null);
     try {
@@ -156,7 +176,7 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // The server builds the summary from the database; only the angkatan is sent
-        body: JSON.stringify({ angkatan })
+        body: JSON.stringify({ angkatan, buatUlang })
       });
 
       const data = await res.json();
@@ -167,7 +187,7 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
           : data.error?.message || "Gagal mendapatkan analisis";
         throw new Error(errMsg);
       }
-      setAiByAngkatan(prev => ({ ...prev, [angkatan]: data }));
+      setAiByAngkatan(prev => ({ ...prev, [angkatan]: data.tersimpan }));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -468,12 +488,12 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
               </div>
               <button
                 onClick={generateAIAnalysis}
-                disabled={isGenerating || isBandingkan}
+                disabled={isGenerating || isBandingkan || memuatInterpretasi}
                 title={isBandingkan ? "Pilih satu angkatan untuk interpretasi AI" : undefined}
                 className="flex items-center gap-2 bg-white border border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {isGenerating ? "Menganalisis..." : "Buat Interpretasi"}
+                {isGenerating ? "Menganalisis..." : interpretasi ? "Buat Ulang" : "Buat Interpretasi"}
               </button>
             </div>
 
@@ -496,6 +516,8 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
 
             {isBandingkan ? (
               <p className="text-sm text-slate-500">Interpretasi AI dibuat per angkatan. Pilih satu angkatan untuk membuatnya.</p>
+            ) : memuatInterpretasi ? (
+              <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat interpretasi tersimpan...</p>
             ) : interpretasi ? (
               <InterpretasiAIPanel hasil={interpretasi} />
             ) : (

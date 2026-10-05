@@ -76,6 +76,17 @@ describe("analisisJudul", () => {
     assert.ok(hasil.judulMirip.some(p => !p.kembar && p.a.id === 1 && p.b.id === 3));
   });
 
+  it("menandai pasangan yang topik dan objeknya sama, hanya beda lokasi", () => {
+    const p13 = hasil.judulMirip.find(p => p.a.id === 1 && p.b.id === 3)!;
+    assert.equal(p13.topikDanObjekSama, true);
+    assert.equal(hasil.judulMirip[0].topikDanObjekSama, false, "pasangan kembar tidak diberi tanda ini");
+    const lain = analisisJudul([
+      judul(1, "Pengaruh Likuiditas terhadap Nilai Perusahaan pada Perusahaan Farmasi di Bursa Efek Indonesia"),
+      judul(2, "Pengaruh Leverage terhadap Nilai Perusahaan pada Perusahaan Farmasi di Bursa Efek Indonesia"),
+    ]);
+    assert.equal(lain.judulMirip.every(p => !p.topikDanObjekSama), true);
+  });
+
   it("menghitung topik bersama, objek, lokasi dan per konsentrasi", () => {
     assert.deepEqual(hasil.topikBersama[0], { pasangan: ["Likuiditas", "Nilai Perusahaan"], jumlah: 3 });
     assert.deepEqual(hasil.objek[0], { nama: "Farmasi", jumlah: 4 });

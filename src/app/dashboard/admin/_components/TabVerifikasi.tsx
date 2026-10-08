@@ -115,7 +115,15 @@ export default function TabVerifikasi() {
                     )}
                     {item.statusRuangan === 'menunggu' && (item.ruanganDiajukan || item.room) && (
                       <div className="flex flex-col gap-2 items-start">
+                        {item.room && item.ruanganDiajukan && item.room !== item.ruanganDiajukan && (
+                          <span className="text-xs text-slate-500 break-words">Sekarang: {item.room}</span>
+                        )}
                         <span className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-1 rounded break-words">Minta: {item.ruanganDiajukan || item.room}</span>
+                        {(item.isFinalized || item.isReleased) && (
+                          <span className="text-[10px] text-red-600 font-semibold bg-red-50 border border-red-100 px-2 py-0.5 rounded">
+                            Jadwal final{item.isReleased ? " & dirilis" : ""}
+                          </span>
+                        )}
                         <button
                           onClick={() => handleSetujuiRuangan(item.id)}
                           className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] px-2 py-1 rounded shadow-sm font-semibold transition-colors whitespace-nowrap"

@@ -894,24 +894,43 @@ export function useAdminDashboard() {
   };
 
   const handleSetujuiRuangan = async (id: number) => {
+    const kirim = (konfirmasiFinal: boolean) => fetch(`/api/admin/pendaftaran/${id}/ruangan`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "approve", konfirmasiFinal }),
+    });
+    // Changing the room of a finalized schedule changes the published announcement: ask first
+    const konfirmasi = (dirilis: boolean, dari: string | null, ke: string) => confirm(
+      `Jadwal ini sudah difinalisasi${dirilis ? " dan DIRILIS di pengumuman" : ""}.\n\n` +
+      `Ruangan akan berubah dari "${dari ?? "-"}" menjadi "${ke}".\n` +
+      `Mahasiswa, dosen pembimbing, moderator, dan pembahas tidak mendapat pemberitahuan otomatis.\n\n` +
+      `Lanjutkan mengubah ruangan?`
+    );
     try {
-      const res = await fetch(`/api/admin/pendaftaran/${id}/ruangan`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "approve" }),
-      });
+      const item = pendaftaran.find((p) => p.id === id);
+      const final = !!item && (item.isFinalized || item.isReleased);
+      if (final && !konfirmasi(item.isReleased, item.room, item.ruanganDiajukan)) return;
+      let res = await kirim(final);
+      let result = await res.json().catch(() => ({}));
+      // The local list may be outdated (finalized meanwhile): the server then asks for the confirmation itself
+      if (res.status === 409 && result.perluKonfirmasi) {
+        if (!konfirmasi(result.dirilis, result.dari, result.ke)) return;
+        res = await kirim(true);
+        result = await res.json().catch(() => ({}));
+      }
       if (res.ok) {
-        const result = await res.json();
         setPendaftaran((prev) =>
           prev.map((p) => (p.id === id ? { ...p, room: result.data.ruanganDisetujui, statusRuangan: result.data.statusRuangan } : p))
         );
       } else {
-        alert("Gagal menyetujui ruangan.");
+        alert(result.error || "Gagal menyetujui ruangan.");
       }
     } catch (e) {
       console.error(e);
     }
   };
+
+
 
   const handleCreateNewPeriode = async () => {
     try {

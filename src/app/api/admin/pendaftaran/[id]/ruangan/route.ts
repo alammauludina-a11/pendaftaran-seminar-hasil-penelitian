@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { db } from "@/db";
-import { pendaftaran } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { setujuiPengajuanRuangan } from "@/lib/ruangan";
 import { catatAktivitas } from "@/lib/audit";
 
 export async function PUT(
@@ -19,43 +17,50 @@ export async function PUT(
     const { action } = body;
 
     if (action === "approve") {
-      // Find the application
-      const existing = await db.select().from(pendaftaran).where(eq(pendaftaran.id, id));
-      if (!existing.length) {
-        return NextResponse.json({ error: "Data tidak ditemukan" }, { status: 404 });
+      const hasil = await setujuiPengajuanRuangan(id, { konfirmasiFinal: body.konfirmasiFinal === true });
+
+      if (hasil.status === "gagal") {
+        return NextResponse.json({ error: hasil.error }, { status: hasil.httpStatus });
+      }
+      if (hasil.status === "perlu_konfirmasi") {
+        // The admin UI asks for confirmation and retries with konfirmasiFinal: true
+        return NextResponse.json({
+          error: "Jadwal ini sudah difinalisasi. Konfirmasi diperlukan untuk mengubah ruangan.",
+          perluKonfirmasi: true,
+          dari: hasil.dari,
+          ke: hasil.ke,
+          dirilis: hasil.dirilis,
+        }, { status: 409 });
       }
 
-      const p = existing[0];
-      if (!p.ruanganDiajukan) {
-        return NextResponse.json({ error: "Tidak ada pengajuan ruangan" }, { status: 400 });
-      }
-
-      // Approve it
-      const updated = await db.update(pendaftaran)
-        .set({
-          ruanganDisetujui: p.ruanganDiajukan,
-          statusRuangan: "disetujui"
-        })
-        .where(eq(pendaftaran.id, id))
-        .returning();
-
-      catatAktivitas({
-        kategori: "jadwal",
-        aksi: "ruangan.disetujui",
-        deskripsi: `Menyetujui ruangan "${p.ruanganDiajukan}" untuk {mahasiswa}`,
-        targetTipe: "pendaftaran",
-        targetId: id,
-        pendaftaranIds: [id],
-      });
+      catatAktivitas(hasil.setelahFinal
+        ? {
+            kategori: "jadwal",
+            aksi: "ruangan.ubah_setelah_final",
+            deskripsi: `Mengubah ruangan jadwal FINAL {mahasiswa} dari "${hasil.dari ?? "-"}" menjadi "${hasil.ke}"`,
+            targetTipe: "pendaftaran",
+            targetId: id,
+            pendaftaranIds: [id],
+            detail: { dari: hasil.dari, ke: hasil.ke, dirilis: hasil.data.isReleased },
+          }
+        : {
+            kategori: "jadwal",
+            aksi: "ruangan.disetujui",
+            deskripsi: `Menyetujui ruangan "${hasil.ke}" untuk {mahasiswa}`,
+            targetTipe: "pendaftaran",
+            targetId: id,
+            pendaftaranIds: [id],
+          });
 
       return NextResponse.json({
-        message: "Ruangan disetujui",
-        data: updated[0]
+        message: hasil.setelahFinal ? "Ruangan jadwal final diubah" : "Ruangan disetujui",
+        data: hasil.data
       }, { status: 200 });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
+    console.error(error);
     return NextResponse.json(
       { error: "Gagal memproses permintaan." },
       { status: 500 }

@@ -760,24 +760,18 @@ export default function MahasiswaDashboard() {
                   Anda harus menyelesaikan tahapan Seminar Kolokium (disetujui dan terlaksana) terlebih dahulu sebelum dapat mengajukan jadwal untuk Seminar Hasil Penelitian.
                 </p>
               </div>
-            ) : !activePeriodeData ? (
-              <div className="bg-white rounded-3xl p-10 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center min-h-[400px]">
-                <div className="w-20 h-20 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mb-6 shadow-sm border border-slate-100">
-                  <Calendar size={40} />
-                </div>
-                <h2 className="text-2xl font-bold text-slate-700 mb-3">Periode Belum Dibuka</h2>
-                <p className="text-slate-500 max-w-md mx-auto mb-8 leading-relaxed">
-                  Belum ada periode pendaftaran seminar yang dibuka untuk angkatan Anda. Silakan tunggu informasi lebih lanjut dari admin.
-                </p>
-              </div>
             ) : pendaftaranStatus && pendaftaranStatus !== "ditolak" ? (
               <div className="bg-white rounded-3xl p-10 border border-slate-200 shadow-sm text-center">
                 <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
                   <CheckCircle2 size={40} className="text-green-500" />
                 </div>
-                <h2 className="text-2xl font-bold text-[#06125C] mb-3">Anda Telah Mengajukan Jadwal</h2>
+                <h2 className="text-2xl font-bold text-[#06125C] mb-3">
+                  {selectedSeminarType === "kolokium" && isKolokiumSelesai ? "Anda Telah Menyelesaikan Seminar Kolokium" : "Anda Telah Mengajukan Jadwal"}
+                </h2>
                 <p className="text-slate-600 mb-8 max-w-md mx-auto leading-relaxed">
-                  Pengajuan jadwal seminar hasil penelitian Anda telah berhasil tercatat dalam sistem kami.
+                  {selectedSeminarType === "kolokium" && isKolokiumSelesai
+                    ? `Seminar kolokium Anda telah terlaksana${riwayatTanggalKolokium ? ` pada ${riwayatTanggalKolokium}` : ""}. Anda tidak perlu mendaftar seminar kolokium lagi.`
+                    : `Pengajuan jadwal ${selectedSeminarType === "kolokium" ? "seminar kolokium" : "seminar hasil penelitian"} Anda telah berhasil tercatat dalam sistem kami.`}
                 </p>
                 
                 {pendaftaranDetails && (
@@ -865,6 +859,16 @@ export default function MahasiswaDashboard() {
                 >
                   <FileText size={18} /> Cek Status Pendaftaran
                 </button>
+              </div>
+            ) : !activePeriodeData ? (
+              <div className="bg-white rounded-3xl p-10 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center min-h-[400px]">
+                <div className="w-20 h-20 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mb-6 shadow-sm border border-slate-100">
+                  <Calendar size={40} />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-700 mb-3">Periode Belum Dibuka</h2>
+                <p className="text-slate-500 max-w-md mx-auto mb-8 leading-relaxed">
+                  Belum ada periode pendaftaran seminar yang dibuka untuk angkatan Anda. Silakan tunggu informasi lebih lanjut dari admin.
+                </p>
               </div>
             ) : selectedSeminarType === "hasil_penelitian" && !riwayatTanggalKolokium ? (
               <div className="bg-white rounded-3xl p-10 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center min-h-[400px]">

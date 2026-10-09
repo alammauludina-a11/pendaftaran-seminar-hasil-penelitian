@@ -6,8 +6,16 @@ import { useAdmin } from "../AdminContext";
 export default function TabPembahas() {
   const {
     setPendaftaran, savePembahas, handleGeneratePembahas, activePendaftaran, uniqueKelas, activePeriode,
+    globalKelasFilter, setGlobalKelasFilter, globalSearch, setGlobalSearch,
   } = useAdmin();
   if (!activePeriode) return null;
+  // Global kelas filter and search (above the tabs). The search only narrows the rows shown: a class keeps
+  // all its students so pembahas generation and the duplicate check stay complete.
+  const cari = globalSearch.trim().toLowerCase();
+  const cocok = (p: { name: string; nim: string; dospem?: string | null; dospem2?: string | null }) =>
+    !cari || [p.name, p.nim, p.dospem, p.dospem2].some(v => v?.toLowerCase().includes(cari));
+  const kelasTampil = (globalKelasFilter === "Semua Kelas" ? uniqueKelas : uniqueKelas.filter(k => k === globalKelasFilter))
+    .filter(k => activePendaftaran.some(p => p.kelas === k && cocok(p)));
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col gap-6">
@@ -17,8 +25,16 @@ export default function TabPembahas() {
           <h3 className="text-lg font-bold text-slate-800 mb-2">Belum Ada Kelas Terbentuk</h3>
           <p className="text-slate-500">Silakan pastikan terdapat kelas yang sudah terbentuk (mencapai kuota atau dipaksa terbentuk) untuk dapat mengatur pembahas.</p>
         </div>
+      ) : kelasTampil.length === 0 ? (
+        <div className="bg-white rounded-3xl p-10 border border-slate-200 shadow-sm text-center flex flex-col items-center">
+          <Users size={48} className="text-slate-300 mb-4" />
+          <p className="text-slate-500 mb-4">Tidak ada mahasiswa yang cocok dengan pencarian/filter kelas.</p>
+          <button onClick={() => { setGlobalKelasFilter("Semua Kelas"); setGlobalSearch(""); }} className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors">
+            Reset Pencarian & Filter
+          </button>
+        </div>
       ) : (
-        uniqueKelas.map(k => {
+        kelasTampil.map(k => {
           const classPendaftaran = activePendaftaran.filter(p => p.kelas === k);
 
           return (
@@ -49,7 +65,7 @@ export default function TabPembahas() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {classPendaftaran.map(p => {
+                    {classPendaftaran.filter(cocok).map(p => {
                       const assignedPembahasList = classPendaftaran
                         .map(x => x.pembahas)
                         .filter(Boolean)

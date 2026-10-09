@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buatPemantauan, ringkasPemantauan, urutkanPemantauan, type BarisPemantauan } from "../src/lib/pemantauan";
+import { buatPemantauan, ringkasPemantauan, urutkanPemantauan, barisExcelPemantauan, kolomExcelPemantauanKosong, type BarisPemantauan } from "../src/lib/pemantauan";
 
 const periodes = [
   { id: 1, jenisSeminar: "kolokium", angkatan: "60" },
@@ -23,26 +23,35 @@ const daftar = (userId: string, periodeId: number, extra: Record<string, unknown
 });
 
 describe("buatPemantauan", () => {
+  it("menandai judul dan dosbing yang diambil dari pendaftaran kolokium", () => {
+    const rows = buatPemantauan(periodes[1], periodes, [
+      daftar("a", 1), daftar("b", 1), daftar("b", 2, { title: "Judul baru" }),
+    ], []);
+    const a = rows.find(r => r.userId === "a")!, b = rows.find(r => r.userId === "b")!;
+    assert.deepEqual([a.judul, a.dariKolokium], ["Judul a", true]);
+    assert.deepEqual([b.judul, b.dariKolokium], ["Judul baru", false]);
+  });
+
   it("memakai peserta kolokium angkatan yang sama sebagai acuan", () => {
     const rows = buatPemantauan(periodes[1], periodes, [
       daftar("a", 1),
       daftar("b", 1),
       daftar("c", 4), // angkatan lain
       daftar("a", 2, { status: "menunggu" }),
-    ]);
-    assert.deepEqual(rows.map(r => [r.userId, r.statusHasil]), [["b", "belum"], ["a", "menunggu"]]);
+    ], []);
+    assert.deepEqual(rows.map(r => [r.userId, r.status]), [["b", "belum"], ["a", "menunggu"]]);
   });
 
   it("menandai pendaftar seminar hasil yang tidak tercatat di kolokium", () => {
-    const rows = buatPemantauan(periodes[1], periodes, [daftar("a", 1), daftar("x", 2)]);
+    const rows = buatPemantauan(periodes[1], periodes, [daftar("a", 1), daftar("x", 2)], []);
     const x = rows.find(r => r.userId === "x")!;
     assert.equal(x.statusKolokium, null);
-    assert.equal(ringkasPemantauan(rows).tanpaKolokium, 1);
+    assert.equal(ringkasPemantauan(rows).tidakDiAcuan, 1);
   });
 
   it("menghitung pendaftaran di periode lain angkatan yang sama sebagai sudah daftar", () => {
-    const rows = buatPemantauan(periodes[1], periodes, [daftar("a", 1), daftar("a", 3, { isFinalized: true })]);
-    assert.equal(rows[0].statusHasil, "final");
+    const rows = buatPemantauan(periodes[1], periodes, [daftar("a", 1), daftar("a", 3, { isFinalized: true })], []);
+    assert.equal(rows[0].status, "final");
     assert.equal(rows[0].diPeriodeLain, true);
   });
 
@@ -53,9 +62,9 @@ describe("buatPemantauan", () => {
       daftar("a", 3, { isReleased: true, isFinalized: true }),
       daftar("a", 2, { status: "ditolak" }),
       daftar("a", 2, { status: "menunggu" }),
-    ]);
+    ], []);
     assert.equal(rows[0].statusKolokium, "disetujui");
-    assert.equal(rows[0].statusHasil, "menunggu");
+    assert.equal(rows[0].status, "menunggu");
     assert.equal(rows[0].diPeriodeLain, false);
   });
 
@@ -63,15 +72,38 @@ describe("buatPemantauan", () => {
     const rows = buatPemantauan(periodes[1], periodes, [
       daftar("a", 1), daftar("b", 1), daftar("c", 1),
       daftar("a", 2, { status: "ditolak" }), daftar("b", 2),
-    ]);
-    assert.deepEqual(ringkasPemantauan(rows), { total: 3, sudah: 1, belum: 2, ditolak: 1, tanpaKolokium: 0 });
+    ], []);
+    assert.deepEqual(ringkasPemantauan(rows), { total: 3, sudah: 1, belum: 2, ditolak: 1, tidakDiAcuan: 0 });
+  });
+});
+
+describe("buatPemantauan untuk kolokium", () => {
+  const master = [
+    { id: "a", nim: "J1", name: "Ani", angkatan: "60", prodi: "AKN" },
+    { id: "b", nim: "J2", name: "Budi", angkatan: "60", prodi: "AKN" },
+    { id: "c", nim: "J3", name: "Citra", angkatan: "61", prodi: "AKN" },
+  ];
+
+  it("memakai data master angkatan yang sama sebagai acuan (60 = AKN 60)", () => {
+    const ps = periodes.map(p => ({ ...p, angkatan: `AKN ${p.angkatan}` }));
+    const rows = buatPemantauan(ps[0], ps, [daftar("a", 1, { status: "menunggu" })], master);
+    assert.deepEqual(rows.map(r => [r.nama, r.status]), [["Budi", "belum"], ["Ani", "menunggu"]]);
+    assert.equal(rows[0].prodi, "AKN");
+  });
+
+  it("menandai pendaftar kolokium yang tidak ada di master angkatan tersebut", () => {
+    const rows = buatPemantauan(periodes[0], periodes, [daftar("c", 1), daftar("x", 1, { status: "ditolak" })], master);
+    const c = rows.find(r => r.userId === "c")!;
+    assert.equal(c.diAcuan, false);
+    assert.equal(c.nama, "Citra");
+    assert.deepEqual(ringkasPemantauan(rows), { total: 4, sudah: 1, belum: 3, ditolak: 1, tidakDiAcuan: 2 });
   });
 });
 
 describe("urutkanPemantauan", () => {
   const baris = (nama: string, extra: Partial<BarisPemantauan> = {}): BarisPemantauan => ({
-    userId: nama, nim: `J${nama}`, nama, judul: null, dospem: null, dospem2: null,
-    statusKolokium: "disetujui", tanggalKolokium: null, statusHasil: "belum", diPeriodeLain: false, ...extra,
+    userId: nama, nim: `J${nama}`, nama, prodi: null, statusMahasiswa: "Aktif", judul: null, dospem: null, dospem2: null, dariKolokium: false,
+    statusKolokium: "disetujui", tanggalKolokium: null, status: "belum", diPeriodeLain: false, diAcuan: true, ...extra,
   });
 
   it("mengurutkan teks naik dan turun, nilai kosong selalu di akhir", () => {
@@ -92,7 +124,45 @@ describe("urutkanPemantauan", () => {
   });
 
   it("mengurutkan status sesuai urutan progres", () => {
-    const rows = [baris("A", { statusHasil: "dirilis" }), baris("B", { statusHasil: "menunggu" }), baris("C")];
+    const rows = [baris("A", { status: "dirilis" }), baris("B", { status: "menunggu" }), baris("C")];
     assert.deepEqual(urutkanPemantauan(rows, "status", "desc").map(r => r.nama), ["A", "B", "C"]);
+  });
+});
+
+describe("barisExcelPemantauan", () => {
+  const master = [
+    { id: "a", nim: "J1", name: "Ani", angkatan: "60", prodi: "AKN", status: "Aktif" },
+    { id: "b", nim: "J2", name: "Budi", angkatan: "60", prodi: "AKN", status: "Cuti" },
+  ];
+
+  it("menyusun kolom kolokium: prodi dan status mahasiswa, tanpa kolom kolokium", () => {
+    const rows = buatPemantauan(periodes[0], periodes, [daftar("a", 1, { dospem: "Dr. X" })], master);
+    const excel = barisExcelPemantauan(rows, true);
+    assert.deepEqual(Object.keys(excel[0]), [
+      "No", "NIM", "Nama", "Prodi", "Status Mahasiswa", "Judul", "Dosen Pembimbing 1", "Dosen Pembimbing 2", "Status Seminar Kolokium",
+    ]);
+    assert.equal(excel[0]["Status Mahasiswa"], "Cuti");
+    assert.equal(excel[0]["Status Seminar Kolokium"], "Belum daftar");
+    assert.equal(excel[1]["Status Seminar Kolokium"], "Disetujui");
+  });
+
+  it("tanpa kolom judul dan dosbing bila semua baris belum daftar kolokium", () => {
+    const rows = buatPemantauan(periodes[0], periodes, [], master);
+    assert.deepEqual(Object.keys(barisExcelPemantauan(rows, true)[0]), ["No", "NIM", "Nama", "Prodi", "Status Mahasiswa", "Status Seminar Kolokium"]);
+  });
+
+  it("kolom untuk daftar kosong sama dengan kolom yang selalu ada", () => {
+    const rows = buatPemantauan(periodes[0], periodes, [], master);
+    assert.deepEqual(Object.keys(barisExcelPemantauan(rows, true)[0]), kolomExcelPemantauanKosong(true));
+    const hasil = buatPemantauan(periodes[1], periodes, [daftar("a", 1, { title: null })], []);
+    assert.deepEqual(Object.keys(barisExcelPemantauan(hasil, false)[0]), kolomExcelPemantauanKosong(false));
+  });
+
+  it("menyusun kolom seminar hasil dengan sumber judul dan status kolokium", () => {
+    const rows = buatPemantauan(periodes[1], periodes, [daftar("a", 1, { date: "05 Agt 2026" })], []);
+    assert.deepEqual(barisExcelPemantauan(rows, false)[0], {
+      No: 1, NIM: "Ja", Nama: "Mhs a", Judul: "Judul a", "Sumber Judul & Dosbing": "Saat kolokium (bisa berubah)",
+      Kolokium: "05 Agt 2026", "Status Seminar Hasil": "Belum daftar",
+    });
   });
 });

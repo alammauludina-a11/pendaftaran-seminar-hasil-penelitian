@@ -8,7 +8,7 @@ import autoTable from "jspdf-autotable";
 import { drawPdfHeader, pdfTableOptions, formatAngkatan } from "@/lib/pdf-layout";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import type { PeriodeData, MahasiswaData, DosenData } from "./admin-types";
-import { buatPemantauan, ringkasPemantauan, belumDaftar, urutkanPemantauan, type KunciUrutPemantauan } from "@/lib/pemantauan";
+import { buatPemantauan, ringkasPemantauan, belumDaftar, urutkanPemantauan, barisExcelPemantauan, kolomExcelPemantauanKosong, type KunciUrutPemantauan } from "@/lib/pemantauan";
 
 export function useAdminDashboard() {
   const router = useRouter();
@@ -203,7 +203,7 @@ export function useAdminDashboard() {
 
   // Tab State inside Manajemen
   const [activeTab, setActiveTab] = useState<"verifikasi" | "finalisasi" | "pembahas" | "pengumuman" | "kelas" | "rekapitulasi" | "pemantauan">("verifikasi");
-  const [pemantauanFilter, setPemantauanFilter] = useState<"semua" | "belum" | "sudah" | "ditolak" | "tanpa_kolokium">("semua");
+  const [pemantauanFilter, setPemantauanFilter] = useState<"semua" | "belum" | "sudah" | "ditolak" | "tidak_di_acuan">("semua");
   const [pemantauanSearch, setPemantauanSearch] = useState("");
   // null = default order (students that need attention first)
   const [pemantauanSort, setPemantauanSort] = useState<{ key: KunciUrutPemantauan, order: 'asc' | 'desc' } | null>(null);
@@ -539,21 +539,23 @@ export function useAdminDashboard() {
     }
   });
 
-  // Pemantauan (Seminar Hasil only): students of the angkatan, from the kolokium list, and whether they registered
-  const pemantauanSemua = activePeriode?.jenisSeminar === "hasil_penelitian"
-    ? buatPemantauan(activePeriode, periodes, pendaftaran)
+  // Pemantauan: students of the angkatan (master data for kolokium, the kolokium list for seminar hasil)
+  // and whether they registered
+  const pemantauanSemua = activePeriode
+    ? buatPemantauan(activePeriode, periodes, pendaftaran, masterMahasiswa)
     : [];
   const ringkasanPemantauan = ringkasPemantauan(pemantauanSemua);
   const pemantauanTersaring = pemantauanSemua.filter(b => {
     const q = pemantauanSearch.toLowerCase();
     const matchesSearch = !q || b.nama.toLowerCase().includes(q) || b.nim.toLowerCase().includes(q) ||
+      (b.prodi ?? "").toLowerCase().includes(q) ||
       (b.dospem ?? "").toLowerCase().includes(q) || (b.dospem2 ?? "").toLowerCase().includes(q);
     const matchesFilter =
       pemantauanFilter === "semua" ||
       (pemantauanFilter === "belum" && belumDaftar(b)) ||
       (pemantauanFilter === "sudah" && !belumDaftar(b)) ||
-      (pemantauanFilter === "ditolak" && b.statusHasil === "ditolak") ||
-      (pemantauanFilter === "tanpa_kolokium" && b.statusKolokium === null);
+      (pemantauanFilter === "ditolak" && b.status === "ditolak") ||
+      (pemantauanFilter === "tidak_di_acuan" && !b.diAcuan);
     return matchesSearch && matchesFilter;
   });
 
@@ -569,23 +571,14 @@ export function useAdminDashboard() {
   };
 
   const handleExportPemantauanExcel = () => {
-    const label: Record<string, string> = {
-      belum: "Belum daftar", ditolak: "Belum daftar (pernah daftar, ditolak)", menunggu: "Menunggu verifikasi",
-      disetujui: "Disetujui", final: "Terfinalisasi", dirilis: "Jadwal dirilis",
-    };
-    const ws = XLSX.utils.json_to_sheet(pemantauanData.map((b, i) => ({
-      No: i + 1,
-      NIM: b.nim,
-      Nama: b.nama,
-      Judul: b.judul ?? "",
-      "Dosen Pembimbing 1": b.dospem ?? "",
-      "Dosen Pembimbing 2": b.dospem2 ?? "",
-      Kolokium: b.statusKolokium === null ? "Tidak tercatat" : b.statusKolokium === "disetujui" ? (b.tanggalKolokium ?? "Disetujui") : b.statusKolokium,
-      "Status Seminar Hasil": label[b.statusHasil] + (b.diPeriodeLain ? " (periode lain)" : ""),
-    })));
+    const isKolokium = activePeriode?.jenisSeminar === "kolokium";
+    const rows = barisExcelPemantauan(pemantauanData, isKolokium);
+    // An empty list still gets its header row instead of a blank sheet
+    const ws = rows.length ? XLSX.utils.json_to_sheet(rows) : XLSX.utils.aoa_to_sheet([kolomExcelPemantauanKosong(isKolokium)]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Pemantauan");
-    XLSX.writeFile(wb, `Pemantauan_Seminar_Hasil_AKN_${activePeriode?.angkatan || ''}.xlsx`);
+    const nama = `Pemantauan_${isKolokium ? "Seminar_Kolokium" : "Seminar_Hasil"}_${formatAngkatan(activePeriode?.angkatan)}`;
+    XLSX.writeFile(wb, `${nama.replace(/\s+/g, "_")}.xlsx`);
   };
 
   const handleSortRekap = (key: 'name' | 'moderatorCount' | 'pembimbingCount') => {

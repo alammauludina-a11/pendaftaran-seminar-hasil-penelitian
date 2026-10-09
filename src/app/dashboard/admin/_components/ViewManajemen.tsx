@@ -17,7 +17,7 @@ export default function ViewManajemen() {
     ringkasanPemantauan, setPemantauanFilter,
   } = useAdmin();
   if (!activePeriode) return null;
-  const isHasil = activePeriode.jenisSeminar === "hasil_penelitian";
+  const namaSeminar = activePeriode.jenisSeminar === "kolokium" ? "Seminar Kolokium" : "Seminar Hasil";
   // A rejected registration does not count as registered
   const jumlahDitolak = filteredPendaftaran.filter(p => p.status === "ditolak").length;
 
@@ -73,7 +73,7 @@ export default function ViewManajemen() {
           </div>
 
           {/* Stats Grid */}
-          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 ${isHasil ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-[#06125C]">
                 <Users size={24} />
@@ -122,24 +122,22 @@ export default function ViewManajemen() {
               </div>
             </div>
 
-            {isHasil && (
-              <button
-                onClick={() => { setPemantauanFilter("belum"); setActiveTab("pemantauan"); }}
-                className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 text-left hover:border-amber-300 hover:shadow-md transition-all group"
-                title="Lihat mahasiswa yang belum mendaftar Seminar Hasil"
-              >
-                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
-                  <UserX size={24} />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 font-medium group-hover:text-amber-700 transition-colors">Belum Daftar</p>
-                  <p className="text-2xl font-bold text-slate-800">
-                    {ringkasanPemantauan.belum}
-                    <span className="text-sm font-normal text-slate-500 ml-1">dari {ringkasanPemantauan.total}</span>
-                  </p>
-                </div>
-              </button>
-            )}
+            <button
+              onClick={() => { setPemantauanFilter("belum"); setActiveTab("pemantauan"); }}
+              className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 text-left hover:border-amber-300 hover:shadow-md transition-all group"
+              title={`Lihat mahasiswa yang belum mendaftar ${namaSeminar}`}
+            >
+              <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                <UserX size={24} />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500 font-medium group-hover:text-amber-700 transition-colors">Belum Daftar</p>
+                <p className="text-2xl font-bold text-slate-800">
+                  {ringkasanPemantauan.belum}
+                  <span className="text-sm font-normal text-slate-500 ml-1">dari {ringkasanPemantauan.total}</span>
+                </p>
+              </div>
+            </button>
           </div>
 
           {/* Global Filters (Pemantauan has its own search and filters) */}
@@ -248,23 +246,21 @@ export default function ViewManajemen() {
               <UserCheck size={18} />
               Rekapitulasi Dosen
             </button>
-            {isHasil && (
-              <button
-                onClick={() => setActiveTab("pemantauan")}
-                className={`flex-none md:flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "pemantauan"
-                  ? "bg-[#06125C] text-white shadow-md"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-[#06125C]"
-                  }`}
-              >
-                <Eye size={18} />
-                Pemantauan
-                {ringkasanPemantauan.belum > 0 && (
-                  <span className="ml-1 bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-                    {ringkasanPemantauan.belum}
-                  </span>
-                )}
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab("pemantauan")}
+              className={`flex-none md:flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "pemantauan"
+                ? "bg-[#06125C] text-white shadow-md"
+                : "text-slate-600 hover:bg-slate-100 hover:text-[#06125C]"
+                }`}
+            >
+              <Eye size={18} />
+              Pemantauan
+              {ringkasanPemantauan.belum > 0 && (
+                <span className="ml-1 bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                  {ringkasanPemantauan.belum}
+                </span>
+              )}
+            </button>
           </div>
 
           {/* Tab Content: Verifikasi */}
@@ -286,7 +282,7 @@ export default function ViewManajemen() {
           {activeTab === "rekapitulasi" && <TabRekapitulasi />}
 
           {/* Tab Content: Pemantauan */}
-          {activeTab === "pemantauan" && isHasil && <TabPemantauan />}
+          {activeTab === "pemantauan" && <TabPemantauan />}
         </div>
   );
 }

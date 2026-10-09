@@ -62,11 +62,12 @@ export async function GET() {
     const now = new Date();
     const tanpaKolokium: Record<string, number> = {};
 
-    // Progress funnel: distinct students per stage, grouped by angkatan
-    type FunnelSets = { kolokium: Set<string>; daftarHasil: Set<string>; disetujui: Set<string>; dirilis: Set<string>; selesai: Set<string> };
+    // Progress funnel: distinct students per stage, grouped by angkatan. A rejected Seminar Hasil
+    // registration does not count as registered; those students are tracked in `ditolak` instead.
+    type FunnelSets = { kolokium: Set<string>; daftarHasil: Set<string>; ditolak: Set<string>; disetujui: Set<string>; dirilis: Set<string>; selesai: Set<string> };
     const funnelMap: Record<string, FunnelSets> = {};
     const funnelFor = (angkatan: string) =>
-      (funnelMap[angkatan] ??= { kolokium: new Set(), daftarHasil: new Set(), disetujui: new Set(), dirilis: new Set(), selesai: new Set() });
+      (funnelMap[angkatan] ??= { kolokium: new Set(), daftarHasil: new Set(), ditolak: new Set(), disetujui: new Set(), dirilis: new Set(), selesai: new Set() });
 
     // A kolokium counts as finished once its schedule is released and the slot has passed
     for (const k of kolokiumRows) {
@@ -77,6 +78,10 @@ export async function GET() {
     for (const row of rawData) {
       if (!row.userId) continue;
       const f = funnelFor(row.angkatan || "Unknown");
+      if (row.statusVerifikasi === "ditolak") {
+        f.ditolak.add(row.userId);
+        continue;
+      }
       f.daftarHasil.add(row.userId);
       if (row.statusVerifikasi !== "disetujui") continue;
       f.disetujui.add(row.userId);
@@ -144,14 +149,21 @@ export async function GET() {
       ...konsentrasiMap[angkatan]
     })).sort(byAngkatan);
 
-    const funnelData = Object.keys(funnelMap).map(angkatan => ({
-      name: angkatan,
-      kolokium: funnelMap[angkatan].kolokium.size,
-      daftarHasil: funnelMap[angkatan].daftarHasil.size,
-      disetujui: funnelMap[angkatan].disetujui.size,
-      dirilis: funnelMap[angkatan].dirilis.size,
-      selesai: funnelMap[angkatan].selesai.size,
-    })).sort(byAngkatan);
+    const funnelData = Object.keys(funnelMap).map(angkatan => {
+      const f = funnelMap[angkatan];
+      // Finished kolokium but no (non-rejected) Seminar Hasil registration yet
+      const belum = [...f.kolokium].filter(u => !f.daftarHasil.has(u));
+      return {
+        name: angkatan,
+        kolokium: f.kolokium.size,
+        daftarHasil: f.daftarHasil.size,
+        disetujui: f.disetujui.size,
+        dirilis: f.dirilis.size,
+        selesai: f.selesai.size,
+        belumDaftar: belum.length,
+        pernahDitolak: belum.filter(u => f.ditolak.has(u)).length,
+      };
+    }).sort(byAngkatan);
 
     // Title analysis covers every approved registration, not only finished seminars
     const judulByAngkatan = await ambilJudulDisetujui();

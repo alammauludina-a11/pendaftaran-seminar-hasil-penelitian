@@ -19,8 +19,8 @@ const BANDINGKAN = "__bandingkan";
 
 type DurationRow = { name: string; total: number; medianHari: number | null } & Record<typeof DURATION_LABELS[number], number>;
 type KonsentrasiRow = { name: string } & Record<string, number | string>;
-type FunnelRow = { name: string; kolokium: number; daftarHasil: number; disetujui: number; dirilis: number; selesai: number };
-const FUNNEL_STAGES: { key: keyof Omit<FunnelRow, "name">; label: string; color: string }[] = [
+type FunnelRow = { name: string; kolokium: number; daftarHasil: number; disetujui: number; dirilis: number; selesai: number; belumDaftar: number; pernahDitolak: number };
+const FUNNEL_STAGES: { key: keyof Omit<FunnelRow, "name" | "belumDaftar" | "pernahDitolak">; label: string; color: string }[] = [
   { key: "kolokium", label: "Kolokium selesai", color: "#6366F1" },
   { key: "daftarHasil", label: "Daftar Seminar Hasil", color: "#8B5CF6" },
   { key: "disetujui", label: "Pendaftaran disetujui", color: "#3B82F6" },
@@ -89,10 +89,12 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
   }, [durationData, konsentrasiData, funnelData]);
 
   // ---- Funnel ----
-  const funnel = useMemo(() => {
-    const row = funnelData.find(d => d.name === selectedAngkatan);
-    return FUNNEL_STAGES.map(stage => ({ ...stage, value: row?.[stage.key] ?? 0 }));
-  }, [funnelData, selectedAngkatan]);
+  const funnelRow = funnelData.find(d => d.name === selectedAngkatan);
+  const funnel = useMemo(
+    () => FUNNEL_STAGES.map(stage => ({ ...stage, value: funnelRow?.[stage.key] ?? 0 })),
+    [funnelRow],
+  );
+  const belumDaftar = { jumlah: funnelRow?.belumDaftar ?? 0, pernahDitolak: funnelRow?.pernahDitolak ?? 0 };
 
   // ---- Durasi ----
   const durasiSatu = useMemo(() => {
@@ -174,6 +176,7 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
       const doc = buatLaporanAnalisisPdf({
         angkatan: selectedAngkatan,
         progres: funnel.map(t => ({ label: t.label, jumlah: t.value })),
+        belumDaftar,
         durasi: {
           kategori: durasiSatu.bars.map(b => ({ label: b.name, jumlah: b.jumlah })),
           total: durasiSatu.total,
@@ -354,11 +357,13 @@ export default function DashboardAnalisis({ onBack }: { onBack?: () => void }) {
                   );
                 })}
               </div>
-              {funnel[0].value - funnel[1].value > 0 && (
+              {belumDaftar.jumlah > 0 && (
                 <p className="mt-5 text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-                  <strong>{funnel[0].value - funnel[1].value} mahasiswa</strong> sudah selesai kolokium tetapi belum mendaftar Seminar Hasil.
+                  <strong>{belumDaftar.jumlah} mahasiswa</strong> sudah selesai kolokium tetapi belum mendaftar Seminar Hasil
+                  {belumDaftar.pernahDitolak > 0 && <>, termasuk <strong>{belumDaftar.pernahDitolak}</strong> yang pernah mendaftar lalu ditolak</>}.
                 </p>
               )}
+              <p className="mt-3 text-xs text-slate-400">Pendaftaran Seminar Hasil yang ditolak tidak dihitung sebagai sudah mendaftar.</p>
             </>
           )}
         </div>

@@ -1,20 +1,25 @@
 "use client";
 
-import { FileCheck, Megaphone, CheckCircle2, XCircle, Clock, CheckSquare, Search, Filter, Users, Calendar, ArrowLeft, UserCheck, Ban } from "lucide-react";
+import { FileCheck, Megaphone, CheckCircle2, XCircle, Clock, CheckSquare, Search, Filter, Users, Calendar, ArrowLeft, UserCheck, Ban, Eye, UserX } from "lucide-react";
 import TabKelas from "./TabKelas";
 import TabVerifikasi from "./TabVerifikasi";
 import TabFinalisasi from "./TabFinalisasi";
 import TabPembahas from "./TabPembahas";
 import TabPengumuman from "./TabPengumuman";
 import TabRekapitulasi from "./TabRekapitulasi";
+import TabPemantauan from "./TabPemantauan";
 import { useAdmin } from "../AdminContext";
 
 export default function ViewManajemen() {
   const {
     setCurrentView, setActivePeriodeId, activeTab, setActiveTab, globalSearch, setGlobalSearch,
     globalKelasFilter, setGlobalKelasFilter, activePeriode, uniqueKelas, filteredPendaftaran, finalizedList,
+    ringkasanPemantauan, setPemantauanFilter,
   } = useAdmin();
   if (!activePeriode) return null;
+  const isHasil = activePeriode.jenisSeminar === "hasil_penelitian";
+  // A rejected registration does not count as registered
+  const jumlahDitolak = filteredPendaftaran.filter(p => p.status === "ditolak").length;
 
   return (
         <div className="animate-in fade-in duration-500 flex flex-col gap-8">
@@ -68,14 +73,15 @@ export default function ViewManajemen() {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 ${isHasil ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-[#06125C]">
                 <Users size={24} />
               </div>
               <div>
                 <p className="text-sm text-slate-500 font-medium">Total Pendaftar</p>
-                <p className="text-2xl font-bold text-[#06125C]">{filteredPendaftaran.length}</p>
+                <p className="text-2xl font-bold text-[#06125C]">{filteredPendaftaran.length - jumlahDitolak}</p>
+                {jumlahDitolak > 0 && <p className="text-xs text-slate-400">tidak termasuk {jumlahDitolak} ditolak</p>}
               </div>
             </div>
 
@@ -115,9 +121,29 @@ export default function ViewManajemen() {
                 </p>
               </div>
             </div>
+
+            {isHasil && (
+              <button
+                onClick={() => { setPemantauanFilter("belum"); setActiveTab("pemantauan"); }}
+                className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 text-left hover:border-amber-300 hover:shadow-md transition-all group"
+                title="Lihat mahasiswa yang belum mendaftar Seminar Hasil"
+              >
+                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                  <UserX size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500 font-medium group-hover:text-amber-700 transition-colors">Belum Daftar</p>
+                  <p className="text-2xl font-bold text-slate-800">
+                    {ringkasanPemantauan.belum}
+                    <span className="text-sm font-normal text-slate-500 ml-1">dari {ringkasanPemantauan.total}</span>
+                  </p>
+                </div>
+              </button>
+            )}
           </div>
 
-          {/* Global Filters */}
+          {/* Global Filters (Pemantauan has its own search and filters) */}
+          {activeTab !== "pemantauan" && (
           <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex-1 flex items-center gap-3 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-[#06125C]/20 transition-all">
               <Search size={18} className="text-slate-400" />
@@ -143,6 +169,7 @@ export default function ViewManajemen() {
               </select>
             </div>
           </div>
+          )}
 
           {/* Tab Navigation (Only 3 tabs now) */}
           <div className="flex flex-nowrap overflow-x-auto gap-2 bg-white p-2 rounded-2xl shadow-sm border border-slate-200 hide-scrollbar scroll-smooth">
@@ -221,6 +248,23 @@ export default function ViewManajemen() {
               <UserCheck size={18} />
               Rekapitulasi Dosen
             </button>
+            {isHasil && (
+              <button
+                onClick={() => setActiveTab("pemantauan")}
+                className={`flex-none md:flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${activeTab === "pemantauan"
+                  ? "bg-[#06125C] text-white shadow-md"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-[#06125C]"
+                  }`}
+              >
+                <Eye size={18} />
+                Pemantauan
+                {ringkasanPemantauan.belum > 0 && (
+                  <span className="ml-1 bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                    {ringkasanPemantauan.belum}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Tab Content: Verifikasi */}
@@ -240,6 +284,9 @@ export default function ViewManajemen() {
 
     {/* Tab Content: Rekapitulasi */}
           {activeTab === "rekapitulasi" && <TabRekapitulasi />}
+
+          {/* Tab Content: Pemantauan */}
+          {activeTab === "pemantauan" && isHasil && <TabPemantauan />}
         </div>
   );
 }

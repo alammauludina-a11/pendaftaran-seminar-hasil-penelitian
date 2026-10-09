@@ -8,6 +8,7 @@ import autoTable from "jspdf-autotable";
 import { drawPdfHeader, pdfTableOptions, formatAngkatan } from "@/lib/pdf-layout";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import type { PeriodeData, MahasiswaData, DosenData } from "./admin-types";
+import { buatPemantauan, ringkasPemantauan, belumDaftar, urutkanPemantauan, type KunciUrutPemantauan } from "@/lib/pemantauan";
 
 export function useAdminDashboard() {
   const router = useRouter();
@@ -201,7 +202,11 @@ export function useAdminDashboard() {
   }, []);
 
   // Tab State inside Manajemen
-  const [activeTab, setActiveTab] = useState<"verifikasi" | "finalisasi" | "pembahas" | "pengumuman" | "kelas" | "rekapitulasi">("verifikasi");
+  const [activeTab, setActiveTab] = useState<"verifikasi" | "finalisasi" | "pembahas" | "pengumuman" | "kelas" | "rekapitulasi" | "pemantauan">("verifikasi");
+  const [pemantauanFilter, setPemantauanFilter] = useState<"semua" | "belum" | "sudah" | "ditolak" | "tanpa_kolokium">("semua");
+  const [pemantauanSearch, setPemantauanSearch] = useState("");
+  // null = default order (students that need attention first)
+  const [pemantauanSort, setPemantauanSort] = useState<{ key: KunciUrutPemantauan, order: 'asc' | 'desc' } | null>(null);
   const [rekapSort, setRekapSort] = useState<{ key: 'name' | 'moderatorCount' | 'pembimbingCount', order: 'asc' | 'desc' }>({ key: 'name', order: 'asc' });
   const [rekapSearch, setRekapSearch] = useState("");
 
@@ -521,7 +526,8 @@ export function useAdminDashboard() {
     .filter(d => !rekapSearch || d.name.toLowerCase().includes(rekapSearch.toLowerCase()))
     .map(dosen => {
     const moderatorCount = activePendaftaran.filter(p => p.moderatorId === dosen.id).length;
-    const pembimbingCount = activePendaftaran.filter(p => p.dospem1Id === dosen.id || p.dospem2Id === dosen.id).length;
+    // A rejected registration is not counted (the student has not registered yet)
+    const pembimbingCount = activePendaftaran.filter(p => p.status !== "ditolak" && (p.dospem1Id === dosen.id || p.dospem2Id === dosen.id)).length;
     return { ...dosen, moderatorCount, pembimbingCount };
   }).sort((a, b) => {
     let valA = (a as any)[rekapSort.key];
@@ -532,6 +538,55 @@ export function useAdminDashboard() {
       return rekapSort.order === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number);
     }
   });
+
+  // Pemantauan (Seminar Hasil only): students of the angkatan, from the kolokium list, and whether they registered
+  const pemantauanSemua = activePeriode?.jenisSeminar === "hasil_penelitian"
+    ? buatPemantauan(activePeriode, periodes, pendaftaran)
+    : [];
+  const ringkasanPemantauan = ringkasPemantauan(pemantauanSemua);
+  const pemantauanTersaring = pemantauanSemua.filter(b => {
+    const q = pemantauanSearch.toLowerCase();
+    const matchesSearch = !q || b.nama.toLowerCase().includes(q) || b.nim.toLowerCase().includes(q) ||
+      (b.dospem ?? "").toLowerCase().includes(q) || (b.dospem2 ?? "").toLowerCase().includes(q);
+    const matchesFilter =
+      pemantauanFilter === "semua" ||
+      (pemantauanFilter === "belum" && belumDaftar(b)) ||
+      (pemantauanFilter === "sudah" && !belumDaftar(b)) ||
+      (pemantauanFilter === "ditolak" && b.statusHasil === "ditolak") ||
+      (pemantauanFilter === "tanpa_kolokium" && b.statusKolokium === null);
+    return matchesSearch && matchesFilter;
+  });
+
+  const pemantauanData = pemantauanSort
+    ? urutkanPemantauan(pemantauanTersaring, pemantauanSort.key, pemantauanSort.order)
+    : pemantauanTersaring;
+
+  // Click cycles a column: ascending → descending → back to the default order
+  const handleSortPemantauan = (key: KunciUrutPemantauan) => {
+    setPemantauanSort(prev =>
+      prev?.key !== key ? { key, order: 'asc' } : prev.order === 'asc' ? { key, order: 'desc' } : null
+    );
+  };
+
+  const handleExportPemantauanExcel = () => {
+    const label: Record<string, string> = {
+      belum: "Belum daftar", ditolak: "Belum daftar (pernah daftar, ditolak)", menunggu: "Menunggu verifikasi",
+      disetujui: "Disetujui", final: "Terfinalisasi", dirilis: "Jadwal dirilis",
+    };
+    const ws = XLSX.utils.json_to_sheet(pemantauanData.map((b, i) => ({
+      No: i + 1,
+      NIM: b.nim,
+      Nama: b.nama,
+      Judul: b.judul ?? "",
+      "Dosen Pembimbing 1": b.dospem ?? "",
+      "Dosen Pembimbing 2": b.dospem2 ?? "",
+      Kolokium: b.statusKolokium === null ? "Tidak tercatat" : b.statusKolokium === "disetujui" ? (b.tanggalKolokium ?? "Disetujui") : b.statusKolokium,
+      "Status Seminar Hasil": label[b.statusHasil] + (b.diPeriodeLain ? " (periode lain)" : ""),
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Pemantauan");
+    XLSX.writeFile(wb, `Pemantauan_Seminar_Hasil_AKN_${activePeriode?.angkatan || ''}.xlsx`);
+  };
 
   const handleSortRekap = (key: 'name' | 'moderatorCount' | 'pembimbingCount') => {
     setRekapSort(prev => ({
@@ -1152,6 +1207,15 @@ export function useAdminDashboard() {
     handleSortRekap,
     handleExportRekapExcel,
     handleExportRekapPDF,
+    pemantauanFilter,
+    setPemantauanFilter,
+    pemantauanSearch,
+    setPemantauanSearch,
+    pemantauanData,
+    pemantauanSort,
+    handleSortPemantauan,
+    ringkasanPemantauan,
+    handleExportPemantauanExcel,
     uniqueKelas,
     uniqueAngkatan,
     filteredPendaftaran,

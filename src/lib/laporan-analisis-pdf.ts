@@ -13,6 +13,8 @@ export type DataLaporanAnalisis = {
   angkatan: string;
   /** Funnel stages in order, the first one being "Kolokium selesai". */
   progres: { label: string; jumlah: number }[];
+  /** Finished kolokium without a (non-rejected) Seminar Hasil registration; `pernahDitolak` is part of `jumlah`. */
+  belumDaftar: { jumlah: number; pernahDitolak: number };
   durasi: { kategori: { label: string; jumlah: number }[]; total: number; medianHari: number | null; tanpaKolokium: number };
   /** Approved Seminar Hasil registrations per konsentrasi, largest first. */
   konsentrasi: { nama: string; jumlah: number }[];
@@ -52,7 +54,7 @@ function labelTingkat(p: PasanganMirip, substansialMenurutAI: boolean) {
   return "Sangat mirip";
 }
 
-export function buatLaporanAnalisisPdf({ angkatan, progres, durasi, konsentrasi, hasil, interpretasi }: DataLaporanAnalisis): jsPDF {
+export function buatLaporanAnalisisPdf({ angkatan, progres, belumDaftar, durasi, konsentrasi, hasil, interpretasi }: DataLaporanAnalisis): jsPDF {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -136,10 +138,11 @@ export function buatLaporanAnalisisPdf({ angkatan, progres, durasi, konsentrasi,
       }),
       columnStyles: { 1: { cellWidth: 26, halign: "center" }, 2: { cellWidth: 40, halign: "center" }, 3: { cellWidth: 52, halign: "center" } },
     });
-    const belumDaftar = (progres[0]?.jumlah ?? 0) - (progres[1]?.jumlah ?? 0);
-    if (belumDaftar > 0) {
-      teks(`${belumDaftar} mahasiswa sudah selesai kolokium tetapi belum mendaftar Seminar Hasil.`, { tebal: true, ukuran: 9, warna: [180, 83, 9] });
+    if (belumDaftar.jumlah > 0) {
+      const ditolak = belumDaftar.pernahDitolak > 0 ? `, termasuk ${belumDaftar.pernahDitolak} yang pernah mendaftar lalu ditolak` : "";
+      teks(`${belumDaftar.jumlah} mahasiswa sudah selesai kolokium tetapi belum mendaftar Seminar Hasil${ditolak}.`, { tebal: true, ukuran: 9, warna: [180, 83, 9] });
     }
+    teks("Pendaftaran Seminar Hasil yang ditolak tidak dihitung sebagai sudah mendaftar.", { ukuran: 8, warna: ABU });
   }
 
   // ---- Durasi kolokium → seminar hasil ----

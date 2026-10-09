@@ -37,7 +37,8 @@ export default function ViewDaftarPeriode() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {periodes.filter(p => !p.isDraft && p.jenisSeminar === selectedSeminarType).map(p => {
-          const pendaftarCount = pendaftaran.filter(pend => pend.periodeId === p.id).length;
+          // A rejected registration does not count as registered
+          const pendaftarCount = pendaftaran.filter(pend => pend.periodeId === p.id && pend.status !== "ditolak").length;
           return (
             <div key={p.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col">
               <div className="p-6 flex-grow">

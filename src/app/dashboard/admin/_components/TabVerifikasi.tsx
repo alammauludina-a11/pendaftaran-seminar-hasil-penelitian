@@ -2,14 +2,31 @@
 
 import { FileCheck, CheckCircle2, XCircle, Clock, Calendar, ChevronUp, ChevronDown, BookOpen } from "lucide-react";
 import { useAdmin } from "../AdminContext";
+import type { KunciUrutVerifikasi } from "@/lib/urut-verifikasi";
+
+type SortState = { key: KunciUrutVerifikasi; order: "asc" | "desc" } | null;
+
+function SortLabel({ kunci, label, sort, onSort }: { kunci: KunciUrutVerifikasi; label: string; sort: SortState; onSort: (k: KunciUrutVerifikasi) => void }) {
+  const aktif = sort?.key === kunci;
+  return (
+    <button type="button" onClick={() => onSort(kunci)} className="flex items-center gap-1 hover:text-[#06125C] transition-colors" title={`Urutkan berdasarkan ${label.toLowerCase()}`}>
+      {label}
+      <span className="flex flex-col opacity-50">
+        <ChevronUp size={10} className={aktif && sort.order === "asc" ? "text-indigo-600 opacity-100" : ""} />
+        <ChevronDown size={10} className={aktif && sort.order === "desc" ? "text-indigo-600 opacity-100" : "-mt-1"} />
+      </span>
+    </button>
+  );
+}
 
 export default function TabVerifikasi() {
   const {
     selectedDateFilter, setSelectedDateFilter, selectedKonsentrasiFilter, setSelectedKonsentrasiFilter,
-    verifikasiSort, setVerifikasiSort, uniqueKonsentrasi, verifikasiList, uniqueAllDates,
+    verifikasiSort, handleSortVerifikasi, uniqueKonsentrasi, verifikasiList, uniqueAllDates,
     handleVerifikasiClick, handleSetujuiRuangan, activePeriode,
   } = useAdmin();
   if (!activePeriode) return null;
+  const sortProps = { sort: verifikasiSort, onSort: handleSortVerifikasi };
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col gap-4">
@@ -53,32 +70,28 @@ export default function TabVerifikasi() {
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
               <tr>
                 <th className="px-3 py-3 text-center w-px whitespace-nowrap">No</th>
+                <th className="px-3 py-3 w-[14%]">
+                  <div className="flex items-center gap-2 whitespace-nowrap">
+                    <SortLabel kunci="name" label="Nama" {...sortProps} />
+                    <span className="text-slate-300">/</span>
+                    <SortLabel kunci="nim" label="NIM" {...sortProps} />
+                  </div>
+                </th>
                 {([
-                  { label: "Mahasiswa", key: "name", width: "w-[14%]" },
                   { label: "Kelas", key: "kelas", width: "w-px whitespace-nowrap" },
                   { label: "Dosen Pembimbing", key: "dospem", width: "w-[20%]" },
                   { label: "Judul Penelitian", key: "title", width: "w-[28%]" },
                   { label: "Konsentrasi", key: "konsentrasi", width: "w-[11%]" },
-                  { label: "Jadwal Diajukan", key: "date", width: "w-[10%]" }
+                  { label: "Jadwal Diajukan", key: "date", width: "w-[10%]" },
+                  { label: "Ruangan", key: "room", width: "w-[9%]" },
                 ] as const).map(col => (
-                  <th key={col.key} className={`px-3 py-3 cursor-pointer hover:bg-slate-100 transition-colors ${col.width}`} onClick={() => {
-                    if (verifikasiSort?.key === col.key) {
-                      setVerifikasiSort({ key: col.key, order: verifikasiSort.order === 'asc' ? 'desc' : 'asc' });
-                    } else {
-                      setVerifikasiSort({ key: col.key, order: 'asc' });
-                    }
-                  }}>
-                    <div className="flex items-center gap-1">
-                      {col.label}
-                      <div className="flex flex-col opacity-50">
-                        <ChevronUp size={10} className={verifikasiSort?.key === col.key && verifikasiSort.order === 'asc' ? 'text-indigo-600 opacity-100' : ''} />
-                        <ChevronDown size={10} className={verifikasiSort?.key === col.key && verifikasiSort.order === 'desc' ? 'text-indigo-600 opacity-100' : '-mt-1'} />
-                      </div>
-                    </div>
+                  <th key={col.key} className={`px-3 py-3 ${col.width}`}>
+                    <SortLabel kunci={col.key} label={col.label} {...sortProps} />
                   </th>
                 ))}
-                <th className="px-3 py-3 w-[9%]">Ruangan</th>
-                <th className="px-3 py-3 text-center w-px whitespace-nowrap">Status</th>
+                <th className="px-3 py-3 w-px whitespace-nowrap">
+                  <div className="flex justify-center"><SortLabel kunci="status" label="Status" {...sortProps} /></div>
+                </th>
                 <th className="px-3 py-3 text-center w-px whitespace-nowrap">Aksi</th>
               </tr>
             </thead>

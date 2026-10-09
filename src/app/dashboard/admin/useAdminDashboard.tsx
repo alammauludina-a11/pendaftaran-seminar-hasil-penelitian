@@ -8,6 +8,7 @@ import autoTable from "jspdf-autotable";
 import { drawPdfHeader, pdfTableOptions, formatAngkatan } from "@/lib/pdf-layout";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import type { PeriodeData, MahasiswaData, DosenData } from "./admin-types";
+import { urutkanVerifikasi, type KunciUrutVerifikasi } from "@/lib/urut-verifikasi";
 import { buatPemantauan, ringkasPemantauan, belumDaftar, urutkanPemantauan, barisExcelPemantauan, kolomExcelPemantauanKosong, type KunciUrutPemantauan } from "@/lib/pemantauan";
 
 export function useAdminDashboard() {
@@ -217,7 +218,7 @@ export function useAdminDashboard() {
   const [selectedKonsentrasiFilter, setSelectedKonsentrasiFilter] = useState("Semua Konsentrasi");
   const [pengumumanSort, setPengumumanSort] = useState<{ key: 'name' | 'kelas' | 'dospem' | 'waktu' | 'moderator' | 'pembahas' | 'status', order: 'asc' | 'desc' }>({ key: 'waktu', order: 'asc' });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [verifikasiSort, setVerifikasiSort] = useState<{ key: 'name' | 'kelas' | 'dospem' | 'title' | 'konsentrasi' | 'date', order: 'asc' | 'desc' } | null>(null);
+  const [verifikasiSort, setVerifikasiSort] = useState<{ key: KunciUrutVerifikasi, order: 'asc' | 'desc' } | null>(null);
   const [manajemenKelasFilter, setManajemenKelasFilter] = useState("Semua Kelas");
   const [manajemenKelasSort, setManajemenKelasSort] = useState<{ key: 'name' | 'nim', order: 'asc' | 'desc' } | null>(null);
 
@@ -633,7 +634,7 @@ export function useAdminDashboard() {
   const uniqueKelas = Array.from(new Set(activePendaftaran.map(p => p.kelas))).filter(Boolean);
   const uniqueAngkatan = Array.from(new Set(masterMahasiswa.map(m => m.angkatan).filter(Boolean))).sort();
 
-  const filteredPendaftaran = activePendaftaran.filter(p => {
+  const filteredPendaftaranTanpaUrut = activePendaftaran.filter(p => {
     const searchLower = globalSearch.toLowerCase();
     const matchesSearch = p.name.toLowerCase().includes(searchLower) ||
       p.nim.toLowerCase().includes(searchLower) ||
@@ -642,18 +643,17 @@ export function useAdminDashboard() {
     const matchesKelas = globalKelasFilter === "Semua Kelas" || (p.kelas ? p.kelas === globalKelasFilter : globalKelasFilter === "Antrean");
     const matchesDate = selectedDateFilter === "Semua Tanggal" || p.date === selectedDateFilter;
     return matchesSearch && matchesKelas && matchesDate;
-  }).sort((a, b) => {
-    if (!verifikasiSort) return 0;
-    const { key, order } = verifikasiSort;
-    let valA = a[key] || "";
-    let valB = b[key] || "";
-    
-    // For date sorting, we might want to compare the actual parsed date, but string comparison is okay if formatted properly, 
-    // actually, let's just use string comparison for all text fields.
-    if (valA < valB) return order === 'asc' ? -1 : 1;
-    if (valA > valB) return order === 'asc' ? 1 : -1;
-    return 0;
   });
+  const filteredPendaftaran = verifikasiSort
+    ? urutkanVerifikasi(filteredPendaftaranTanpaUrut, verifikasiSort.key, verifikasiSort.order)
+    : filteredPendaftaranTanpaUrut;
+
+  // Click cycles a column: ascending → descending → back to the default order
+  const handleSortVerifikasi = (key: KunciUrutVerifikasi) => {
+    setVerifikasiSort(prev =>
+      prev?.key !== key ? { key, order: 'asc' } : prev.order === 'asc' ? { key, order: 'desc' } : null
+    );
+  };
 
   const uniqueKonsentrasi = Array.from(new Set(activePendaftaran.map(p => p.konsentrasi))).filter(Boolean).sort() as string[];
   const verifikasiList = selectedKonsentrasiFilter === "Semua Konsentrasi"
@@ -1153,6 +1153,7 @@ export function useAdminDashboard() {
     isMobileMenuOpen,
     setIsMobileMenuOpen,
     verifikasiSort,
+    handleSortVerifikasi,
     setVerifikasiSort,
     manajemenKelasFilter,
     setManajemenKelasFilter,

@@ -4,7 +4,7 @@ import { slotWaktu, pendaftaran, kelasSeminar, moderator } from "@/db/schema";
 import { eq, isNotNull, ne, and, isNull } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { isValidSlotTime } from "@/lib/slot-rules";
+import { isValidSlotTime, dosenTerjadwal } from "@/lib/slot-rules";
 
 export async function GET(request: Request) {
   try {
@@ -106,9 +106,7 @@ export async function GET(request: Request) {
       }
 
       // Skip slots where the logged-in dosen is already pembimbing/moderator (any seminar type)
-      if (isDosen && allRegsOnSlot.some(r =>
-        [r.dospem1Id, r.dospem2Id, r.moderatorId].includes(dosenId)
-      )) continue;
+      if (isDosen && dosenTerjadwal(allRegsOnSlot, dosenId)) continue;
 
       let blocked = false;
       let blockedReason = "";

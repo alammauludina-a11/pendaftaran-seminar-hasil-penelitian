@@ -22,3 +22,15 @@ export function isSundayIso(isoDate: string): boolean {
   const [y, m, d] = isoDate.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 0;
 }
+
+/** Registration fields that tie a dosen to a slot. */
+export type DosenPadaSlot = {
+  dospem1Id: string | null;
+  dospem2Id: string | null;
+  moderatorId: string | null;
+};
+
+/** Returns true if the dosen is already pembimbing 1/2 or moderator in any of the slot's registrations. */
+export function dosenTerjadwal(regs: DosenPadaSlot[], dosenId: string): boolean {
+  return regs.some(r => [r.dospem1Id, r.dospem2Id, r.moderatorId].includes(dosenId));
+}

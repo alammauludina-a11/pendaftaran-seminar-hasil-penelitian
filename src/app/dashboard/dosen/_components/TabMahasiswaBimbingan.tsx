@@ -77,19 +77,22 @@ export default function TabMahasiswaBimbingan({ periodeId }: { periodeId: string
    const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "nama", dir: "asc" });
 
    useEffect(() => {
+      // Ignore a late response when the periode was changed in the meantime
+      let dibatalkan = false;
       const load = async () => {
          try {
             setIsLoading(true);
             const res = await fetch(periodeId ? `/api/dosen/bimbingan?periodeId=${periodeId}` : "/api/dosen/bimbingan");
             const data = await res.json();
-            setMahasiswa(data.mahasiswa || []);
+            if (!dibatalkan) setMahasiswa(data.mahasiswa || []);
          } catch (e) {
             console.error(e);
          } finally {
-            setIsLoading(false);
+            if (!dibatalkan) setIsLoading(false);
          }
       };
       load();
+      return () => { dibatalkan = true; };
    }, [periodeId]);
 
    const handleSort = (key: SortKey) =>

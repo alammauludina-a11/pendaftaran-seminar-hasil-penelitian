@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient, changePassword } from "../../../lib/auth-client";
 import { useSession } from "../../../lib/auth-client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import TabMahasiswaBimbingan from "./_components/TabMahasiswaBimbingan";
 import { Users, Monitor, ShieldCheck, Calendar, ArrowRight, LogOut, CheckCircle2, Clock, MapPin, Search, UserCheck, AlertCircle, Filter, ChevronLeft, ChevronRight, X, BookOpen, Lock, ArrowUpDown, XCircle, Ban } from "lucide-react";
 
@@ -97,7 +97,12 @@ export default function DosenDashboard() {
    const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
    const [availableSlots, setAvailableSlots] = useState<any[]>([]);
 
+   // Periode / seminar type the page currently shows; responses for an older choice are ignored
+   const periodeAktifRef = useRef<string | null>(null);
+   const jenisSlotRef = useRef<string | undefined>(undefined);
+
    useEffect(() => {
+      periodeAktifRef.current = selectedPeriodeId;
       fetchData(selectedPeriodeId);
       fetchModerator(selectedPeriodeId);
 
@@ -109,17 +114,14 @@ export default function DosenDashboard() {
       return () => clearInterval(interval);
    }, [selectedPeriodeId]);
 
+   // Only when the periode itself changes (not on every 30s refresh, which returns a new object):
+   // jump the calendar to the periode's first month and reload the slots of its seminar type
    useEffect(() => {
       if (activePeriode?.startDate) {
          setCurrentMonth(new Date(activePeriode.startDate));
       }
-      // Re-fetch available slots whenever activePeriode changes
-      if (activePeriode?.jenisSeminar) {
-         fetchAvailableSlots(activePeriode.jenisSeminar);
-      } else {
-         fetchAvailableSlots();
-      }
-   }, [activePeriode]);
+      fetchAvailableSlots(activePeriode?.jenisSeminar);
+   }, [activePeriode?.id, activePeriode?.startDate, activePeriode?.jenisSeminar]);
 
    const fetchData = async (periodeId?: string | null, silent = false) => {
       try {
@@ -127,6 +129,7 @@ export default function DosenDashboard() {
          const url = periodeId ? `/api/dosen/dashboard?periodeId=${periodeId}` : "/api/dosen/dashboard";
          const res = await fetch(url);
          const data = await res.json();
+         if ((periodeId ?? null) !== periodeAktifRef.current) return;
          setBimbingan(data.bimbingan || []);
          setAllPeriode(data.allPeriode || []);
          if (data.activePeriodeData && !selectedPeriodeId && !periodeId) {
@@ -144,6 +147,7 @@ export default function DosenDashboard() {
          const url = periodeId ? `/api/dosen/moderator?periodeId=${periodeId}` : "/api/dosen/moderator";
          const res = await fetch(url);
          const data = await res.json();
+         if ((periodeId ?? null) !== periodeAktifRef.current) return;
          setAvailableKelas(data.availableKelas || []);
          setMyModerasi(data.myModerasi || []);
          setActivePeriode(data.activePeriodeData || null);
@@ -153,12 +157,14 @@ export default function DosenDashboard() {
    };
 
    const fetchAvailableSlots = async (jenisSeminar?: string) => {
+      jenisSlotRef.current = jenisSeminar;
       try {
          const url = jenisSeminar
             ? `/api/mahasiswa/slot?jenisSeminar=${jenisSeminar}`
             : "/api/mahasiswa/slot";
          const res = await fetch(url);
          const data = await res.json();
+         if (jenisSeminar !== jenisSlotRef.current) return;
          setAvailableSlots(data.availableSlots || []);
       } catch (e) {
          console.error(e);
@@ -306,6 +312,12 @@ export default function DosenDashboard() {
    const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
    const firstDayOffset = firstDayOfMonth.getDay() === 0 ? 6 : firstDayOfMonth.getDay() - 1;
 
+   const handleGantiPeriode = (id: string) => {
+      // A date picked in the previous periode doesn't belong to the new one
+      setSelectedDate(null);
+      setSelectedPeriodeId(id);
+   };
+
    // Shared by the navbar dropdown (desktop) and the dropdown below the navbar (mobile)
    const periodeOptions = allPeriode.filter(p => !p.isDraft).map(p => {
       const sd = p.startDate ? new Date(p.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'short'}) : '';
@@ -347,7 +359,7 @@ export default function DosenDashboard() {
                   {allPeriode.length > 0 && (
                      <select
                         value={selectedPeriodeId || ""}
-                        onChange={(e) => setSelectedPeriodeId(e.target.value)}
+                        onChange={(e) => handleGantiPeriode(e.target.value)}
                         className="bg-white/10 text-white text-sm rounded-lg px-2 sm:px-3 py-2 outline-none border border-white/20 hover:bg-white/20 transition-colors focus:ring-2 focus:ring-white/50 cursor-pointer hidden md:block max-w-[150px] lg:max-w-xs truncate"
                      >
                         {periodeOptions}
@@ -376,7 +388,7 @@ export default function DosenDashboard() {
                <div className="md:hidden px-4 pb-3">
                   <select
                      value={selectedPeriodeId || ""}
-                     onChange={(e) => setSelectedPeriodeId(e.target.value)}
+                     onChange={(e) => handleGantiPeriode(e.target.value)}
                      aria-label="Pilih periode"
                      className="w-full bg-white/10 text-white text-sm rounded-lg px-3 py-2 outline-none border border-white/20 focus:ring-2 focus:ring-white/50 cursor-pointer truncate"
                   >

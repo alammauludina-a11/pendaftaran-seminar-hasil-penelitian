@@ -17,6 +17,9 @@ export async function GET(request: Request) {
     const dospem1Param = url.searchParams.get("dospem1") || "";
     const dospem2Param = url.searchParams.get("dospem2") || "";
     const jenisSeminar = url.searchParams.get("jenisSeminar") || "kolokium";
+    // When a dosen views the slots, hide slots where they are already scheduled
+    const isDosen = session.user.role === "dosen";
+    const dosenId = session.user.id;
 
     // Fetch ALL slots — availability is now determined dynamically below, not by the tersedia flag.
     // (The old system set tersedia=false when a slot was booked; the new system no longer does this,
@@ -101,6 +104,11 @@ export async function GET(request: Request) {
           [r.dospem1Id, r.dospem2Id, r.moderatorId].some(id => id && mine.includes(id))
         );
       }
+
+      // Skip slots where the logged-in dosen is already pembimbing/moderator (any seminar type)
+      if (isDosen && allRegsOnSlot.some(r =>
+        [r.dospem1Id, r.dospem2Id, r.moderatorId].includes(dosenId)
+      )) continue;
 
       let blocked = false;
       let blockedReason = "";

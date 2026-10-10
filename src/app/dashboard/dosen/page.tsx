@@ -306,6 +306,19 @@ export default function DosenDashboard() {
    const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
    const firstDayOffset = firstDayOfMonth.getDay() === 0 ? 6 : firstDayOfMonth.getDay() - 1;
 
+   // Shared by the navbar dropdown (desktop) and the dropdown below the navbar (mobile)
+   const periodeOptions = allPeriode.filter(p => !p.isDraft).map(p => {
+      const sd = p.startDate ? new Date(p.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'short'}) : '';
+      const ed = p.endDate ? new Date(p.endDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'short'}) : '';
+      const dateRange = sd && ed ? ` (${sd} - ${ed})` : '';
+      const jenisStr = p.jenisSeminar === "kolokium" ? "Kolokium" : "Hasil";
+      return (
+         <option key={p.id} value={p.id} className="text-slate-800">
+            {jenisStr} - Angkatan {p.angkatan}{dateRange} {p.isOpen ? "(Aktif)" : ""}
+         </option>
+      );
+   });
+
    const handlePrevMonth = () => {
       setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
    };
@@ -337,17 +350,7 @@ export default function DosenDashboard() {
                         onChange={(e) => setSelectedPeriodeId(e.target.value)}
                         className="bg-white/10 text-white text-sm rounded-lg px-2 sm:px-3 py-2 outline-none border border-white/20 hover:bg-white/20 transition-colors focus:ring-2 focus:ring-white/50 cursor-pointer hidden md:block max-w-[150px] lg:max-w-xs truncate"
                      >
-                        {allPeriode.filter(p => !p.isDraft).map(p => {
-                           const sd = p.startDate ? new Date(p.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'short'}) : '';
-                           const ed = p.endDate ? new Date(p.endDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'short'}) : '';
-                           const dateRange = sd && ed ? ` (${sd} - ${ed})` : '';
-                           const jenisStr = p.jenisSeminar === "kolokium" ? "Kolokium" : "Hasil";
-                           return (
-                              <option key={p.id} value={p.id} className="text-slate-800">
-                                 {jenisStr} - Angkatan {p.angkatan}{dateRange} {p.isOpen ? "(Aktif)" : ""}
-                              </option>
-                           );
-                        })}
+                        {periodeOptions}
                      </select>
                   )}
                   <div className="hidden lg:flex flex-col text-right mr-2">
@@ -369,6 +372,18 @@ export default function DosenDashboard() {
                   </div>
                </div>
             </div>
+            {allPeriode.length > 0 && (
+               <div className="md:hidden px-4 pb-3">
+                  <select
+                     value={selectedPeriodeId || ""}
+                     onChange={(e) => setSelectedPeriodeId(e.target.value)}
+                     aria-label="Pilih periode"
+                     className="w-full bg-white/10 text-white text-sm rounded-lg px-3 py-2 outline-none border border-white/20 focus:ring-2 focus:ring-white/50 cursor-pointer truncate"
+                  >
+                     {periodeOptions}
+                  </select>
+               </div>
+            )}
          </nav>
 
          {/* Main Content */}

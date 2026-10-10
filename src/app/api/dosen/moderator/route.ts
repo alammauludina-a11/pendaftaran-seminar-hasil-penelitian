@@ -58,6 +58,7 @@ export async function GET(request: Request) {
       moderatorRecordId: moderator.id,
       moderatorName: dosenUsers.nama,
       batalStatus: moderator.batalStatus,
+      isReleased: pendaftaran.isReleased,
     })
       .from(pendaftaran)
       .leftJoin(users, eq(pendaftaran.userId, users.id))

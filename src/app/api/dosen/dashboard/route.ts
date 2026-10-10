@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { pendaftaran, users, slotWaktu, periode } from "@/db/schema";
+import { pendaftaran, users, slotWaktu, periode, kelasSeminar } from "@/db/schema";
 import { eq, or, and, desc, isNotNull } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -57,10 +57,12 @@ export async function GET(request: Request) {
           slotWaktuId: pendaftaran.slotWaktuId,
           waktuMulai: slotWaktu.waktuMulai,
           waktuSelesai: slotWaktu.waktuSelesai,
+          namaKelas: kelasSeminar.namaKelas,
         })
         .from(pendaftaran)
         .leftJoin(users, eq(pendaftaran.userId, users.id))
         .leftJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
+        .leftJoin(kelasSeminar, eq(pendaftaran.kelasSeminarId, kelasSeminar.id))
         .where(
           and(
             eq(pendaftaran.periodeId, activePeriodeData.id),

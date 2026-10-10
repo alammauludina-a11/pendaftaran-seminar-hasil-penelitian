@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { authClient, changePassword } from "../../../lib/auth-client";
 import { useSession } from "../../../lib/auth-client";
 import { useState, useEffect } from "react";
+import TabMahasiswaBimbingan from "./_components/TabMahasiswaBimbingan";
 import { Users, Monitor, ShieldCheck, Calendar, ArrowRight, LogOut, CheckCircle2, Clock, MapPin, Search, UserCheck, AlertCircle, Filter, ChevronLeft, ChevronRight, X, BookOpen, Lock, ArrowUpDown, XCircle, Ban } from "lucide-react";
 
 export default function DosenDashboard() {
@@ -83,6 +84,7 @@ export default function DosenDashboard() {
       nip: (sessionData?.user as any)?.nipNim || "-",
    };
 
+   const [activeTab, setActiveTab] = useState<"beranda" | "bimbingan">("beranda");
    const [selectedDate, setSelectedDate] = useState<string | null>(null);
    const [bimbingan, setBimbingan] = useState<any[]>([]);
    const [availableKelas, setAvailableKelas] = useState<any[]>([]);
@@ -249,7 +251,8 @@ export default function DosenDashboard() {
          .filter((s: any) => s.isMyModeration && s.isPast)
          .map((s: any) => ({ ...s, classData: m })));
 
-   const bimbinganMendatangRaw = bimbingan.filter(b => b.isFuture || b.isToday);
+   // Only released schedules are shown as upcoming; unreleased progress is in the Mahasiswa Bimbingan tab
+   const bimbinganMendatangRaw = bimbingan.filter(b => b.isReleased && (b.isFuture || b.isToday));
    const bimbinganMendatang = [...bimbinganMendatangRaw].sort((a: any, b: any) => {
       if (!sortConfigBimbingan) return 0;
       let aVal = a[sortConfigBimbingan.key];
@@ -268,6 +271,16 @@ export default function DosenDashboard() {
       if (aVal > bVal) return sortConfigBimbingan.direction === 'asc' ? 1 : -1;
       return 0;
    });
+
+   // Today's released schedules, as pembimbing and as moderator, ordered by time
+   const jadwalHariIni = [
+      ...bimbingan.filter(b => b.isToday && b.isReleased).map(b => ({
+         peran: "Bimbingan", nama: b.name, nim: b.nim, kelas: b.namaKelas, time: b.time, room: b.room, waktuMulai: b.waktuMulai,
+      })),
+      ...futureModerasiStudentsRaw.filter((s: any) => s.isToday && s.isReleased).map((s: any) => ({
+         peran: "Moderator", nama: s.nama, nim: s.nim, kelas: s.classData?.name, time: s.time, room: s.room, waktuMulai: s.waktuMulai,
+      })),
+   ].sort((a, b) => new Date(a.waktuMulai || 0).getTime() - new Date(b.waktuMulai || 0).getTime());
 
    // Filter classes by selected date
    const filteredClasses = selectedDate
@@ -361,6 +374,25 @@ export default function DosenDashboard() {
          {/* Main Content */}
          <main className="flex-grow flex flex-col max-w-7xl mx-auto w-full px-6 py-8 gap-8">
 
+            {/* Tabs */}
+            <div className="flex gap-2 border-b border-slate-200 -mb-2 overflow-x-auto">
+               {([
+                  { key: "beranda", label: "Beranda", icon: Monitor },
+                  { key: "bimbingan", label: "Mahasiswa Bimbingan", icon: Users },
+               ] as const).map(t => (
+                  <button
+                     key={t.key}
+                     onClick={() => setActiveTab(t.key)}
+                     className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px whitespace-nowrap transition-colors ${activeTab === t.key ? 'border-[#06125C] text-[#06125C]' : 'border-transparent text-slate-500 hover:text-[#06125C]'}`}
+                  >
+                     <t.icon size={16} /> {t.label}
+                  </button>
+               ))}
+            </div>
+
+            {activeTab === "bimbingan" && <TabMahasiswaBimbingan periodeId={selectedPeriodeId} />}
+
+            {activeTab === "beranda" && (<>
 
 
             {/* Stats Grid */}
@@ -422,25 +454,27 @@ export default function DosenDashboard() {
                {/* Jadwal Saya (Left column, takes 1/4) */}
                <div className="lg:col-span-1 flex flex-col gap-8">
 
-                  {/* Jadwal Bimbingan Hari Ini */}
+                  {/* Jadwal Anda Hari Ini (bimbingan & moderasi, released schedules only) */}
                   <div className="flex flex-col gap-4">
                      <h2 className="text-xl font-bold text-[#06125C] flex items-center gap-2">
-                        <UserCheck className="text-indigo-500" /> Seminar Bimbingan Hari Ini
+                        <Clock className="text-indigo-500" /> Jadwal Anda Hari Ini
                      </h2>
-                     <div className="flex flex-col gap-4">
-                        {bimbingan.filter(b => b.isToday).length === 0 ? (
-                           <div className="bg-slate-50 border border-slate-200 border-dashed p-6 rounded-2xl text-center text-slate-500 flex flex-col items-center justify-center">
-                              <Calendar size={32} className="text-slate-300 mb-2" />
-                              <p className="text-sm">Tidak ada jadwal kehadiran bimbingan pada hari ini.</p>
+                     <div className="flex flex-col gap-3">
+                        {jadwalHariIni.length === 0 ? (
+                           <div className="bg-slate-50 border border-slate-200 border-dashed px-4 py-3 rounded-2xl text-center text-sm text-slate-500">
+                              Tidak ada jadwal hari ini.
                            </div>
                         ) : (
-                           bimbingan.filter(b => b.isToday).map((item, idx) => (
-                              <div key={idx} className="bg-indigo-600 text-white p-5 rounded-2xl shadow-md relative overflow-hidden group">
+                           jadwalHariIni.map((item, idx) => (
+                              <div key={idx} className={`${item.peran === "Bimbingan" ? "bg-indigo-600" : "bg-[#06125C]"} text-white p-5 rounded-2xl shadow-md relative overflow-hidden`}>
                                  <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-xl pointer-events-none" />
                                  <div className="space-y-3 relative z-10">
-                                    <div className="flex flex-col">
-                                       <span className="font-bold text-lg">{item.name}</span>
-                                       <span className="text-xs text-indigo-200">{item.nim}</span>
+                                    <div className="flex items-start justify-between gap-2">
+                                       <div className="flex flex-col">
+                                          <span className="font-bold text-lg">{item.nama}</span>
+                                          <span className="text-xs text-indigo-200">{item.nim}{item.kelas ? ` • Kelas ${item.kelas}` : ""}</span>
+                                       </div>
+                                       <span className="shrink-0 text-[11px] font-semibold bg-white/15 border border-white/20 rounded-full px-2 py-0.5">{item.peran}</span>
                                     </div>
                                     <hr className="border-white/20" />
                                     <div className="flex items-center gap-3">
@@ -449,42 +483,6 @@ export default function DosenDashboard() {
                                     </div>
                                     <div className="flex items-center gap-3">
                                        <MapPin size={18} className="text-indigo-300" />
-                                       <span className="text-sm font-medium">{item.room || "Ruangan belum ditentukan"}</span>
-                                    </div>
-                                 </div>
-                              </div>
-                           ))
-                        )}
-                     </div>
-                  </div>
-
-                  {/* Jadwal Moderasi Hari Ini */}
-                  <div className="flex flex-col gap-4">
-                     <h2 className="text-xl font-bold text-[#06125C] flex items-center gap-2">
-                        <Monitor className="text-blue-500" /> Memoderatori Hari Ini
-                     </h2>
-                     <div className="flex flex-col gap-4">
-                        {futureModerasiStudentsRaw.filter((s: any) => s.isToday).length === 0 ? (
-                           <div className="bg-slate-50 border border-slate-200 border-dashed p-6 rounded-2xl text-center text-slate-500 flex flex-col items-center justify-center">
-                              <Calendar size={32} className="text-slate-300 mb-2" />
-                              <p className="text-sm">Tidak ada jadwal untuk dimoderatori pada hari ini.</p>
-                           </div>
-                        ) : (
-                           futureModerasiStudentsRaw.filter((s: any) => s.isToday).map((item: any, idx) => (
-                              <div key={idx} className="bg-[#06125C] text-white p-5 rounded-2xl shadow-md relative overflow-hidden group">
-                                 <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-xl pointer-events-none" />
-                                 <div className="space-y-3 relative z-10">
-                                    <div className="flex flex-col">
-                                       <span className="font-bold text-lg">{item.nama}</span>
-                                       <span className="text-xs text-blue-200">{item.nim}</span>
-                                    </div>
-                                    <hr className="border-white/20" />
-                                    <div className="flex items-center gap-3">
-                                       <Clock size={18} className="text-amber-400" />
-                                       <span className="text-sm font-medium">Hari Ini • {item.time}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                       <MapPin size={18} className="text-blue-300" />
                                        <span className="text-sm font-medium">{item.room || "Ruangan belum ditentukan"}</span>
                                     </div>
                                  </div>
@@ -800,6 +798,7 @@ export default function DosenDashboard() {
                   </div>
                </div>
             </div>
+            </>)}
 
          </main>
 
@@ -924,6 +923,7 @@ export default function DosenDashboard() {
                                     <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortModerasi('nim')}>
                                        <div className="flex items-center justify-between">NIM <ArrowUpDown size={14} className="text-slate-400" /></div>
                                     </th>
+                                    <th className="px-4 py-3">Kelas</th>
                                     <th className="px-4 py-3 max-w-[200px]">Judul Seminar</th>
                                     <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortModerasi('date')}>
                                        <div className="flex items-center justify-between">Jadwal Pelaksanaan <ArrowUpDown size={14} className="text-slate-400" /></div>
@@ -934,7 +934,7 @@ export default function DosenDashboard() {
                               <tbody className="divide-y divide-slate-100">
                                  {futureModerasiStudents.length === 0 ? (
                                     <tr>
-                                       <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                                       <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                                           Belum ada jadwal moderasi mendatang.
                                        </td>
                                     </tr>
@@ -944,6 +944,7 @@ export default function DosenDashboard() {
                                           <td className="px-4 py-3 text-slate-500 text-center">{idx + 1}</td>
                                           <td className="px-4 py-3 font-medium text-[#06125C]">{item.nama}</td>
                                           <td className="px-4 py-3 text-slate-500">{item.nim}</td>
+                                          <td className="px-4 py-3 text-slate-500">{item.classData?.name || "-"}</td>
                                           <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate" title={item.judul}>{item.judul}</td>
                                           <td className="px-4 py-3 text-slate-500">{item.dateStr || item.classData?.date} • {item.time}</td>
                                           <td className="px-4 py-3 text-slate-500">{item.room || "-"}</td>
@@ -973,7 +974,7 @@ export default function DosenDashboard() {
                            <UserCheck size={20} />
                         </div>
                         <div>
-                           <h3 className="text-lg font-bold text-[#06125C]">Jadwal Seminar Bimbingan Mendatang</h3>
+                           <h3 className="text-lg font-bold text-[#06125C]">Jadwal Seminar Bimbingan Mendatang yang Sudah Rilis</h3>
                            <p className="text-sm text-slate-500">Daftar mahasiswa bimbingan yang jadwal seminarnya akan Anda hadiri.</p>
                         </div>
                      </div>
@@ -995,6 +996,7 @@ export default function DosenDashboard() {
                                     <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortBimbingan('nim')}>
                                        <div className="flex items-center justify-between">NIM <ArrowUpDown size={14} className="text-slate-400" /></div>
                                     </th>
+                                    <th className="px-4 py-3">Kelas</th>
                                     <th className="px-4 py-3 max-w-[200px]">Judul Seminar</th>
                                     <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortBimbingan('date')}>
                                        <div className="flex items-center justify-between">Jadwal Pelaksanaan <ArrowUpDown size={14} className="text-slate-400" /></div>
@@ -1005,7 +1007,7 @@ export default function DosenDashboard() {
                               <tbody className="divide-y divide-slate-100">
                                  {bimbinganMendatang.length === 0 ? (
                                     <tr>
-                                       <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                                       <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                                           Belum ada jadwal bimbingan mendatang.
                                        </td>
                                     </tr>
@@ -1015,6 +1017,7 @@ export default function DosenDashboard() {
                                           <td className="px-4 py-3 text-slate-500 text-center">{idx + 1}</td>
                                           <td className="px-4 py-3 font-medium text-slate-700">{item.name}</td>
                                           <td className="px-4 py-3 text-slate-500">{item.nim}</td>
+                                          <td className="px-4 py-3 text-slate-500">{item.namaKelas || "-"}</td>
                                           <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate" title={item.title}>{item.title}</td>
                                           <td className="px-4 py-3 text-slate-500">{item.date} • {item.time}</td>
                                           <td className="px-4 py-3 text-slate-500">{item.room || "-"}</td>
@@ -1071,6 +1074,7 @@ export default function DosenDashboard() {
                                     <th className="px-4 py-3 text-center w-12">No</th>
                                     <th className="px-4 py-3">Nama Mahasiswa</th>
                                     <th className="px-4 py-3">NIM</th>
+                                    <th className="px-4 py-3">Kelas</th>
                                     <th className="px-4 py-3 max-w-[200px]">Judul Seminar</th>
                                     <th className="px-4 py-3">Ruangan</th>
                                     <th className="px-4 py-3">Tanggal Selesai</th>
@@ -1080,7 +1084,7 @@ export default function DosenDashboard() {
                               <tbody className="divide-y divide-slate-100">
                                  {pastModerasiStudents.length === 0 ? (
                                     <tr>
-                                       <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                                       <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                                           Belum ada riwayat kelas yang dimoderatori.
                                        </td>
                                     </tr>
@@ -1090,6 +1094,7 @@ export default function DosenDashboard() {
                                           <td className="px-4 py-3 text-slate-500 text-center">{idx + 1}</td>
                                           <td className="px-4 py-3 font-medium text-slate-700">{item.nama}</td>
                                           <td className="px-4 py-3 text-slate-500">{item.nim}</td>
+                                          <td className="px-4 py-3 text-slate-500">{item.classData?.name || "-"}</td>
                                           <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate" title={item.judul}>{item.judul}</td>
                                           <td className="px-4 py-3 text-slate-500">{item.room || "-"}</td>
                                           <td className="px-4 py-3 text-slate-500">{(item.dateStr || item.classData?.fullDate || item.classData?.date)} • {item.time}</td>
@@ -1157,6 +1162,7 @@ export default function DosenDashboard() {
                                     <th className="px-4 py-3 text-center w-12">No</th>
                                     <th className="px-4 py-3">Nama Mahasiswa</th>
                                     <th className="px-4 py-3">NIM</th>
+                                    <th className="px-4 py-3">Kelas</th>
                                     <th className="px-4 py-3 max-w-[200px]">Judul Seminar</th>
                                     <th className="px-4 py-3">Ruangan</th>
                                     <th className="px-4 py-3">Tanggal Selesai</th>
@@ -1166,7 +1172,7 @@ export default function DosenDashboard() {
                               <tbody className="divide-y divide-slate-100">
                                  {bimbingan.filter(b => b.isPast).length === 0 ? (
                                     <tr>
-                                       <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                                       <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                                           Belum ada riwayat kehadiran seminar bimbingan.
                                        </td>
                                     </tr>
@@ -1176,6 +1182,7 @@ export default function DosenDashboard() {
                                           <td className="px-4 py-3 text-slate-500 text-center">{idx + 1}</td>
                                           <td className="px-4 py-3 font-medium text-slate-700">{student.name}</td>
                                           <td className="px-4 py-3 text-slate-500">{student.nim}</td>
+                                          <td className="px-4 py-3 text-slate-500">{student.namaKelas || "-"}</td>
                                           <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate" title={student.title}>{student.title}</td>
                                           <td className="px-4 py-3 text-slate-500">{student.room}</td>
                                           <td className="px-4 py-3 text-slate-500">{student.date} • {student.time}</td>

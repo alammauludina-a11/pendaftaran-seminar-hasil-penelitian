@@ -3,6 +3,7 @@ import { db, type Executor } from "@/db";
 import { pendaftaran, slotWaktu, moderator, users, kelasSeminar, periode } from "@/db/schema";
 import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { isValidSlotTime } from "@/lib/slot-rules";
+import { akunSeDunia, pembahasLainDunia, pesanDosenLainDunia } from "@/lib/data-uji";
 
 /** Start time of a pendaftaran's slot, or null when it has no slot. */
 export async function getWaktuMulaiPendaftaran(pendaftaranId: number, ex: Executor = db): Promise<Date | null> {
@@ -59,6 +60,40 @@ export async function findDosenClash(opts: {
 /** True when the dosen is pembimbing 1 or 2 of the registration. */
 export const isPembimbing = (p: { dospem1Id: string | null; dospem2Id: string | null }, dosenId: string) =>
   p.dospem1Id === dosenId || p.dospem2Id === dosenId;
+
+/**
+ * Error message when the dosen and the student of the registration belong to different worlds
+ * (real data vs test data, see lib/data-uji), otherwise null.
+ */
+export async function dosenLainDunia(dosenId: string, pendaftaranId: number, ex: Executor = db): Promise<string | null> {
+  const [dosen] = await ex.select({ nipNim: users.nipNim }).from(users).where(eq(users.id, dosenId)).limit(1);
+  const [mhs] = await ex.select({ nipNim: users.nipNim }).from(pendaftaran)
+    .innerJoin(users, eq(pendaftaran.userId, users.id))
+    .where(eq(pendaftaran.id, pendaftaranId)).limit(1);
+  if (!dosen || !mhs) return null;
+  return akunSeDunia(dosen, mhs) ? null : pesanDosenLainDunia(dosen);
+}
+
+/**
+ * Error message when a pembahas (a student, "Nama (NIM)") belongs to another world than the presenter,
+ * otherwise null. Checks every assignment; registrations that don't exist are left to the caller.
+ */
+export async function pembahasDitolak(assignments: { id: number; pembahas: string | null }[], ex: Executor = db): Promise<string | null> {
+  const ids = assignments.map(a => a.id);
+  if (ids.length === 0) return null;
+  const nim = new Map((await ex.select({ id: pendaftaran.id, nim: users.nipNim }).from(pendaftaran)
+    .innerJoin(users, eq(pendaftaran.userId, users.id))
+    .where(inArray(pendaftaran.id, ids))).map(r => [r.id, r.nim]));
+  for (const a of assignments) {
+    const nimPenyaji = nim.get(a.id);
+    if (!nimPenyaji) continue;
+    const salah = pembahasLainDunia(a.pembahas, nimPenyaji);
+    if (salah.length) {
+      return `Pembahas ${salah.map(s => `"${s}"`).join(", ")} tidak dapat dipakai: data uji coba dan data asli tidak boleh dicampur.`;
+    }
+  }
+  return null;
+}
 
 /**
  * Forms one class from the queue (approved, no class yet) of a periode, up to its batas kelas.

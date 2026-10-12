@@ -1,7 +1,8 @@
-// Creates an isolated test setup for trying the Seminar Hasil flow on the real database (angkatan UJICOBA,
-// about one year ahead): 3 test dosen, 5 participants with two student accounts each (A: still has to register,
-// B: schedule already released), a class for the dosen tasks, and with --skenario-admin a separate periode with
-// data for the admin tasks. What exactly is created is described in uji-rencana.ts.
+// Creates an isolated test setup for trying the Seminar Hasil flow on the real database (about one year ahead):
+// 3 test dosen and 5 participants with two student accounts each (A: still has to register, B: schedule already
+// released) in angkatan UJICOBA, supporting dosen/students that are never given to the participants, and with
+// --skenario-admin a separate periode (angkatan UJICOBA-ADMIN) with data for the admin tasks.
+// What exactly is created is described in uji-rencana.ts.
 // Real users can't see any of it (src/lib/data-uji.ts); test accounts only see test data.
 //
 //   npx tsx --env-file=.env.local scripts/uji-buat.ts [--skenario-admin]              → only shows what would be created
@@ -15,9 +16,11 @@ import { db, transaksi } from "../src/db";
 import { users, account, periode, pendaftaran } from "../src/db/schema";
 import { autoGenerateSlots } from "../src/lib/slot-generator";
 import {
-  ANGKATAN_UJI, NIP_NIM_PREFIX, EMAIL_DOMAIN, PESERTA, DOSEN_UJI, JALANKAN, SKENARIO_ADMIN, targetDatabase, mingguUji,
+  NIP_NIM_PREFIX, EMAIL_DOMAIN, PESERTA, DOSEN_UJI, DOSEN_PENDUKUNG, JALANKAN, SKENARIO_ADMIN, targetDatabase, mingguUji,
 } from "./uji-shared";
-import { barisPendaftaran, buatPendaftaranRencana, mahasiswaRencana, periksaRencana, rencanaPeriode } from "./uji-rencana";
+import {
+  barisPendaftaran, buatPendaftaranRencana, mahasiswaRencana, periksaRencana, rencanaPeriode, ringkasanRencana,
+} from "./uji-rencana";
 
 function cetakPeserta() {
   console.log(`\nDaftar akun per peserta:`);
@@ -31,19 +34,22 @@ function cetakPeserta() {
 async function main() {
   const periodes = rencanaPeriode(SKENARIO_ADMIN);
   const mahasiswa = mahasiswaRencana(SKENARIO_ADMIN);
-  const lain = mahasiswa.filter(a => !PESERTA.some(p => p.a.username === a.username || p.b.username === a.username));
+  const lain = mahasiswa.filter(x => !x.peserta);
+  const angkatanList = [...new Set(periodes.map(p => p.angkatan))];
 
   console.log(`Database tujuan : ${targetDatabase()}`);
   console.log(`Akan dibuat     :`);
-  console.log(`  - ${DOSEN_UJI.length} dosen uji: ${DOSEN_UJI.map(d => d.username).join(", ")}`);
-  console.log(`  - ${PESERTA.length * 2} akun peserta: ${PESERTA.map(p => `${p.a.username}/${p.b.username}`).join(", ")}`);
-  console.log(`  - ${lain.length} mahasiswa uji pendukung: ${lain.map(a => a.username).join(", ")}`);
-  console.log(`    (semua mahasiswa angkatan ${ANGKATAN_UJI}, kolokium dianggap selesai)`);
-  console.log(`  - Periode Kolokium angkatan ${ANGKATAN_UJI} (tertutup, hanya sebagai riwayat kolokium)`);
+  console.log(`  - Akun peserta (dibagikan): ${DOSEN_UJI.map(d => d.username).join(", ")} dan ${PESERTA.map(p => `${p.a.username}/${p.b.username}`).join(", ")}`);
+  console.log(`  - Akun pendukung (TIDAK dibagikan, password lain): ${DOSEN_PENDUKUNG.map(d => d.username).join(", ")}`);
+  console.log(`    dan ${lain.length} mahasiswa: ${lain.map(x => `${x.username}`).join(", ")}`);
+  console.log(`    (kolokium semua mahasiswa uji dianggap selesai)`);
+  console.log(`  - Periode Kolokium angkatan ${angkatanList.join(" dan ")} (tertutup, hanya sebagai riwayat kolokium)`);
   for (const p of periodes) {
     const { start, end } = mingguUji(p.mingguKe);
-    console.log(`  - ${p.judul}: Seminar Hasil angkatan ${ANGKATAN_UJI}, ${start} s/d ${end}, batas kelas ${p.batasKelas}, beserta slot waktunya`);
+    console.log(`  - ${p.judul}: Seminar Hasil angkatan ${p.angkatan}, ${start} s/d ${end}, batas kelas ${p.batasKelas}, beserta slot waktunya`);
     for (const r of p.pendaftaran) console.log(`      ${barisPendaftaran(r, start)}`);
+    console.log(`    Ringkasan:`);
+    for (const baris of ringkasanRencana(p)) console.log(`      ${baris}`);
   }
   console.log(`    Peserta akun A (${PESERTA.map(p => p.a.username).join(", ")}): belum ada pendaftaran Seminar Hasil.`);
 
@@ -67,10 +73,12 @@ async function main() {
     return;
   }
 
-  // One shared random password for all test accounts, shown once at the end
+  // One random password for the participants' accounts and another one for the supporting accounts
+  // (never given to the participants), shown once at the end
   const password = crypto.randomBytes(9).toString("base64url");
+  const passwordPendukung = crypto.randomBytes(9).toString("base64url");
   const ctx = await auth.$context;
-  const passwordHash = await ctx.password.hash(password);
+  const hash = { peserta: await ctx.password.hash(password), pendukung: await ctx.password.hash(passwordPendukung) };
 
   // Kolokium "already done" one month ago, so the students may register for Seminar Hasil
   const bulanLalu = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -83,8 +91,9 @@ async function main() {
 
   const dibuat = await transaksi(async (tx) => {
     const akun = [
-      ...DOSEN_UJI.map(d => ({ ...d, role: "dosen" as const, angkatan: null, statusAktif: null })),
-      ...mahasiswa.map(m => ({ ...m, role: "mahasiswa" as const, angkatan: ANGKATAN_UJI, statusAktif: "Aktif" })),
+      ...DOSEN_UJI.map(d => ({ ...d, role: "dosen" as const, angkatan: null, statusAktif: null, peserta: true })),
+      ...DOSEN_PENDUKUNG.map(d => ({ ...d, role: "dosen" as const, angkatan: null, statusAktif: null, peserta: false })),
+      ...mahasiswa.map(m => ({ ...m, role: "mahasiswa" as const, statusAktif: "Aktif" })),
     ];
     const ids = new Map<string, string>();
     for (const a of akun) {
@@ -108,27 +117,32 @@ async function main() {
         accountId: id,
         providerId: "credential",
         userId: id,
-        password: passwordHash,
+        password: a.peserta ? hash.peserta : hash.pendukung,
       });
     }
 
-    const [kolokium] = await tx.insert(periode).values({
-      jenisSeminar: "kolokium",
-      angkatan: ANGKATAN_UJI,
-      startDate: isoBulanLalu,
-      endDate: isoBulanLalu,
-      registrationEndDate: isoBulanLalu,
-      isOpen: false,
-      isDraft: false,
-      batasKelas: 3,
-      createdAt,
-    }).returning();
+    // One closed kolokium periode per angkatan: Pemantauan uses its registrations as the list of students
+    const kolokiumId = new Map<string, number>();
+    for (const angkatan of angkatanList) {
+      const [kolokium] = await tx.insert(periode).values({
+        jenisSeminar: "kolokium",
+        angkatan,
+        startDate: isoBulanLalu,
+        endDate: isoBulanLalu,
+        registrationEndDate: isoBulanLalu,
+        isOpen: false,
+        isDraft: false,
+        batasKelas: 3,
+        createdAt,
+      }).returning();
+      kolokiumId.set(angkatan, kolokium.id);
+    }
 
     for (const m of mahasiswa) {
       await tx.insert(pendaftaran).values({
         jenisSeminar: "kolokium",
         userId: ids.get(m.username)!,
-        periodeId: kolokium.id,
+        periodeId: kolokiumId.get(m.angkatan)!,
         judulPenelitian: `Penelitian ${m.nama}`,
         dospem1Id: ids.get(DOSEN_UJI[0].username)!,
         dospem1: DOSEN_UJI[0].nama,
@@ -142,7 +156,7 @@ async function main() {
       const { start, end } = mingguUji(p.mingguKe);
       const [hasil] = await tx.insert(periode).values({
         jenisSeminar: "hasil_penelitian",
-        angkatan: ANGKATAN_UJI,
+        angkatan: p.angkatan,
         startDate: start,
         endDate: end,
         registrationEndDate: start,
@@ -174,13 +188,12 @@ async function main() {
   });
 
   console.log(`\nData uji berhasil dibuat.`);
-  console.log(`Password semua akun uji: ${password}`);
+  console.log(`Password akun peserta   : ${password}`);
+  console.log(`Password akun pendukung : ${passwordPendukung}   (JANGAN dibagikan ke peserta)`);
   console.log(`(Simpan sekarang; password ini tidak disimpan di mana pun. Kalau hilang, jalankan uji-hapus lalu uji-buat lagi.)`);
   cetakPeserta();
-  console.log(`\nAkun A memilih "${DOSEN_UJI[0].nama}", "${DOSEN_UJI[1].nama}" atau "${DOSEN_UJI[2].nama}" sebagai pembimbing.`);
   if (SKENARIO_ADMIN) {
-    const { start } = mingguUji(1);
-    console.log(`Tugas admin: di dashboard admin pilih periode Seminar Hasil ${ANGKATAN_UJI} yang mulai ${start} (ditutup).`);
+    console.log(`\nTugas admin: di dashboard admin pilih periode Seminar Hasil angkatan ${periodes[1].angkatan}.`);
   }
   console.log(`\nSelesai menguji? Hapus semuanya dengan: npx tsx --env-file=.env.local scripts/uji-hapus.ts --jalankan`);
 }

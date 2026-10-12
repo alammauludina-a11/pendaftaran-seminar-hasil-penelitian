@@ -28,7 +28,7 @@ export async function DELETE(
         .limit(1);
       if (locked.length > 0) return { locked: true } as const;
 
-      const [kelas] = await tx.select({ namaKelas: kelasSeminar.namaKelas }).from(kelasSeminar).where(eq(kelasSeminar.id, id)).limit(1);
+      const [kelas] = await tx.select({ namaKelas: kelasSeminar.namaKelas, periodeId: kelasSeminar.periodeId }).from(kelasSeminar).where(eq(kelasSeminar.id, id)).limit(1);
 
       // Unassign students from this class
       await tx.update(pendaftaran)
@@ -52,6 +52,8 @@ export async function DELETE(
       deskripsi: `Membatalkan Kelas ${kelas?.namaKelas ?? id}`,
       targetTipe: "kelas",
       targetId: id,
+      // The class itself is gone afterwards; the periode lets scripts/uji-hapus.ts recognise test data
+      detail: { periodeId: kelas?.periodeId ?? null },
     });
 
     return NextResponse.json({

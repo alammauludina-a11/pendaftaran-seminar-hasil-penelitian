@@ -23,7 +23,8 @@ export function seninDepan(tambahHari = 0) {
 /** Date for `jam`:00 WIB on the given YYYY-MM-DD. */
 export const jamWIB = (iso: string, jam: number) => new Date(`${iso}T${String(jam).padStart(2, "0")}:00:00+07:00`);
 
-export async function buatUser(data: { nama: string; role: "mahasiswa" | "dosen" | "admin"; angkatan?: string }) {
+/** `nipNim` defaults to a random (real-looking) one; pass "UJICOBA-..." for a test-data account. */
+export async function buatUser(data: { nama: string; role: "mahasiswa" | "dosen" | "admin"; angkatan?: string; nipNim?: string }) {
   const id = crypto.randomUUID();
   await db.insert(users).values({
     id,
@@ -31,7 +32,7 @@ export async function buatUser(data: { nama: string; role: "mahasiswa" | "dosen"
     role: data.role,
     name: data.nama,
     nama: data.nama,
-    nipNim: id,
+    nipNim: data.nipNim ?? id,
     angkatan: data.angkatan ?? null,
   });
   return id;

@@ -1,16 +1,19 @@
 // Removes everything created by scripts/uji-buat.ts, with or without --skenario-admin (and everything done with it
 // while testing): test accounts, their registrations, uploaded files, moderators (incl. cancel requests), classes,
-// all UJICOBA periodes and the unused slots of their weeks.
-// Only rows recognisable by the markers in uji-shared.ts are touched. The admin audit log is kept on purpose.
+// all test periodes (angkatan UJICOBA and UJICOBA-ADMIN), the unused slots of their weeks, the login history of
+// the test accounts and the admin audit log rows about test data (see isLogUji in uji-shared.ts).
+// Only rows recognisable by the markers in uji-shared.ts are touched.
 //
 //   npx tsx --env-file=.env.local scripts/uji-hapus.ts              → only shows what would be removed
 //   npx tsx --env-file=.env.local scripts/uji-hapus.ts --jalankan   → removes it
-import { and, eq, gte, inArray, like, lt, lte, ne, notInArray, or } from "drizzle-orm";
+import { and, gte, inArray, like, lt, lte, notInArray, notLike, or } from "drizzle-orm";
 import { db, transaksi } from "../src/db";
 import {
-  users, account, session, loginLog, loginGagal, periode, pendaftaran, moderator, kelasSeminar, files, slotWaktu,
+  users, account, session, loginLog, loginGagal, periode, pendaftaran, moderator, kelasSeminar, files, slotWaktu, logAktivitas,
 } from "../src/db/schema";
-import { ANGKATAN_UJI, NIP_NIM_PREFIX, EMAIL_DOMAIN, JALANKAN, targetDatabase } from "./uji-shared";
+import { ANGKATAN_UJI, NIP_NIM_PREFIX, EMAIL_DOMAIN, JALANKAN, targetDatabase, isLogUji, type IdUji } from "./uji-shared";
+
+const periodeUjiFilter = like(periode.angkatan, `${ANGKATAN_UJI}%`);
 
 const fileId = (url: string | null) => (url?.startsWith("/api/files/") ? url.slice("/api/files/".length) : null);
 
@@ -22,7 +25,7 @@ async function main() {
   const userIds = akunUji.map(u => u.id);
   const dosenIds = akunUji.filter(u => u.role === "dosen").map(u => u.id);
 
-  const periodeUji = await db.select().from(periode).where(eq(periode.angkatan, ANGKATAN_UJI));
+  const periodeUji = await db.select().from(periode).where(periodeUjiFilter);
   const periodeIds = periodeUji.map(p => p.id);
 
   const pendUji = userIds.length || periodeIds.length
@@ -76,7 +79,7 @@ async function main() {
   for (const hasil of periodeUji.filter(p => p.jenisSeminar === "hasil_penelitian")) {
     if (!hasil.startDate || !hasil.endDate) continue;
     const tumpang = await db.select({ id: periode.id }).from(periode).where(and(
-      ne(periode.angkatan, ANGKATAN_UJI),
+      notLike(periode.angkatan, `${ANGKATAN_UJI}%`),
       lte(periode.startDate, hasil.endDate),
       gte(periode.endDate, hasil.startDate),
     )).limit(1);
@@ -95,6 +98,19 @@ async function main() {
   }
   const slotHapus = [...slotHapusSet];
 
+  // Admin audit log rows about test data
+  const idUji: IdUji = {
+    pendaftaran: new Set(pendIds),
+    periode: new Set(periodeIds),
+    kelas: new Set(kelasIds),
+    user: new Set(userIds),
+  };
+  const semuaLog = await db.select({
+    id: logAktivitas.id, targetTipe: logAktivitas.targetTipe, targetId: logAktivitas.targetId,
+    deskripsi: logAktivitas.deskripsi, detail: logAktivitas.detail,
+  }).from(logAktivitas);
+  const logHapus = semuaLog.filter(l => isLogUji(l, idUji)).map(l => l.id);
+
   // Real registrations that picked a test dosen as pembimbing can't be fixed automatically
   const dospemAsli = dosenIds.length
     ? await db.select({ id: pendaftaran.id }).from(pendaftaran).where(and(
@@ -111,6 +127,7 @@ async function main() {
   console.log(`  - Kelas          : ${kelasIds.length}`);
   console.log(`  - File unggahan  : ${fileHapus.length}`);
   console.log(`  - Slot waktu     : ${slotHapus.length}`);
+  console.log(`  - Log aktivitas  : ${logHapus.length} baris tentang data uji (dari ${semuaLog.length})`);
   if (modDiPendaftaranAsli.length) {
     console.log(`\nPerhatian: dosen uji tercatat sebagai moderator di ${modDiPendaftaranAsli.length} pendaftaran ASLI (id: ${modDiPendaftaranAsli.map(m => m.pendaftaranId).join(", ")}).`);
     console.log(`Moderator tersebut ikut dihapus, jadi pendaftaran itu kembali tanpa moderator.`);
@@ -120,7 +137,7 @@ async function main() {
     console.log(`Itu tidak diubah oleh skrip ini; perbaiki pembimbingnya secara manual.`);
   }
 
-  if (!akunUji.length && !periodeUji.length) {
+  if (!akunUji.length && !periodeUji.length && !logHapus.length) {
     console.log(`\nTidak ada data uji. Tidak ada yang perlu dihapus.`);
     return;
   }
@@ -139,6 +156,9 @@ async function main() {
     if (periodeIds.length) await tx.delete(periode).where(inArray(periode.id, periodeIds));
     if (fileHapus.length) await tx.delete(files).where(inArray(files.id, fileHapus));
     if (slotHapus.length) await tx.delete(slotWaktu).where(inArray(slotWaktu.id, slotHapus));
+    for (let i = 0; i < logHapus.length; i += 500) {
+      await tx.delete(logAktivitas).where(inArray(logAktivitas.id, logHapus.slice(i, i + 500)));
+    }
     if (userIds.length) {
       await tx.delete(session).where(inArray(session.userId, userIds));
       await tx.delete(account).where(inArray(account.userId, userIds));
@@ -150,19 +170,22 @@ async function main() {
 
   // Check that nothing recognisable as test data is left
   const sisaAkun = await db.select({ id: users.id }).from(users).where(like(users.nipNim, `${NIP_NIM_PREFIX}%`));
-  const sisaPeriode = await db.select({ id: periode.id }).from(periode).where(eq(periode.angkatan, ANGKATAN_UJI));
+  const sisaPeriode = await db.select({ id: periode.id }).from(periode).where(periodeUjiFilter);
   const sisaPend = await db.select({ id: pendaftaran.id }).from(pendaftaran).where(or(
     userIds.length ? inArray(pendaftaran.userId, userIds) : undefined,
     periodeIds.length ? inArray(pendaftaran.periodeId, periodeIds) : undefined,
   ));
   const sisaKelas = kelasIds.length ? await db.select({ id: kelasSeminar.id }).from(kelasSeminar).where(inArray(kelasSeminar.id, kelasIds)) : [];
   const sisaMod = dosenIds.length ? await db.select({ id: moderator.id }).from(moderator).where(inArray(moderator.dosenId, dosenIds)) : [];
-  const sisa = sisaAkun.length + sisaPeriode.length + sisaPend.length + sisaKelas.length + sisaMod.length;
+  const sisaLog = (await db.select({
+    targetTipe: logAktivitas.targetTipe, targetId: logAktivitas.targetId, deskripsi: logAktivitas.deskripsi, detail: logAktivitas.detail,
+  }).from(logAktivitas)).filter(l => isLogUji(l, idUji));
+  const sisa = sisaAkun.length + sisaPeriode.length + sisaPend.length + sisaKelas.length + sisaMod.length + sisaLog.length;
   if (sisa > 0) {
-    throw new Error(`Masih ada sisa data uji (akun ${sisaAkun.length}, periode ${sisaPeriode.length}, pendaftaran ${sisaPend.length}, kelas ${sisaKelas.length}, moderator ${sisaMod.length}).`);
+    throw new Error(`Masih ada sisa data uji (akun ${sisaAkun.length}, periode ${sisaPeriode.length}, pendaftaran ${sisaPend.length}, kelas ${sisaKelas.length}, moderator ${sisaMod.length}, log ${sisaLog.length}).`);
   }
 
-  console.log(`\nData uji berhasil dihapus dan tidak ada sisa. (Riwayat di Log Aktivitas Admin sengaja tidak dihapus.)`);
+  console.log(`\nData uji berhasil dihapus dan tidak ada sisa, termasuk ${logHapus.length} baris Log Aktivitas Admin tentang data uji.`);
 }
 
 main().then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });

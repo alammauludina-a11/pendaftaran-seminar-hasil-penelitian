@@ -5,6 +5,7 @@ import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { catatAktivitas } from "@/lib/audit";
+import { pembahasDitolak } from "@/lib/jadwal";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,10 @@ export async function PUT(request: Request) {
       }
       if (existing.some(p => p.isReleased)) {
         return { error: "Kelas sudah dirilis, pembahas tidak dapat diubah.", status: 400 };
+      }
+      const ditolak = await pembahasDitolak(assignments, tx);
+      if (ditolak) {
+        return { error: ditolak, status: 400 };
       }
 
       for (const a of assignments) {

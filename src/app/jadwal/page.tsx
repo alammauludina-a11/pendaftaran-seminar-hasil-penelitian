@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { pendaftaran, users, slotWaktu, kelasSeminar, moderator as moderatorTable, periode } from "@/db/schema";
-import { and, eq, isNull, ne, or } from "drizzle-orm";
+import { and, eq, isNull, notLike, or } from "drizzle-orm";
 import { ANGKATAN_UJI } from "@/lib/data-uji";
 import { alias } from "drizzle-orm/sqlite-core";
 import JadwalClient from "./JadwalClient";
@@ -34,7 +34,7 @@ export default async function JadwalPage() {
   .leftJoin(dosenUsers, eq(moderatorTable.dosenId, dosenUsers.id))
   .leftJoin(periode, eq(pendaftaran.periodeId, periode.id))
   // Public page: schedules of the test periodes (lib/data-uji) are never shown
-  .where(and(eq(pendaftaran.isReleased, true), or(isNull(periode.angkatan), ne(periode.angkatan, ANGKATAN_UJI))));
+  .where(and(eq(pendaftaran.isReleased, true), or(isNull(periode.angkatan), notLike(periode.angkatan, `${ANGKATAN_UJI}%`))));
 
   // Format the data
   const formattedSchedules = schedules.map(item => {

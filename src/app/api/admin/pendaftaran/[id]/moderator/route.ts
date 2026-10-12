@@ -4,7 +4,7 @@ import { pendaftaran, kelasSeminar, moderator, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { findDosenClash, getWaktuMulaiPendaftaran, isPembimbing } from "@/lib/jadwal";
+import { dosenLainDunia, findDosenClash, getWaktuMulaiPendaftaran, isPembimbing } from "@/lib/jadwal";
 import { catatAktivitas } from "@/lib/audit";
 
 
@@ -44,6 +44,11 @@ export async function PUT(
       }
       const dosenName = dosenUser[0].nama;
       namaModerator = dosenName;
+      // A real dosen never moderates a test seminar and vice versa (lib/data-uji)
+      const lainDunia = await dosenLainDunia(dosenId, pend.id);
+      if (lainDunia) {
+        return NextResponse.json({ error: lainDunia }, { status: 400 });
+      }
       if (isPembimbing(pend, dosenId)) {
         return NextResponse.json({ error: "Dosen pembimbing tidak dapat dijadikan moderator untuk mahasiswanya sendiri." }, { status: 400 });
       }

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { catatAktivitas } from "@/lib/audit";
+import { pembahasDitolak } from "@/lib/jadwal";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,12 @@ export async function PUT(
     const { pembahas } = body;
 
     console.log(`[PEMBAHAS API] Updating id=${id} with pembahas="${pembahas}"`);
+
+    // Test students are never pembahas of real ones and vice versa (lib/data-uji)
+    const ditolak = await pembahasDitolak([{ id, pembahas: pembahas || null }]);
+    if (ditolak) {
+      return NextResponse.json({ error: ditolak }, { status: 400 });
+    }
 
     const updated = await db
       .update(pendaftaran)

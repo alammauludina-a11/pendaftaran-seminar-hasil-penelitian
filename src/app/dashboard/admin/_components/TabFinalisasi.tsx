@@ -2,6 +2,7 @@
 
 import { MapPin, CheckCircle2, XCircle, Clock, CheckSquare, Users, Calendar, UserCheck, Ban } from "lucide-react";
 import { useAdmin } from "../AdminContext";
+import { akunSeDunia } from "@/lib/data-uji";
 
 export default function TabFinalisasi() {
   const {
@@ -95,7 +96,8 @@ export default function TabFinalisasi() {
                       className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#06125C]/20 w-full font-medium text-[#06125C]"
                     >
                       <option value="">-- Pilih Moderator --</option>
-                      {masterDosen.map(d => {
+                      {/* Only dosen of the student's own world: real data or test data (lib/data-uji) */}
+                      {masterDosen.filter(d => akunSeDunia({ nipNim: d.nip }, { nipNim: item.nim })).map(d => {
                         const isSupervisor = d.id === item.dospem1Id || d.id === item.dospem2Id;
                         return (
                           <option key={d.id} value={d.id} disabled={isSupervisor}>

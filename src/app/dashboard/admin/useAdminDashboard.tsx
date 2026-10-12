@@ -146,6 +146,23 @@ export function useAdminDashboard() {
     }
   };
 
+  // Admin actions that send a request right away run at most once at a time per key ("finalisasi:12", ...):
+  // while one runs, its buttons are disabled and show "Memproses…", so a double click never sends it twice
+  const prosesRef = useRef(new Set<string>());
+  const [prosesAktif, setProsesAktif] = useState<ReadonlySet<string>>(new Set());
+  const sedangProses = (kunci: string) => prosesAktif.has(kunci);
+  const jalankanSekali = async (kunci: string, aksi: () => Promise<void>) => {
+    if (prosesRef.current.has(kunci)) return;
+    prosesRef.current.add(kunci);
+    setProsesAktif(new Set(prosesRef.current));
+    try {
+      await aksi();
+    } finally {
+      prosesRef.current.delete(kunci);
+      setProsesAktif(new Set(prosesRef.current));
+    }
+  };
+
 
 
   const fetchData = async (silent = false) => {
@@ -445,7 +462,7 @@ export function useAdminDashboard() {
   };
 
   // Save a manually edited pembahas; on failure reload the real data so the screen never shows unsaved values
-  const savePembahas = async (pendaftaranId: number, pembahasStr: string) => {
+  const savePembahas = (pendaftaranId: number, pembahasStr: string) => jalankanSekali(`pembahas:${pendaftaranId}`, async () => {
     try {
       const res = await trackWrite(fetch(`/api/admin/pendaftaran/${pendaftaranId}/pembahas`, {
         method: "PUT",
@@ -460,9 +477,9 @@ export function useAdminDashboard() {
       alert("Pembahas gagal disimpan. Periksa koneksi lalu coba lagi.");
     }
     fetchData(true);
-  };
+  });
 
-  const handleGeneratePembahas = async (classStudents: any[]) => {
+  const handleGeneratePembahas = (classStudents: any[]) => jalankanSekali(`pembahas-kelas:${classStudents[0]?.kelas}`, async () => {
     // Sort to group by dospem, maximizing distance between same dospem
     const sortedStudents = [...classStudents].sort((a, b) => (a.dospem || "").localeCompare(b.dospem || ""));
     const offset = Math.floor(sortedStudents.length / 2);
@@ -511,7 +528,7 @@ export function useAdminDashboard() {
       setPendaftaran(prev => prev.map(p => previous.has(p.id) ? { ...p, pembahas: previous.get(p.id) } : p));
       alert(`Pembahas gagal disimpan, tidak ada data yang berubah. Silakan coba lagi.\n${e instanceof Error ? e.message : ""}`);
     }
-  };
+  });
 
   const activePeriode = periodes.find(p => p.id === activePeriodeId);
 
@@ -671,7 +688,7 @@ export function useAdminDashboard() {
     setIsVerifikasiModalOpen(true);
   };
 
-  const handleActionVerifikasi = async (status: "disetujui" | "ditolak") => {
+  const handleActionVerifikasi = (status: "disetujui" | "ditolak") => jalankanSekali(`verifikasi:${selectedPendaftar.id}`, async () => {
     try {
       const res = await fetch(`/api/admin/pendaftaran/${selectedPendaftar.id}/verifikasi`, {
         method: "PUT",
@@ -693,9 +710,9 @@ export function useAdminDashboard() {
       alert("Terjadi kesalahan sistem.");
     }
     setIsVerifikasiModalOpen(false);
-  };
+  });
 
-  const handleFinalisasi = async (id: number) => {
+  const handleFinalisasi = (id: number) => jalankanSekali(`finalisasi:${id}`, async () => {
     try {
       const res = await fetch(`/api/admin/pendaftaran/${id}/finalisasi`, {
         method: "PUT",
@@ -711,9 +728,9 @@ export function useAdminDashboard() {
     } catch (e) {
       console.error(e);
     }
-  };
+  });
 
-  const handleBatalModerator = async (pendaftaranId: number, action: "setujui" | "tolak") => {
+  const handleBatalModerator = (pendaftaranId: number, action: "setujui" | "tolak") => jalankanSekali(`batal-moderator:${pendaftaranId}`, async () => {
     try {
       const res = await fetch(`/api/admin/pendaftaran/${pendaftaranId}/batal-moderator`, {
         method: "POST",
@@ -743,7 +760,7 @@ export function useAdminDashboard() {
       console.error(e);
       alert("Terjadi kesalahan.");
     }
-  };
+  });
 
   // Handlers for Pengumuman
   const displayFinalized = selectedDateFilter === "Semua Tanggal"
@@ -941,7 +958,7 @@ export function useAdminDashboard() {
     }
   };
 
-  const handleSetujuiRuangan = async (id: number) => {
+  const handleSetujuiRuangan = (id: number) => jalankanSekali(`ruangan:${id}`, async () => {
     const kirim = (konfirmasiFinal: boolean) => fetch(`/api/admin/pendaftaran/${id}/ruangan`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -976,7 +993,7 @@ export function useAdminDashboard() {
     } catch (e) {
       console.error(e);
     }
-  };
+  });
 
 
 
@@ -1124,6 +1141,8 @@ export function useAdminDashboard() {
     pendingWritesRef,
     setPendaftaran,
     trackWrite,
+    jalankanSekali,
+    sedangProses,
     fetchData,
     currentView,
     setCurrentView,

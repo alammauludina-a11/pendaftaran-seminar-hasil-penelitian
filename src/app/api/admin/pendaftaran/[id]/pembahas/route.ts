@@ -32,6 +32,15 @@ export async function PUT(
       return NextResponse.json({ error: ditolak }, { status: 400 });
     }
 
+    const [lama] = await db.select({ pembahas: pendaftaran.pembahas }).from(pendaftaran).where(eq(pendaftaran.id, id)).limit(1);
+    if (!lama) {
+      return NextResponse.json({ error: "Pendaftaran tidak ditemukan." }, { status: 404 });
+    }
+    // Same value as saved (e.g. the dropdown re-sent it): no write and no log entry
+    if ((lama.pembahas ?? null) === (pembahas || null)) {
+      return NextResponse.json({ message: "Tidak ada perubahan.", unchanged: true, data: { id, pembahas: lama.pembahas } }, { status: 200 });
+    }
+
     const updated = await db
       .update(pendaftaran)
       .set({ pembahas: pembahas || null })

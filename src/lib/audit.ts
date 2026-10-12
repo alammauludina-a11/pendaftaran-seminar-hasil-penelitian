@@ -9,7 +9,7 @@ import { auth } from "@/lib/auth";
 
 export type KategoriAktivitas = "verifikasi" | "jadwal" | "kelas" | "periode" | "master";
 
-type Aktivitas = {
+export type Aktivitas = {
   kategori: KategoriAktivitas;
   /** Machine-readable action key, e.g. "verifikasi.disetujui". */
   aksi: string;

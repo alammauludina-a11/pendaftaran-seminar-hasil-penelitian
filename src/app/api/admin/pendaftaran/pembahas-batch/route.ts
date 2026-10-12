@@ -30,9 +30,9 @@ export async function PUT(request: Request) {
     }
 
     const ids = assignments.map(a => a.id);
-    const error = await transaksi(async (tx) => {
+    const hasil = await transaksi(async (tx) => {
       const existing = await tx
-        .select({ id: pendaftaran.id, isReleased: pendaftaran.isReleased })
+        .select({ id: pendaftaran.id, isReleased: pendaftaran.isReleased, pembahas: pendaftaran.pembahas })
         .from(pendaftaran)
         .where(inArray(pendaftaran.id, ids));
 
@@ -47,25 +47,32 @@ export async function PUT(request: Request) {
         return { error: ditolak, status: 400 };
       }
 
-      for (const a of assignments) {
+      // Only rows whose pembahas really changes are written (and logged)
+      const lama = new Map(existing.map(p => [p.id, p.pembahas ?? null]));
+      const berubah = assignments.filter(a => (a.pembahas || null) !== lama.get(a.id));
+      for (const a of berubah) {
         await tx.update(pendaftaran).set({ pembahas: a.pembahas || null }).where(eq(pendaftaran.id, a.id));
       }
-      return null;
+      return { berubah };
     });
-    if (error) {
-      return NextResponse.json({ error: error.error }, { status: error.status });
+    if ("error" in hasil) {
+      return NextResponse.json({ error: hasil.error }, { status: hasil.status });
+    }
+    const { berubah } = hasil;
+    if (berubah.length === 0) {
+      return NextResponse.json({ message: "Tidak ada perubahan pembahas.", unchanged: true }, { status: 200 });
     }
 
     catatAktivitas({
       kategori: "jadwal",
       aksi: "pembahas.massal",
-      deskripsi: `Menyimpan pembahas untuk ${assignments.length} mahasiswa: {mahasiswa}`,
+      deskripsi: `Menyimpan pembahas untuk ${berubah.length} mahasiswa: {mahasiswa}`,
       targetTipe: "pendaftaran",
-      pendaftaranIds: ids,
-      detail: { assignments },
+      pendaftaranIds: berubah.map(a => a.id),
+      detail: { assignments: berubah },
     });
 
-    return NextResponse.json({ message: `${assignments.length} pembahas berhasil disimpan.` }, { status: 200 });
+    return NextResponse.json({ message: `${berubah.length} pembahas berhasil disimpan.` }, { status: 200 });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Gagal menyimpan pembahas." }, { status: 500 });

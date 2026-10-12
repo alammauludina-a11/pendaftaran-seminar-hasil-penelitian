@@ -5,7 +5,7 @@ import { useAdmin } from "../AdminContext";
 
 export default function TabPembahas() {
   const {
-    setPendaftaran, savePembahas, handleGeneratePembahas, activePendaftaran, uniqueKelas, activePeriode,
+    setPendaftaran, savePembahas, handleGeneratePembahas, activePendaftaran, uniqueKelas, activePeriode, sedangProses,
     globalKelasFilter, setGlobalKelasFilter, globalSearch, setGlobalSearch,
   } = useAdmin();
   if (!activePeriode) return null;
@@ -48,10 +48,11 @@ export default function TabPembahas() {
                 </div>
                 <button
                   onClick={() => handleGeneratePembahas(classPendaftaran)}
-                  disabled={classPendaftaran.some(p => p.isReleased)}
+                  disabled={classPendaftaran.some(p => p.isReleased) || sedangProses(`pembahas-kelas:${k}`)}
+                  title={classPendaftaran.some(p => p.isReleased) ? "Kelas sudah dirilis, pembahas tidak dapat diubah" : ""}
                   className={`px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shrink-0 ${classPendaftaran.some(p => p.isReleased) ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'}`}
                 >
-                  <Settings size={16} /> Generate Pembahas Kelas Ini
+                  <Settings size={16} /> {sedangProses(`pembahas-kelas:${k}`) ? "Memproses…" : "Generate Pembahas Kelas Ini"}
                 </button>
               </div>
 
@@ -93,7 +94,7 @@ export default function TabPembahas() {
                                 <div key={idx} className="flex items-center gap-2">
                                   <select
                                     value={pembVal || ""}
-                                    disabled={p.isReleased}
+                                    disabled={p.isReleased || sedangProses(`pembahas:${p.id}`)}
                                     onChange={async (e) => {
                                       const newValue = e.target.value;
                                       const newArr = [...currentPembahas];
@@ -138,7 +139,8 @@ export default function TabPembahas() {
                                           console.error("Gagal menyimpan pembahas:", err);
                                         }
                                       }}
-                                      className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg shrink-0"
+                                      disabled={sedangProses(`pembahas:${p.id}`)}
+                                      className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg shrink-0 disabled:opacity-50 disabled:cursor-wait"
                                       title="Hapus pembahas ini"
                                     >
                                       <X size={16} />
@@ -146,8 +148,10 @@ export default function TabPembahas() {
                                   )}
                                 </div>
                               ))}
+                              {sedangProses(`pembahas:${p.id}`) && <span className="text-[11px] text-slate-500">Memproses…</span>}
                               {!p.isReleased && (
                                 <button 
+                                  disabled={sedangProses(`pembahas:${p.id}`)}
                                   onClick={async () => {
                                     const newPembahasStr = [...currentPembahas, ""].join(',');
                                     setPendaftaran(prev => prev.map(item => item.id === p.id ? { ...item, pembahas: newPembahasStr } : item));
@@ -157,7 +161,7 @@ export default function TabPembahas() {
                                       console.error("Gagal menyimpan pembahas:", err);
                                     }
                                   }}
-                                  className="text-xs text-[#06125C] font-semibold flex items-center gap-1 hover:bg-[#06125C]/5 px-2 py-1 rounded-lg w-fit transition-colors"
+                                  className="text-xs text-[#06125C] font-semibold flex items-center gap-1 hover:bg-[#06125C]/5 px-2 py-1 rounded-lg w-fit transition-colors disabled:opacity-50 disabled:cursor-wait"
                                 >
                                   <Plus size={14}/> Tambah Pembahas
                                 </button>

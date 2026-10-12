@@ -23,7 +23,7 @@ export default function TabVerifikasi() {
   const {
     selectedDateFilter, setSelectedDateFilter, selectedKonsentrasiFilter, setSelectedKonsentrasiFilter,
     verifikasiSort, handleSortVerifikasi, uniqueKonsentrasi, verifikasiList, uniqueAllDates,
-    handleVerifikasiClick, handleSetujuiRuangan, activePeriode,
+    handleVerifikasiClick, handleSetujuiRuangan, activePeriode, sedangProses,
   } = useAdmin();
   if (!activePeriode) return null;
   const sortProps = { sort: verifikasiSort, onSort: handleSortVerifikasi };
@@ -139,9 +139,10 @@ export default function TabVerifikasi() {
                         )}
                         <button
                           onClick={() => handleSetujuiRuangan(item.id)}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] px-2 py-1 rounded shadow-sm font-semibold transition-colors whitespace-nowrap"
+                          disabled={sedangProses(`ruangan:${item.id}`)}
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] px-2 py-1 rounded shadow-sm font-semibold transition-colors whitespace-nowrap disabled:opacity-60 disabled:cursor-wait"
                         >
-                          Setujui Ruangan
+                          {sedangProses(`ruangan:${item.id}`) ? "Memproses…" : "Setujui Ruangan"}
                         </button>
                       </div>
                     )}
@@ -174,6 +175,12 @@ export default function TabVerifikasi() {
                     >
                       Periksa
                     </button>
+                    {/* A disabled button always says why */}
+                    {(item.isFinalized || item.status === 'ditolak') && (
+                      <div className="text-[10px] text-slate-400 mt-1">
+                        {item.isFinalized ? "Jadwal sudah final" : "Sudah ditolak"}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

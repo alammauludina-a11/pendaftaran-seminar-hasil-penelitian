@@ -2,13 +2,21 @@
 
 import { FileCheck, Eye, X } from "lucide-react";
 import { useAdmin } from "../AdminContext";
+import { MAX_CATATAN_VERIFIKASI } from "@/lib/aturan-teks";
 
 export default function ModalVerifikasi() {
   const {
     selectedPendaftar, setIsVerifikasiModalOpen, catatanVerifikasi, setCatatanVerifikasi, activePeriode,
-    handleActionVerifikasi,
+    handleActionVerifikasi, sedangProses,
   } = useAdmin();
   if (!selectedPendaftar) return null;
+
+  // While the request runs both buttons are disabled; every disabled button says why
+  const memproses = sedangProses(`verifikasi:${selectedPendaftar.id}`);
+  const catatanKosong = !catatanVerifikasi.trim();
+  const sudahDisetujui = selectedPendaftar.status === 'disetujui';
+  const sudahDitolak = selectedPendaftar.status === 'ditolak';
+  const keteranganTolak = sudahDitolak ? "Sudah ditolak" : catatanKosong ? "Catatan wajib diisi untuk penolakan" : null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -151,32 +159,40 @@ export default function ModalVerifikasi() {
           </div>
 
           <div>
-            <h4 className="text-sm font-bold text-slate-700 mb-2">Catatan Verifikasi (Opsional)</h4>
+            <h4 className="text-sm font-bold text-slate-700 mb-2">Catatan Verifikasi (wajib untuk penolakan)</h4>
             <textarea
               rows={3}
               value={catatanVerifikasi}
+              maxLength={MAX_CATATAN_VERIFIKASI}
               onChange={(e) => setCatatanVerifikasi(e.target.value)}
-              placeholder="Masukkan catatan jika ada perbaikan..."
+              placeholder="Tuliskan yang perlu diperbaiki mahasiswa (wajib bila menolak)..."
               className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#06125C]/20 focus:border-[#06125C] transition-all outline-none text-sm text-slate-700 resize-none"
             />
+            <p className="text-right text-[11px] text-slate-400 mt-1">{catatanVerifikasi.length}/{MAX_CATATAN_VERIFIKASI}</p>
           </div>
         </div>
 
         <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-          <button
-            onClick={() => handleActionVerifikasi('ditolak')}
-            disabled={selectedPendaftar.status === 'ditolak'}
-            className="px-6 py-2.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-xl font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-          >
-            Tolak Pendaftaran
-          </button>
-          <button
-            onClick={() => handleActionVerifikasi('disetujui')}
-            disabled={selectedPendaftar.status === 'disetujui'}
-            className="px-6 py-2.5 bg-[#06125C] hover:bg-[#06125C]/90 text-white rounded-xl font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Setujui Pendaftaran
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={() => handleActionVerifikasi('ditolak')}
+              disabled={memproses || keteranganTolak !== null}
+              className="px-6 py-2.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-xl font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+            >
+              {memproses ? "Memproses…" : "Tolak Pendaftaran"}
+            </button>
+            {!memproses && keteranganTolak && <span className="text-[11px] text-slate-500">{keteranganTolak}</span>}
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={() => handleActionVerifikasi('disetujui')}
+              disabled={memproses || sudahDisetujui}
+              className="px-6 py-2.5 bg-[#06125C] hover:bg-[#06125C]/90 text-white rounded-xl font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {memproses ? "Memproses…" : "Setujui Pendaftaran"}
+            </button>
+            {!memproses && sudahDisetujui && <span className="text-[11px] text-slate-500">Sudah disetujui</span>}
+          </div>
         </div>
       </div>
     </div>

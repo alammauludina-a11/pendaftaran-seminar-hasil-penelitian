@@ -32,6 +32,12 @@ export async function PUT(
       return NextResponse.json({ error: "Pendaftaran belum memiliki jadwal kelas" }, { status: 400 });
     }
 
+    // Same moderator as already set, or removing one that isn't there: no write and no log entry
+    const [modLama] = await db.select({ dosenId: moderator.dosenId }).from(moderator).where(eq(moderator.pendaftaranId, pend.id)).limit(1);
+    if ((modLama?.dosenId ?? null) === (dosenId || null)) {
+      return NextResponse.json({ message: "Tidak ada perubahan.", unchanged: true }, { status: 200 });
+    }
+
     let namaModerator: string | null = null;
     if (!dosenId) {
       // Remove moderator

@@ -7,7 +7,7 @@ export default function TabKelas() {
   const {
     kelasData, fetchData, activePeriodeId, manajemenKelasFilter, setManajemenKelasFilter, manajemenKelasSort,
     setManajemenKelasSort, handlePindahKelas, activePeriode, activePendaftaran, filteredPendaftaran,
-    handleVerifikasiClick, handleExportKelasPDF,
+    handleVerifikasiClick, handleExportKelasPDF, jalankanSekali, sedangProses,
   } = useAdmin();
   if (!activePeriode) return null;
 
@@ -35,28 +35,30 @@ export default function TabKelas() {
                 return;
               }
               if (confirm(`Apakah Anda yakin ingin membentuk kelas baru dengan ${count} mahasiswa dari antrean?`)) {
-                try {
-                  const res = await fetch("/api/admin/kelas/bentuk", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ periodeId: activePeriode.id })
-                  });
-                  const data = await res.json();
-                  if (res.ok) {
-                    alert(data.message);
-                    fetchData();
-                  } else {
-                    alert(data.error);
+                await jalankanSekali(`bentuk-kelas:${activePeriode.id}`, async () => {
+                  try {
+                    const res = await fetch("/api/admin/kelas/bentuk", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ periodeId: activePeriode.id })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                      alert(data.message);
+                      fetchData();
+                    } else {
+                      alert(data.error);
+                    }
+                  } catch (e) {
+                    alert("Terjadi kesalahan.");
                   }
-                } catch (e) {
-                  alert("Terjadi kesalahan.");
-                }
+                });
               }
             }}
-            disabled={filteredPendaftaran.filter(p => p.status === 'disetujui' && !p.kelas).length === 0}
+            disabled={filteredPendaftaran.filter(p => p.status === 'disetujui' && !p.kelas).length === 0 || sedangProses(`bentuk-kelas:${activePeriode.id}`)}
             className="mt-4 w-full bg-[#06125C] hover:bg-[#06125C]/90 disabled:bg-slate-200 disabled:text-slate-400 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"
           >
-            Bentuk Kelas Sekarang
+            {sedangProses(`bentuk-kelas:${activePeriode.id}`) ? "Memproses…" : "Bentuk Kelas Sekarang"}
           </button>
         </div>
       </div>

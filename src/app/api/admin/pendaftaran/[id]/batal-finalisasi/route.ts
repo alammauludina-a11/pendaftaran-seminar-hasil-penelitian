@@ -19,15 +19,20 @@ export async function PUT(
     const { id: idStr } = await params;
     const id = parseInt(idStr);
 
+    const [lama] = await db.select().from(pendaftaran).where(eq(pendaftaran.id, id)).limit(1);
+    if (!lama) {
+      return NextResponse.json({ error: "Pendaftaran tidak ditemukan." }, { status: 404 });
+    }
+    // Not final and not published: nothing to do and nothing to log
+    if (!lama.isFinalized && !lama.isReleased) {
+      return NextResponse.json({ message: "Jadwal belum difinalisasi.", unchanged: true, data: lama }, { status: 200 });
+    }
+
     const updated = await db
       .update(pendaftaran)
       .set({ isFinalized: false, isReleased: false })
       .where(eq(pendaftaran.id, id))
       .returning();
-
-    if (!updated.length) {
-      return NextResponse.json({ error: "Pendaftaran tidak ditemukan." }, { status: 404 });
-    }
 
     catatAktivitas({
       kategori: "jadwal",

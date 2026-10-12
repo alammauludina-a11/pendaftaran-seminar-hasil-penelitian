@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { db } from "@/db";
-import { pendaftaran, users, slotWaktu, kelasSeminar, moderator as moderatorTable } from "@/db/schema";
+import { pendaftaran, slotWaktu, kelasSeminar } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { alias } from "drizzle-orm/sqlite-core";
+import { ambilPendaftaranAdmin } from "@/lib/admin-pendaftaran";
 
 export const dynamic = "force-dynamic";
 
@@ -12,47 +12,7 @@ export async function GET() {
     const denied = await requireAdmin();
     if (denied) return denied;
 
-    const dosenUsers = alias(users, "dosenUsers");
-    const data = await db.select({
-      id: pendaftaran.id,
-      userId: pendaftaran.userId,
-      periodeId: pendaftaran.periodeId,
-      name: users.nama,
-      nim: users.nipNim,
-      prodi: users.prodi,
-      dospem: pendaftaran.dospem1,
-      dospem2: pendaftaran.dospem2,
-      dospem1Id: pendaftaran.dospem1Id,
-      dospem2Id: pendaftaran.dospem2Id,
-      title: pendaftaran.judulPenelitian,
-      status: pendaftaran.statusVerifikasi,
-      note: pendaftaran.catatanAdmin,
-      isFinalized: pendaftaran.isFinalized,
-      isReleased: pendaftaran.isReleased,
-      room: pendaftaran.ruanganDisetujui,
-      ruanganDiajukan: pendaftaran.ruanganDiajukan,
-      statusRuangan: pendaftaran.statusRuangan,
-      moderator: dosenUsers.nama,
-      moderatorId: dosenUsers.id,
-      moderatorAssignedByRole: moderatorTable.assignedByRole,
-      moderatorBatalStatus: moderatorTable.batalStatus,
-      pembahas: pendaftaran.pembahas,
-      waktuMulai: slotWaktu.waktuMulai,
-      waktuSelesai: slotWaktu.waktuSelesai,
-      kelas: kelasSeminar.namaKelas,
-      kelasSeminarId: pendaftaran.kelasSeminarId,
-      fileBuktiKolokium: pendaftaran.fileBuktiKolokium,
-      fileApprovalDospem: pendaftaran.fileApprovalDospem,
-      konsentrasi: pendaftaran.konsentrasi,
-      tanggalKolokium: pendaftaran.tanggalKolokium,
-      jenisSeminar: pendaftaran.jenisSeminar,
-    })
-    .from(pendaftaran)
-    .leftJoin(users, eq(pendaftaran.userId, users.id))
-    .leftJoin(slotWaktu, eq(pendaftaran.slotWaktuId, slotWaktu.id))
-    .leftJoin(kelasSeminar, eq(pendaftaran.kelasSeminarId, kelasSeminar.id))
-    .leftJoin(moderatorTable, eq(pendaftaran.id, moderatorTable.pendaftaranId))
-    .leftJoin(dosenUsers, eq(moderatorTable.dosenId, dosenUsers.id));
+    const data = await ambilPendaftaranAdmin();
 
     const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
     const monthsShort = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];

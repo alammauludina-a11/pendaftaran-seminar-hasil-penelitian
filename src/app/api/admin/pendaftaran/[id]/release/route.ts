@@ -36,6 +36,11 @@ export async function PUT(
       }, { status: 400 });
     }
 
+    // Already in the requested state: nothing to write and nothing to log
+    if (reg.isReleased === (isReleased === true)) {
+      return NextResponse.json({ message: "Tidak ada perubahan.", unchanged: true, data: reg }, { status: 200 });
+    }
+
     const updated = await db
       .update(pendaftaran)
       .set({ isReleased: isReleased === true })

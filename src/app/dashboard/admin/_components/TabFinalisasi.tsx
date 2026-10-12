@@ -7,6 +7,7 @@ import { akunSeDunia } from "@/lib/data-uji";
 export default function TabFinalisasi() {
   const {
     masterDosen, setPendaftaran, trackWrite, filteredPendaftaran, handleFinalisasi, handleBatalModerator,
+    jalankanSekali, sedangProses,
     activePeriode,
   } = useAdmin();
   if (!activePeriode) return null;
@@ -64,7 +65,8 @@ export default function TabFinalisasi() {
                   <td className="px-4 py-4 text-slate-700 font-medium text-sm">
                     <select
                       value={item.moderatorId || ""}
-                      onChange={async (e) => {
+                      disabled={sedangProses(`moderator:${item.id}`)}
+                      onChange={(e) => jalankanSekali(`moderator:${item.id}`, async () => {
                         const newValue = e.target.value;
                         const dosenId = newValue || null;
                         // d.id may be a number, stringify both sides to be safe
@@ -92,8 +94,8 @@ export default function TabFinalisasi() {
                           // Rollback on network error
                           setPendaftaran(prev => prev.map(p => p.id === item.id ? { ...p, moderatorId: item.moderatorId, moderator: item.moderator, moderatorAssignedByRole: item.moderatorAssignedByRole } : p));
                         }
-                      }}
-                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#06125C]/20 w-full font-medium text-[#06125C]"
+                      })}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#06125C]/20 w-full font-medium text-[#06125C] disabled:opacity-60 disabled:cursor-wait"
                     >
                       <option value="">-- Pilih Moderator --</option>
                       {/* Only dosen of the student's own world: real data or test data (lib/data-uji) */}
@@ -106,6 +108,7 @@ export default function TabFinalisasi() {
                         );
                       })}
                     </select>
+                    {sedangProses(`moderator:${item.id}`) && <div className="text-[10px] text-slate-500 mt-1">Memproses…</div>}
                     {item.moderatorId && (
                       <div className="text-[10px] text-indigo-500 mt-1 flex items-center gap-1 font-semibold">
                         <UserCheck size={10} /> Terpilih {item.moderatorAssignedByRole === 'dosen' ? '(Dipilih oleh Dosen)' : '(Dipilih oleh Admin)'}
@@ -117,18 +120,23 @@ export default function TabFinalisasi() {
                         <div className="flex items-center gap-1 text-[10px] font-bold text-orange-700">
                           <Ban size={10} /> Dosen Ajukan Batal Moderasi
                         </div>
+                        <p className="text-[11px] text-orange-900 break-words">
+                          <span className="font-semibold">Alasan:</span> {item.moderatorBatalReason || <span className="italic text-orange-700/70">tidak diisi</span>}
+                        </p>
                         <div className="flex gap-1.5">
                           <button
                             onClick={() => handleBatalModerator(item.id, "setujui")}
-                            className="flex-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg transition-colors"
+                            disabled={sedangProses(`batal-moderator:${item.id}`)}
+                            className="flex-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-wait"
                           >
-                            ✓ Setujui
+                            {sedangProses(`batal-moderator:${item.id}`) ? "Memproses…" : "✓ Setujui"}
                           </button>
                           <button
                             onClick={() => handleBatalModerator(item.id, "tolak")}
-                            className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-lg transition-colors"
+                            disabled={sedangProses(`batal-moderator:${item.id}`)}
+                            className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-wait"
                           >
-                            ✗ Tolak
+                            {sedangProses(`batal-moderator:${item.id}`) ? "Memproses…" : "✗ Tolak"}
                           </button>
                         </div>
                       </div>
@@ -190,13 +198,13 @@ export default function TabFinalisasi() {
                     <div className="flex flex-col gap-2 items-center">
                       <button
                         onClick={() => handleFinalisasi(item.id)}
-                        disabled={!item.room || !item.moderator || !item.pembahas}
+                        disabled={!item.room || !item.moderator || !item.pembahas || sedangProses(`finalisasi:${item.id}`)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           item.room && item.moderator && item.pembahas ? 'bg-[#06125C] hover:bg-[#06125C]/90 text-white' : 'bg-slate-100 text-slate-400'
                         }`}
                         title={(!item.room || !item.moderator || !item.pembahas) ? "Ruangan, Moderator, dan Pembahas harus terisi" : ""}
                       >
-                        Finalisasi
+                        {sedangProses(`finalisasi:${item.id}`) ? "Memproses…" : "Finalisasi"}
                       </button>
                       {item.room && item.moderator && !item.pembahas && (
                         <button
@@ -205,10 +213,11 @@ export default function TabFinalisasi() {
                               handleFinalisasi(item.id);
                             }
                           }}
-                          className="bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors border border-amber-200"
+                          disabled={sedangProses(`finalisasi:${item.id}`)}
+                          className="bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors border border-amber-200 disabled:opacity-60 disabled:cursor-wait"
                           title="Paksa finalisasi tanpa pembahas"
                         >
-                          Paksa Finalisasi
+                          {sedangProses(`finalisasi:${item.id}`) ? "Memproses…" : "Paksa Finalisasi"}
                         </button>
                       )}
                     </div>

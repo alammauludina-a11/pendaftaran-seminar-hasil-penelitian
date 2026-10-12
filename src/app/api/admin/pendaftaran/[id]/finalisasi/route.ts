@@ -24,6 +24,10 @@ export async function PUT(
         return { error: "Pendaftaran tidak ditemukan.", status: 404 } as const;
       }
       const reg = existing[0];
+      // Already final and published: nothing to do and nothing to log (e.g. a double click)
+      if (reg.isFinalized && reg.isReleased) {
+        return { unchanged: true, updated: [reg] } as const;
+      }
 
       // Requirements: approved, in a class, room and moderator set. Pembahas is optional ("Paksa Finalisasi").
       if (reg.statusVerifikasi !== "disetujui") {
@@ -52,6 +56,9 @@ export async function PUT(
       return NextResponse.json({ error: hasil.error }, { status: hasil.status });
     }
     const { updated } = hasil;
+    if ("unchanged" in hasil) {
+      return NextResponse.json({ message: "Pendaftaran sudah difinalisasi.", unchanged: true, data: updated[0] }, { status: 200 });
+    }
 
     catatAktivitas({
       kategori: "jadwal",

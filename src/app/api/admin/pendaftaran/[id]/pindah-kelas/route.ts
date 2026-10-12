@@ -27,6 +27,10 @@ export async function PUT(
         return { error: "Data pendaftaran tidak ditemukan", status: 404 } as const;
       }
       const reg = existing[0];
+      // Already in that class: nothing to do and nothing to log
+      if (reg.kelasSeminarId === kelasSeminarId) {
+        return { unchanged: true } as const;
+      }
 
       if (reg.isFinalized || reg.isReleased) {
         return { error: "Mahasiswa yang sudah difinalisasi tidak dapat dipindah kelas. Batalkan finalisasi terlebih dahulu.", status: 400 } as const;
@@ -77,6 +81,9 @@ export async function PUT(
     });
     if ("error" in hasil) {
       return NextResponse.json({ error: hasil.error }, { status: hasil.status });
+    }
+    if ("unchanged" in hasil) {
+      return NextResponse.json({ success: true, unchanged: true }, { status: 200 });
     }
     const { reg, namaKelasTujuan } = hasil;
 

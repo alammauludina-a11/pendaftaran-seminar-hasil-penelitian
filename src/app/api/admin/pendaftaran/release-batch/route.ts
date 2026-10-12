@@ -25,8 +25,8 @@ export async function PUT(request: Request) {
       .update(pendaftaran)
       .set({ isReleased: isReleased === true })
       .where(isReleased === true
-        ? and(inArray(pendaftaran.id, ids), eq(pendaftaran.isFinalized, true), isNotNull(pendaftaran.ruanganDisetujui))
-        : inArray(pendaftaran.id, ids))
+        ? and(inArray(pendaftaran.id, ids), eq(pendaftaran.isFinalized, true), isNotNull(pendaftaran.ruanganDisetujui), eq(pendaftaran.isReleased, false))
+        : and(inArray(pendaftaran.id, ids), eq(pendaftaran.isReleased, true)))
       .returning({ id: pendaftaran.id });
 
     if (updated.length > 0) {

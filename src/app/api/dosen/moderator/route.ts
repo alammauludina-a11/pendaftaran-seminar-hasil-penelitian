@@ -5,6 +5,7 @@ import { moderator, kelasSeminar, pendaftaran, users, slotWaktu, periode } from 
 import { eq, isNull, and, desc, or } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { periodeSeDunia } from "@/lib/data-uji";
 import { alias } from "drizzle-orm/sqlite-core";
 
 const dosenUsers = alias(users, "dosenUsers");
@@ -21,7 +22,9 @@ export async function GET(request: Request) {
 
     const currentUserId = session.user.id;
 
-    const allPeriodeData = await db.select().from(periode).orderBy(desc(periode.createdAt));
+    // Real dosen never see test periodes, test dosen only see test periodes (lib/data-uji)
+    const allPeriodeData = (await db.select().from(periode).orderBy(desc(periode.createdAt)))
+      .filter(p => periodeSeDunia(session.user, p));
     let activePeriodeData = null;
     if (reqPeriodeId) {
       activePeriodeData = allPeriodeData.find(p => p.id === parseInt(reqPeriodeId)) || null;
@@ -257,6 +260,12 @@ export async function POST(request: Request) {
       // Only approved registrations that already sit in a seminar class can be moderated (same set the GET shows)
       if (targetPend[0].statusVerifikasi !== "disetujui" || !targetPend[0].kelasSeminarId) {
         return { error: "Jadwal ini belum tersedia untuk dipilih moderator.", status: 400 };
+      }
+      const [periodeTarget] = targetPend[0].periodeId
+        ? await tx.select({ angkatan: periode.angkatan }).from(periode).where(eq(periode.id, targetPend[0].periodeId)).limit(1)
+        : [];
+      if (!periodeSeDunia(session.user, { angkatan: periodeTarget?.angkatan ?? null })) {
+        return { error: "Data pendaftaran tidak ditemukan", status: 404 };
       }
       if (isPembimbing(targetPend[0], currentUserId)) {
         return { error: "Anda tidak dapat menjadi moderator untuk mahasiswa bimbingan Anda sendiri.", status: 400 };

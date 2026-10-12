@@ -1,5 +1,6 @@
-// Removes everything created by scripts/uji-buat.ts (and everything done with it while testing):
-// test accounts, their registrations, uploaded files, moderators, classes, the UJICOBA periodes and their unused slots.
+// Removes everything created by scripts/uji-buat.ts, with or without --skenario-admin (and everything done with it
+// while testing): test accounts, their registrations, uploaded files, moderators (incl. cancel requests), classes,
+// all UJICOBA periodes and the unused slots of their weeks.
 // Only rows recognisable by the markers in uji-shared.ts are touched. The admin audit log is kept on purpose.
 //
 //   npx tsx --env-file=.env.local scripts/uji-hapus.ts              → only shows what would be removed
@@ -69,30 +70,30 @@ async function main() {
   );
   const fileHapus = fileIdsUji.filter(f => !dipakaiAsli.has(f));
 
-  // Slots of the test week that no real registration/class uses, unless a real periode also covers those dates
-  let slotHapus: number[] = [];
-  const hasil = periodeUji.find(p => p.jenisSeminar === "hasil_penelitian");
-  if (hasil?.startDate && hasil.endDate) {
+  // Slots of the test weeks (one per Seminar Hasil test periode) that no real registration/class uses,
+  // unless a real periode also covers those dates
+  const slotHapusSet = new Set<number>();
+  for (const hasil of periodeUji.filter(p => p.jenisSeminar === "hasil_penelitian")) {
+    if (!hasil.startDate || !hasil.endDate) continue;
     const tumpang = await db.select({ id: periode.id }).from(periode).where(and(
       ne(periode.angkatan, ANGKATAN_UJI),
       lte(periode.startDate, hasil.endDate),
       gte(periode.endDate, hasil.startDate),
     )).limit(1);
-    if (tumpang.length === 0) {
-      const dari = new Date(`${hasil.startDate}T00:00:00+07:00`);
-      const sampai = new Date(new Date(`${hasil.endDate}T00:00:00+07:00`).getTime() + 24 * 60 * 60 * 1000);
-      const ids = (await db.select({ id: slotWaktu.id }).from(slotWaktu)
-        .where(and(gte(slotWaktu.waktuMulai, dari), lt(slotWaktu.waktuMulai, sampai)))).map(s => s.id);
-      if (ids.length) {
-        const dipakai = new Set([
-          ...(await db.select({ s: pendaftaran.slotWaktuId }).from(pendaftaran).where(and(bukanUji, inArray(pendaftaran.slotWaktuId, ids)))).map(r => r.s),
-          ...(await db.select({ s: kelasSeminar.slotWaktuId }).from(kelasSeminar)
-            .where(and(kelasIds.length ? notInArray(kelasSeminar.id, kelasIds) : undefined, inArray(kelasSeminar.slotWaktuId, ids)))).map(r => r.s),
-        ]);
-        slotHapus = ids.filter(id => !dipakai.has(id));
-      }
-    }
+    if (tumpang.length > 0) continue;
+    const dari = new Date(`${hasil.startDate}T00:00:00+07:00`);
+    const sampai = new Date(new Date(`${hasil.endDate}T00:00:00+07:00`).getTime() + 24 * 60 * 60 * 1000);
+    const ids = (await db.select({ id: slotWaktu.id }).from(slotWaktu)
+      .where(and(gte(slotWaktu.waktuMulai, dari), lt(slotWaktu.waktuMulai, sampai)))).map(s => s.id);
+    if (!ids.length) continue;
+    const dipakai = new Set([
+      ...(await db.select({ s: pendaftaran.slotWaktuId }).from(pendaftaran).where(and(bukanUji, inArray(pendaftaran.slotWaktuId, ids)))).map(r => r.s),
+      ...(await db.select({ s: kelasSeminar.slotWaktuId }).from(kelasSeminar)
+        .where(and(kelasIds.length ? notInArray(kelasSeminar.id, kelasIds) : undefined, inArray(kelasSeminar.slotWaktuId, ids)))).map(r => r.s),
+    ]);
+    for (const id of ids) if (!dipakai.has(id)) slotHapusSet.add(id);
   }
+  const slotHapus = [...slotHapusSet];
 
   // Real registrations that picked a test dosen as pembimbing can't be fixed automatically
   const dospemAsli = dosenIds.length
@@ -147,7 +148,21 @@ async function main() {
     }
   });
 
-  console.log(`\nData uji berhasil dihapus. (Riwayat di Log Aktivitas Admin sengaja tidak dihapus.)`);
+  // Check that nothing recognisable as test data is left
+  const sisaAkun = await db.select({ id: users.id }).from(users).where(like(users.nipNim, `${NIP_NIM_PREFIX}%`));
+  const sisaPeriode = await db.select({ id: periode.id }).from(periode).where(eq(periode.angkatan, ANGKATAN_UJI));
+  const sisaPend = await db.select({ id: pendaftaran.id }).from(pendaftaran).where(or(
+    userIds.length ? inArray(pendaftaran.userId, userIds) : undefined,
+    periodeIds.length ? inArray(pendaftaran.periodeId, periodeIds) : undefined,
+  ));
+  const sisaKelas = kelasIds.length ? await db.select({ id: kelasSeminar.id }).from(kelasSeminar).where(inArray(kelasSeminar.id, kelasIds)) : [];
+  const sisaMod = dosenIds.length ? await db.select({ id: moderator.id }).from(moderator).where(inArray(moderator.dosenId, dosenIds)) : [];
+  const sisa = sisaAkun.length + sisaPeriode.length + sisaPend.length + sisaKelas.length + sisaMod.length;
+  if (sisa > 0) {
+    throw new Error(`Masih ada sisa data uji (akun ${sisaAkun.length}, periode ${sisaPeriode.length}, pendaftaran ${sisaPend.length}, kelas ${sisaKelas.length}, moderator ${sisaMod.length}).`);
+  }
+
+  console.log(`\nData uji berhasil dihapus dan tidak ada sisa. (Riwayat di Log Aktivitas Admin sengaja tidak dihapus.)`);
 }
 
 main().then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });

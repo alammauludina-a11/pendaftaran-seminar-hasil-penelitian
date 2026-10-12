@@ -4,6 +4,7 @@ import { pendaftaran, users, slotWaktu, periode, kelasSeminar } from "@/db/schem
 import { eq, or, and, desc, isNotNull } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { periodeSeDunia } from "@/lib/data-uji";
 
 export async function GET(request: Request) {
   try {
@@ -17,7 +18,9 @@ export async function GET(request: Request) {
 
     const dosenNama = session.user.nama || session.user.name;
 
-    const allPeriodeData = await db.select().from(periode).orderBy(desc(periode.createdAt));
+    // Real dosen never see test periodes, test dosen only see test periodes (lib/data-uji)
+    const allPeriodeData = (await db.select().from(periode).orderBy(desc(periode.createdAt)))
+      .filter(p => periodeSeDunia(session.user, p));
     const allPeriode = allPeriodeData.map(p => ({
       id: p.id,
       angkatan: p.angkatan,

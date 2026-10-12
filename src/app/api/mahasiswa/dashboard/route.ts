@@ -5,6 +5,7 @@ import { eq, inArray, and } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { akunSeDunia, periodeSeDunia } from "@/lib/data-uji";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -68,6 +69,7 @@ export async function GET(request: Request) {
         kelas: kelasSeminar.namaKelas,
         waktuMulai: slotWaktu.waktuMulai,
         waktuSelesai: slotWaktu.waktuSelesai,
+        angkatanPeriode: periode.angkatan,
       })
       .from(pendaftaran)
       .leftJoin(users, eq(pendaftaran.userId, users.id))
@@ -75,10 +77,11 @@ export async function GET(request: Request) {
       .leftJoin(kelasSeminar, eq(pendaftaran.kelasSeminarId, kelasSeminar.id))
       .leftJoin(moderator, eq(pendaftaran.id, moderator.pendaftaranId))
       .leftJoin(dosenUsers, eq(moderator.dosenId, dosenUsers.id))
+      .leftJoin(periode, eq(pendaftaran.periodeId, periode.id))
       .where(and(eq(pendaftaran.isReleased, true), eq(pendaftaran.jenisSeminar, jenis as "kolokium" | "hasil_penelitian")));
 
-    // Format Pengumuman
-    const pengumuman = rawPengumuman.map(r => {
+    // Format Pengumuman (only schedules of the student's own world: real or test data, see lib/data-uji)
+    const pengumuman = rawPengumuman.filter(r => periodeSeDunia(session.user, { angkatan: r.angkatanPeriode })).map(r => {
       let dateStr = "-";
       let timeStr = "-";
       if (r.waktuMulai && r.waktuSelesai) {
@@ -115,8 +118,9 @@ export async function GET(request: Request) {
     });
 
     // Fetch Master Dosen
-    const masterDosen = (await db.select({ id: users.id, nama: users.nama }).from(users).where(eq(users.role, "dosen")))
-      .filter(d => d.nama);
+    const masterDosen = (await db.select({ id: users.id, nama: users.nama, nipNim: users.nipNim }).from(users).where(eq(users.role, "dosen")))
+      .filter(d => d.nama && akunSeDunia(session.user, d))
+      .map(({ id, nama }) => ({ id, nama }));
 
     // Fetch completed kolokium date
     let riwayatTanggalKolokium = null;

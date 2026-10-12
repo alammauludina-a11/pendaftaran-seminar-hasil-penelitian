@@ -5,6 +5,7 @@ import { alias } from "drizzle-orm/sqlite-core";
 import { eq, or, and, desc } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { periodeSeDunia } from "@/lib/data-uji";
 
 // Progress of every student supervised by the logged-in dosen in the chosen periode (all statuses)
 export async function GET(request: Request) {
@@ -16,7 +17,9 @@ export async function GET(request: Request) {
 
     const reqPeriodeId = new URL(request.url).searchParams.get("periodeId");
 
-    const allPeriodeData = await db.select().from(periode).orderBy(desc(periode.createdAt));
+    // Real dosen never see test periodes, test dosen only see test periodes (lib/data-uji)
+    const allPeriodeData = (await db.select().from(periode).orderBy(desc(periode.createdAt)))
+      .filter(p => periodeSeDunia(session.user, p));
     let activePeriodeData = reqPeriodeId
       ? allPeriodeData.find(p => p.id === parseInt(reqPeriodeId)) || null
       : null;

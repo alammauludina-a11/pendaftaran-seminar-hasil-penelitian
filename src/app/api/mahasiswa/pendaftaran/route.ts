@@ -6,6 +6,7 @@ import { hapusFile, simpanFile } from "@/lib/file-storage";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { akunSeDunia } from "@/lib/data-uji";
 
 import crypto from "crypto";
 
@@ -49,8 +50,9 @@ export async function POST(request: Request) {
     if (!slot_id || isNaN(slot_id)) {
       return NextResponse.json({ error: "Slot jadwal wajib dipilih." }, { status: 400 });
     }
-    const dosenDipilih = await db.select({ id: users.id, nama: users.nama }).from(users)
-      .where(and(eq(users.role, "dosen"), inArray(users.id, [dospem1_id, dospem2_id].filter(Boolean))));
+    const dosenDipilih = (await db.select({ id: users.id, nama: users.nama, nipNim: users.nipNim }).from(users)
+      .where(and(eq(users.role, "dosen"), inArray(users.id, [dospem1_id, dospem2_id].filter(Boolean)))))
+      .filter(d => akunSeDunia(session.user, d)); // test students only pick test dosen and vice versa
     const namaDosen = new Map(dosenDipilih.map(d => [d.id, d.nama]));
     const dospem1_nama = namaDosen.get(dospem1_id);
     const dospem2_nama = dospem2_id ? namaDosen.get(dospem2_id) : "";

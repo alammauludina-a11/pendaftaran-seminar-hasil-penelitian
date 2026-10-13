@@ -115,6 +115,9 @@ export default function TabFinalisasi() {
                         <div className="flex items-center gap-1 text-[10px] font-bold text-orange-700">
                           <Ban size={10} /> Dosen Ajukan Batal Moderasi
                         </div>
+                        <p className="text-[11px] text-orange-900 break-words">
+                          <span className="font-semibold">Alasan:</span> {item.moderatorBatalReason || <span className="italic text-orange-700/70">tidak diisi</span>}
+                        </p>
                         <div className="flex gap-1.5">
                           <button
                             onClick={() => handleBatalModerator(item.id, "setujui")}

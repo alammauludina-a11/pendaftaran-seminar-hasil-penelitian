@@ -6,6 +6,7 @@ import { authClient, changePassword } from "../../../lib/auth-client";
 import { useSession } from "../../../lib/auth-client";
 import { useState, useEffect, useRef } from "react";
 import TabMahasiswaBimbingan from "./_components/TabMahasiswaBimbingan";
+import { MAX_REASON_LENGTH } from "../../../lib/aturan-teks";
 import { Users, Monitor, ShieldCheck, Calendar, ArrowRight, LogOut, CheckCircle2, Clock, MapPin, Search, UserCheck, AlertCircle, Filter, ChevronLeft, ChevronRight, X, BookOpen, Lock, ArrowUpDown, XCircle, Ban } from "lucide-react";
 
 export default function DosenDashboard() {
@@ -198,16 +199,25 @@ export default function DosenDashboard() {
 
    const [isBatalLoading, setIsBatalLoading] = useState<Record<string|number, boolean>>({});
 
-   const handleAjukanBatal = async (pendaftaranId: string | number, action: "ajukan" | "batalkan_pengajuan") => {
+   // "Ajukan Batal" first asks for the reason (required, shown to the admin) in a small form
+   const [formBatal, setFormBatal] = useState<{ pendaftaranId: string | number; nama: string } | null>(null);
+   const [alasanBatal, setAlasanBatal] = useState("");
+
+   const handleAjukanBatal = async (pendaftaranId: string | number, action: "ajukan" | "batalkan_pengajuan", reason?: string) => {
+      if (isBatalLoading[pendaftaranId]) return;
       try {
          setIsBatalLoading(prev => ({ ...prev, [pendaftaranId]: true }));
          const res = await fetch("/api/dosen/moderator/batal", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ pendaftaranId, action })
+            body: JSON.stringify({ pendaftaranId, action, reason })
          });
          const data = await res.json();
          if (res.ok) {
+            if (action === "ajukan") {
+               setFormBatal(null);
+               setAlasanBatal("");
+            }
             alert(data.message);
             fetchModerator(selectedPeriodeId);
          } else {
@@ -794,7 +804,7 @@ export default function DosenDashboard() {
                                                   )}
                                                   {m.isMyModeration && !m.isPast && (!m.batalStatus || m.batalStatus === "ditolak") && (
                                                     <button
-                                                      onClick={() => handleAjukanBatal(m.pendaftaranId, "ajukan")}
+                                                      onClick={() => { setAlasanBatal(""); setFormBatal({ pendaftaranId: m.pendaftaranId, nama: m.nama }); }}
                                                       disabled={!!isBatalLoading[m.pendaftaranId]}
                                                       className="shrink-0 px-3 py-1.5 rounded-lg font-semibold text-[11px] transition-colors flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 shadow-sm disabled:opacity-50"
                                                     >
@@ -828,6 +838,69 @@ export default function DosenDashboard() {
             </>)}
 
          </main>
+
+         {/* Modal Alasan Batal Moderasi */}
+         {formBatal && (
+           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+             <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => !isBatalLoading[formBatal.pendaftaranId] && setFormBatal(null)}></div>
+             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative z-10 animate-in fade-in zoom-in-95 duration-200">
+               <div className="bg-[#06125C] px-6 py-4 flex items-center justify-between">
+                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                   <Ban size={20} />
+                   Ajukan Batal Moderasi
+                 </h3>
+                 <button
+                   onClick={() => setFormBatal(null)}
+                   disabled={!!isBatalLoading[formBatal.pendaftaranId]}
+                   className="text-white/70 hover:text-white transition-colors"
+                 >
+                   <X size={24} />
+                 </button>
+               </div>
+               <form
+                 onSubmit={(e) => { e.preventDefault(); handleAjukanBatal(formBatal.pendaftaranId, "ajukan", alasanBatal.trim()); }}
+                 className="p-6 space-y-4"
+               >
+                 <p className="text-sm text-slate-600">
+                   Pengajuan batal moderasi untuk seminar <span className="font-semibold text-slate-800">{formBatal.nama}</span> akan diteruskan ke admin bersama alasan Anda.
+                 </p>
+                 <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Alasan pembatalan (wajib)</label>
+                   <textarea
+                     rows={4}
+                     autoFocus
+                     value={alasanBatal}
+                     maxLength={MAX_REASON_LENGTH}
+                     onChange={(e) => setAlasanBatal(e.target.value)}
+                     placeholder="Contoh: ada tugas lain di jam yang sama."
+                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#06125C]/20 focus:border-[#06125C] transition-all outline-none text-sm text-slate-700 resize-none"
+                   />
+                   <p className="text-right text-[11px] text-slate-400 mt-1">{alasanBatal.length}/{MAX_REASON_LENGTH}</p>
+                 </div>
+                 <div className="flex justify-end gap-3">
+                   <button
+                     type="button"
+                     onClick={() => setFormBatal(null)}
+                     disabled={!!isBatalLoading[formBatal.pendaftaranId]}
+                     className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                   >
+                     Batal
+                   </button>
+                   <div className="flex flex-col items-end gap-1">
+                     <button
+                       type="submit"
+                       disabled={!alasanBatal.trim() || !!isBatalLoading[formBatal.pendaftaranId]}
+                       className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                     >
+                       {isBatalLoading[formBatal.pendaftaranId] ? "Memproses…" : "Kirim Pengajuan"}
+                     </button>
+                     {!alasanBatal.trim() && <span className="text-[11px] text-slate-500">Alasan wajib diisi</span>}
+                   </div>
+                 </div>
+               </form>
+             </div>
+           </div>
+         )}
 
          {/* Modal Ubah Password */}
          {showPasswordModal && (

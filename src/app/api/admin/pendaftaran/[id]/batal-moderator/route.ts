@@ -55,7 +55,7 @@ export async function POST(
       catatAktivitas({
         kategori: "jadwal",
         aksi: "moderator.batal_disetujui",
-        deskripsi: "Menyetujui pengajuan batal moderator untuk {mahasiswa}",
+        deskripsi: `Menyetujui pengajuan batal moderator untuk {mahasiswa}${modRecord.batalReason ? ` (alasan: "${modRecord.batalReason}")` : ""}`,
         targetTipe: "pendaftaran",
         targetId: pendaftaranId,
         pendaftaranIds: [pendaftaranId],

@@ -6,12 +6,14 @@
 //
 //   npx tsx --env-file=.env.local scripts/uji-hapus.ts              → only shows what would be removed
 //   npx tsx --env-file=.env.local scripts/uji-hapus.ts --jalankan   → removes it
+//
+// A target that is not a local SQLite file (Turso) also needs --produksi and typing "YA" before anything is removed.
 import { and, gte, inArray, like, lt, lte, notInArray, notLike, or } from "drizzle-orm";
 import { db, transaksi } from "../src/db";
 import {
   users, account, session, loginLog, loginGagal, periode, pendaftaran, moderator, kelasSeminar, files, slotWaktu, logAktivitas,
 } from "../src/db/schema";
-import { ANGKATAN_UJI, NIP_NIM_PREFIX, EMAIL_DOMAIN, JALANKAN, targetDatabase, isLogUji, type IdUji } from "./uji-shared";
+import { ANGKATAN_UJI, NIP_NIM_PREFIX, EMAIL_DOMAIN, JALANKAN, targetDatabase, isLogUji, bolehMenulis, type IdUji } from "./uji-shared";
 
 const periodeUjiFilter = like(periode.angkatan, `${ANGKATAN_UJI}%`);
 
@@ -145,6 +147,11 @@ async function main() {
     console.log(`\nIni hanya pratinjau, belum ada yang dihapus. Tambahkan --jalankan untuk menghapus.`);
     return;
   }
+  // A production target needs --produksi and a typed "YA" (see uji-shared.ts)
+  if (!(await bolehMenulis())) {
+    process.exitCode = 1;
+    return;
+  }
 
   await transaksi(async (tx) => {
     if (modUji.length) await tx.delete(moderator).where(inArray(moderator.id, modUji.map(m => m.id)));
@@ -188,4 +195,4 @@ async function main() {
   console.log(`\nData uji berhasil dihapus dan tidak ada sisa, termasuk ${logHapus.length} baris Log Aktivitas Admin tentang data uji.`);
 }
 
-main().then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });
+main().then(() => process.exit(process.exitCode ?? 0), (e) => { console.error(e); process.exit(1); });

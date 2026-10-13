@@ -8,6 +8,8 @@
 //   npx tsx --env-file=.env.local scripts/uji-buat.ts [--skenario-admin]              → only shows what would be created
 //   npx tsx --env-file=.env.local scripts/uji-buat.ts [--skenario-admin] --jalankan   → creates it
 //
+// A target that is not a local SQLite file (Turso) also needs --produksi and typing "YA" before anything is written.
+//
 // Remove everything again with scripts/uji-hapus.ts.
 import crypto from "crypto";
 import { like } from "drizzle-orm";
@@ -16,7 +18,7 @@ import { db, transaksi } from "../src/db";
 import { users, account, periode, pendaftaran } from "../src/db/schema";
 import { autoGenerateSlots } from "../src/lib/slot-generator";
 import {
-  NIP_NIM_PREFIX, EMAIL_DOMAIN, PESERTA, DOSEN_UJI, DOSEN_PENDUKUNG, JALANKAN, SKENARIO_ADMIN, targetDatabase, mingguUji,
+  NIP_NIM_PREFIX, EMAIL_DOMAIN, PESERTA, DOSEN_UJI, DOSEN_PENDUKUNG, JALANKAN, SKENARIO_ADMIN, targetDatabase, mingguUji, bolehMenulis,
 } from "./uji-shared";
 import {
   barisPendaftaran, buatPendaftaranRencana, mahasiswaRencana, periksaRencana, rencanaPeriode, ringkasanRencana,
@@ -70,6 +72,11 @@ async function main() {
   if (!JALANKAN) {
     cetakPeserta();
     console.log(`\nIni hanya pratinjau, belum ada yang ditulis. Tambahkan --jalankan untuk membuat data uji.`);
+    return;
+  }
+  // A production target needs --produksi and a typed "YA" (see uji-shared.ts)
+  if (!(await bolehMenulis())) {
+    process.exitCode = 1;
     return;
   }
 

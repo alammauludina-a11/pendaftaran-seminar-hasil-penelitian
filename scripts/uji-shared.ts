@@ -1,6 +1,7 @@
 // Shared markers for the test-data scripts (uji-buat.ts / uji-hapus.ts).
 // Everything created for testing is recognisable by these markers, so cleanup never touches real data.
 // The app uses the same markers (src/lib/data-uji.ts) to keep test data invisible to real users.
+import { createInterface } from "node:readline/promises";
 import { ANGKATAN_UJI, ANGKATAN_UJI_ADMIN, NIP_NIM_PREFIX } from "../src/lib/data-uji";
 
 export { ANGKATAN_UJI, ANGKATAN_UJI_ADMIN, NIP_NIM_PREFIX };
@@ -75,10 +76,52 @@ export const JALANKAN = process.argv.includes("--jalankan");
 /** uji-buat.ts only: also create the admin scenario (see uji-rencana.ts). */
 export const SKENARIO_ADMIN = process.argv.includes("--skenario-admin");
 
+/** URL of the target database, same default as src/db. */
+export const urlDatabase = () => process.env.DATABASE_URL || "file:./sqlite.db";
+
 /** Host of the target database, for the confirmation banner (no credentials). */
-export function targetDatabase() {
-  const url = process.env.DATABASE_URL || "file:./sqlite.db";
+export function targetDatabase(url = urlDatabase()) {
   return url.replace(/\/\/[^@/]*@/, "//").split("?")[0];
+}
+
+/** Only a local SQLite file counts as a safe target; anything else (Turso, ...) is treated as production. */
+export const isTargetLokal = (url: string) => url.startsWith("file:");
+
+/**
+ * Why a writing run (--jalankan) must not start, or null when it may: a target that is not a local file
+ * needs the extra flag --produksi (and then a typed "YA", see bolehMenulis).
+ */
+export function alasanTolakTarget(url: string, argv: string[]): string | null {
+  if (isTargetLokal(url)) return null;
+  if (!argv.includes("--produksi")) {
+    return `Target ${targetDatabase(url)} bukan database lokal. Untuk menulis ke database produksi tambahkan --produksi (lalu ketik YA).`;
+  }
+  return null;
+}
+
+/**
+ * Last check before a script writes: local files pass, production needs --produksi and the operator typing
+ * "YA" in an interactive terminal. Prints the reason and returns false otherwise.
+ */
+export async function bolehMenulis(url = urlDatabase(), argv = process.argv): Promise<boolean> {
+  const alasan = alasanTolakTarget(url, argv);
+  if (alasan) {
+    console.log(`\nDIBATALKAN: ${alasan}`);
+    return false;
+  }
+  if (isTargetLokal(url)) return true;
+  if (!process.stdin.isTTY) {
+    console.log(`\nDIBATALKAN: menulis ke produksi (${targetDatabase(url)}) perlu konfirmasi di terminal interaktif.`);
+    return false;
+  }
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const jawab = await rl.question(`\nAnda akan MENULIS ke database produksi ${targetDatabase(url)}. Ketik YA untuk melanjutkan: `);
+  rl.close();
+  if (jawab.trim() !== "YA") {
+    console.log("DIBATALKAN: konfirmasi tidak sesuai, tidak ada yang ditulis.");
+    return false;
+  }
+  return true;
 }
 
 /** YYYY-MM-DD of the given date in WIB. */

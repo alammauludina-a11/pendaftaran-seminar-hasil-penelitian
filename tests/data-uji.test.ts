@@ -4,7 +4,7 @@ import { akunSeDunia, isAkunUji, isPeriodeUji, pembahasLainDunia, periodeSeDunia
 import {
   analisisPembahas, mahasiswaRencana, opsiModerasi, periksaRencana, rencanaPeriode,
 } from "../scripts/uji-rencana";
-import { DOSEN_SEMUA, DOSEN_UJI, isLogUji, type IdUji } from "../scripts/uji-shared";
+import { DOSEN_SEMUA, DOSEN_UJI, alasanTolakTarget, bolehMenulis, isLogUji, type IdUji } from "../scripts/uji-shared";
 
 const asli = { nipNim: "2201001" };
 const uji = { nipNim: "UJICOBA-M1A" };
@@ -132,5 +132,26 @@ describe("isLogUji (pembersihan Log Aktivitas Admin)", () => {
     assert.equal(isLogUji(log({ targetTipe: "kelas", targetId: "7" }), { ...id, kelas: new Set() }), false);
     assert.equal(isLogUji(log({ targetTipe: "pendaftaran", detail: '{"ids":[10,12]}', deskripsi: "Merilis Mahasiswa Uji 1 (UJICOBA-M1)" }), id), false);
     assert.equal(isLogUji(log({ deskripsi: "Menghapus periode Seminar Hasil AKN 60" }), id), false);
+  });
+});
+
+describe("pengaman produksi skrip uji (uji-buat / uji-hapus)", () => {
+  const turso = "libsql://db-contoh.turso.io";
+
+  it("database lokal (file:) boleh ditulis tanpa flag tambahan", async () => {
+    assert.equal(alasanTolakTarget("file:./uji-data/uji.db", ["--jalankan"]), null);
+    assert.equal(await bolehMenulis("file:./uji-data/uji.db", ["--jalankan"]), true);
+  });
+
+  it("target produksi tanpa --produksi ditolak", async () => {
+    assert.match(alasanTolakTarget(turso, ["--jalankan"]) ?? "", /bukan database lokal.*--produksi/);
+    assert.equal(await bolehMenulis(turso, ["--jalankan"]), false);
+  });
+
+  it("target produksi dengan --produksi tetap butuh ketik YA di terminal interaktif", async () => {
+    assert.equal(alasanTolakTarget(turso, ["--jalankan", "--produksi"]), null);
+    // Under the test runner stdin is not a terminal, so the typed confirmation can't happen: refused
+    assert.equal(process.stdin.isTTY ?? false, false);
+    assert.equal(await bolehMenulis(turso, ["--jalankan", "--produksi"]), false);
   });
 });

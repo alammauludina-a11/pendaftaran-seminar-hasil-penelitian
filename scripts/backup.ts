@@ -4,17 +4,19 @@
 //   Kept: the last 30 days, plus the copy of the 1st of each month for 12 months.
 // - Uploaded PDFs → pdf/<file id>.pdf. Each file is downloaded once (uploads never change) and never deleted.
 //   Legacy PDFs come from the database; PDFs on the server's disk via APP_URL + MAINTENANCE_TOKEN.
+//   A PDF that can't be fetched (e.g. missing on the server) is a warning, listed at the end with its
+//   registrations; the backup still succeeds. Only a failing data backup counts (and notifies) as GAGAL.
 //
 //   npx tsx --env-file=.env.local scripts/backup.ts
 //
 // Folder: ~/Backup Seminar (override with BACKUP_DIR). Restore with scripts/restore.ts.
 import { createClient, type Client, type Row } from "@libsql/client";
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
+import { backupPdf, pendaftaranPerFile } from "./backup-pdf";
 
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(homedir(), "Backup Seminar");
 const HARIAN = 30;
@@ -75,26 +77,6 @@ async function unduhDariServer(id: string) {
   return Buffer.from(await res.arrayBuffer());
 }
 
-async function backupPdf(pdfDir: string, fileIds: string[], hash: Map<string, string | null>) {
-  const sudahAda = new Set(readdirSync(pdfDir).filter(f => f.endsWith(".pdf")).map(f => f.slice(0, -4)));
-  const baru = fileIds.filter(id => !sudahAda.has(id));
-  for (let i = 0; i < baru.length; i += 20) {
-    const batch = baru.slice(i, i + 20);
-    const res = await client.execute({
-      sql: `select id, data from files where id in (${batch.map(() => "?").join(",")})`,
-      args: batch,
-    });
-    for (const r of res.rows) {
-      // Legacy files still carry base64 in the database; moved files are downloaded from the app's disk
-      const isi = r.data ? Buffer.from(String(r.data), "base64") : await unduhDariServer(String(r.id));
-      const diharapkan = hash.get(String(r.id));
-      if (diharapkan && createHash("sha256").update(isi).digest("hex") !== diharapkan) throw new Error(`PDF ${r.id} tidak cocok dengan sha256-nya`);
-      tulisAman(path.join(pdfDir, `${r.id}.pdf`), isi);
-    }
-  }
-  return { baru: baru.length, total: sudahAda.size + baru.length };
-}
-
 /** Removes data copies older than 30 days, except the 1st of the month for the last 12 months. */
 function rapikan(dataDir: string) {
   const hariIni = new Date(`${todayWIB()}T00:00:00Z`);
@@ -126,7 +108,18 @@ async function main() {
 
   const mulai = Date.now();
   const { file, isi } = await backupData(dataDir);
-  const pdf = await backupPdf(pdfDir, (isi.files ?? []).map(f => String(f.id)), new Map((isi.files ?? []).map(f => [String(f.id), f.sha256 as string | null])));
+  const pdf = await backupPdf({
+    pdfDir,
+    fileIds: (isi.files ?? []).map(f => String(f.id)),
+    hash: new Map((isi.files ?? []).map(f => [String(f.id), f.sha256 as string | null])),
+    ambilBatch: async (ids) => (await client.execute({
+      sql: `select id, data from files where id in (${ids.map(() => "?").join(",")})`,
+      args: ids,
+    })).rows.map(r => ({ id: String(r.id), data: r.data ? String(r.data) : null })),
+    unduh: unduhDariServer,
+    simpan: tulisAman,
+    pendaftaranIds: pendaftaranPerFile(isi.pendaftaran ?? []),
+  });
   const dihapus = rapikan(dataDir);
 
   const ringkas = Object.entries(isi).map(([t, rows]) => `${t}=${rows.length}`).join(", ");
@@ -135,6 +128,12 @@ async function main() {
   console.log(`         ${ringkas}`);
   console.log(`  PDF  : ${pdf.baru} baru diunduh, total ${pdf.total} file di ${pdfDir}`);
   if (dihapus.length) console.log(`  Dirapikan: ${dihapus.join(", ")}`);
+  if (pdf.gagal.length) {
+    console.log(`  PERINGATAN: ${pdf.gagal.length} PDF tidak bisa dicadangkan (data tetap tersimpan dan terverifikasi):`);
+    for (const g of pdf.gagal) {
+      console.log(`    - ${g.id} (pendaftaran ${g.pendaftaranIds.join(", ") || "-"}): ${g.alasan}`);
+    }
+  }
 }
 
 main().then(

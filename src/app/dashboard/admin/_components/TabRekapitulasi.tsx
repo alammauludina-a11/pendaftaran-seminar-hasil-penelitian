@@ -1,7 +1,26 @@
 "use client";
 
-import { Search, UserCheck } from "lucide-react";
+import { Search, UserCheck, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { useAdmin } from "../AdminContext";
+import type { KunciUrutRekap } from "../useAdminDashboard";
+
+type SortState = { key: KunciUrutRekap; order: "asc" | "desc" } | null;
+
+function SortHeader({ kunci, label, sort, onSort }: { kunci: KunciUrutRekap; label: string; sort: SortState; onSort: (k: KunciUrutRekap) => void }) {
+  const aktif = sort?.key === kunci;
+  const Ikon = !aktif ? ArrowUpDown : sort.order === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(kunci)}
+      className={`inline-flex items-center gap-1 hover:text-[#06125C] transition-colors ${aktif ? "text-[#06125C]" : ""}`}
+      title={`Urutkan berdasarkan ${label.toLowerCase()}`}
+    >
+      {label}
+      <Ikon size={13} className={aktif ? "" : "text-slate-300"} />
+    </button>
+  );
+}
 
 export default function TabRekapitulasi() {
   const {
@@ -9,6 +28,8 @@ export default function TabRekapitulasi() {
     handleExportRekapExcel, handleExportRekapPDF,
   } = useAdmin();
   if (!activePeriode) return null;
+
+  const sortProps = { sort: rekapSort, onSort: handleSortRekap };
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col gap-6">
@@ -43,15 +64,9 @@ export default function TabRekapitulasi() {
             <thead className="bg-slate-50 border-y border-slate-200 text-slate-600 font-semibold select-none">
               <tr>
                 <th className="px-6 py-4 w-16 text-center">No</th>
-                <th className="px-6 py-4 w-1/2 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortRekap('name')}>
-                  Nama Dosen {rekapSort.key === 'name' ? (rekapSort.order === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th className="px-6 py-4 text-center w-1/4 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortRekap('moderatorCount')}>
-                  Sebagai Moderator {rekapSort.key === 'moderatorCount' ? (rekapSort.order === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th className="px-6 py-4 text-center w-1/4 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortRekap('pembimbingCount')}>
-                  Sebagai Pembimbing {rekapSort.key === 'pembimbingCount' ? (rekapSort.order === 'asc' ? '↑' : '↓') : ''}
-                </th>
+                <th className="px-6 py-4 w-1/2"><SortHeader kunci="name" label="Nama Dosen" {...sortProps} /></th>
+                <th className="px-6 py-4 text-center w-1/4"><SortHeader kunci="moderatorCount" label="Sebagai Moderator" {...sortProps} /></th>
+                <th className="px-6 py-4 text-center w-1/4"><SortHeader kunci="pembimbingCount" label="Sebagai Pembimbing" {...sortProps} /></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

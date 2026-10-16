@@ -11,6 +11,8 @@ import type { PeriodeData, MahasiswaData, DosenData } from "./admin-types";
 import { urutkanVerifikasi, type KunciUrutVerifikasi } from "@/lib/urut-verifikasi";
 import { buatPemantauan, ringkasPemantauan, belumDaftar, urutkanPemantauan, barisExcelPemantauan, kolomExcelPemantauanKosong, type KunciUrutPemantauan } from "@/lib/pemantauan";
 
+export type KunciUrutRekap = 'name' | 'moderatorCount' | 'pembimbingCount';
+
 export function useAdminDashboard() {
   const router = useRouter();
   const handleLogout = async () => {
@@ -225,7 +227,8 @@ export function useAdminDashboard() {
   const [pemantauanSearch, setPemantauanSearch] = useState("");
   // null = default order (students that need attention first)
   const [pemantauanSort, setPemantauanSort] = useState<{ key: KunciUrutPemantauan, order: 'asc' | 'desc' } | null>(null);
-  const [rekapSort, setRekapSort] = useState<{ key: 'name' | 'moderatorCount' | 'pembimbingCount', order: 'asc' | 'desc' }>({ key: 'name', order: 'asc' });
+  // null = default order (name A–Z)
+  const [rekapSort, setRekapSort] = useState<{ key: KunciUrutRekap, order: 'asc' | 'desc' } | null>(null);
   const [rekapSearch, setRekapSearch] = useState("");
 
   // Filter States inside Manajemen
@@ -548,13 +551,12 @@ export function useAdminDashboard() {
     const pembimbingCount = activePendaftaran.filter(p => p.status !== "ditolak" && (p.dospem1Id === dosen.id || p.dospem2Id === dosen.id)).length;
     return { ...dosen, moderatorCount, pembimbingCount };
   }).sort((a, b) => {
-    let valA = (a as any)[rekapSort.key];
-    let valB = (b as any)[rekapSort.key];
-    if (rekapSort.key === 'name') {
-      return rekapSort.order === 'asc' ? (valA as string).localeCompare(valB as string) : (valB as string).localeCompare(valA as string);
-    } else {
-      return rekapSort.order === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number);
-    }
+    const byName = a.name.localeCompare(b.name);
+    if (!rekapSort) return byName;
+    const dir = rekapSort.order === 'asc' ? 1 : -1;
+    if (rekapSort.key === 'name') return dir * byName;
+    // Equal counts stay in name order
+    return dir * (a[rekapSort.key] - b[rekapSort.key]) || byName;
   });
 
   // Pemantauan: students of the angkatan (master data for kolokium, the kolokium list for seminar hasil)
@@ -599,11 +601,11 @@ export function useAdminDashboard() {
     XLSX.writeFile(wb, `${nama.replace(/\s+/g, "_")}.xlsx`);
   };
 
-  const handleSortRekap = (key: 'name' | 'moderatorCount' | 'pembimbingCount') => {
-    setRekapSort(prev => ({
-      key,
-      order: prev.key === key && prev.order === 'asc' ? 'desc' : 'asc'
-    }));
+  // Click cycles a column: ascending → descending → back to the default order
+  const handleSortRekap = (key: KunciUrutRekap) => {
+    setRekapSort(prev =>
+      prev?.key !== key ? { key, order: 'asc' } : prev.order === 'asc' ? { key, order: 'desc' } : null
+    );
   };
 
   const handleExportRekapExcel = () => {

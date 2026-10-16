@@ -174,6 +174,12 @@ export async function GET(request: Request) {
 
         return {
           ...s,
+          // Pembimbing are left out of the response (undefined is dropped from the JSON) so a dosen
+          // picks a slot to moderate without choosing by who the pembimbing is
+          dospem: undefined,
+          dospem2: undefined,
+          dospem1Id: undefined,
+          dospem2Id: undefined,
           dateStr: dateStr,
           time: `${startTimeStr} - ${endTimeStr}`,
           isMyModeration: s.moderatorId === currentUserId,
@@ -198,7 +204,6 @@ export async function GET(request: Request) {
         room: Array.from(new Set(students.map(s => s.room).filter(Boolean))).join(', ') || "-",
         studentCount: students.length,
         students: students,
-        supervisor: students[0]?.dospem || "-",
         isSupervisor: isSupervisor,
         userModeratesClass: userModeratesClass,
       };

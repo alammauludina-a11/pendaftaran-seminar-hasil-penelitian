@@ -756,10 +756,6 @@ export default function DosenDashboard() {
                                                       <span className="font-bold text-slate-800 text-sm">{m.nama} <span className="text-slate-500 font-normal">({m.nim})</span></span>
                                                       <span className="bg-[#06125C]/10 text-[#06125C] text-[10px] font-bold px-2 py-0.5 rounded-full">Kelas {m.className.replace('Kelas ', '')}</span>
                                                    </div>
-                                                   <span className="text-[11px] text-slate-600 mb-0.5 flex items-center gap-1.5">
-                                                      <UserCheck size={12} className="text-slate-400 shrink-0" />
-                                                      <span className="font-medium">Pembimbing:</span> {m.dospem}{m.dospem2 ? `, ${m.dospem2}` : ""}
-                                                   </span>
                                                    <span className="text-xs text-slate-500 line-clamp-1" title={m.judul}>{m.judul}</span>
                                                    <div className="flex items-center gap-2 mt-2">
                                                       <span className="text-[10px] font-bold bg-[#06125C]/10 text-[#06125C] px-2 py-0.5 rounded-full">{m.time}</span>

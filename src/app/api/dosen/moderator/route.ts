@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { periodeSeDunia } from "@/lib/data-uji";
 import { alias } from "drizzle-orm/sqlite-core";
+import { batasTercapai, infoBatasModerator, PESAN_BATAS_MODERATOR } from "@/lib/batas-moderator";
 
 const dosenUsers = alias(users, "dosenUsers");
 
@@ -251,7 +252,7 @@ export async function POST(request: Request) {
 
     // Checks and insert run in one transaction: two dosen picking the same seminar, or one dosen picking two
     // seminars at the same time (two tabs), are serialized, so the second request sees the first one's row.
-    const error = await transaksi(async (tx): Promise<{ error: string; status: number } | null> => {
+    const error = await transaksi(async (tx): Promise<{ error: string; status: number; kode?: string } | null> => {
       // Check if someone else already took it
       const existing = await tx.select().from(moderator).where(eq(moderator.pendaftaranId, pendaftaranId));
       if (existing.length > 0) {
@@ -276,6 +277,11 @@ export async function POST(request: Request) {
         return { error: "Anda tidak dapat menjadi moderator untuk mahasiswa bimbingan Anda sendiri.", status: 400 };
       }
 
+      // The periode's moderator limit (an admin can still assign beyond it)
+      if (targetPend[0].periodeId && batasTercapai(await infoBatasModerator(currentUserId, targetPend[0].periodeId, tx))) {
+        return { error: PESAN_BATAS_MODERATOR, status: 409, kode: "batas_moderator" };
+      }
+
       // Check for schedule conflict: bimbingan or another moderation at the same time (matched by slot time)
       const waktuMulai = await getWaktuMulaiPendaftaran(targetPend[0].id, tx);
       if (!waktuMulai || waktuMulai.getTime() <= Date.now()) {
@@ -294,7 +300,7 @@ export async function POST(request: Request) {
       return null;
     });
     if (error) {
-      return NextResponse.json({ error: error.error }, { status: error.status });
+      return NextResponse.json({ error: error.error, kode: error.kode }, { status: error.status });
     }
 
     return NextResponse.json({ message: "Berhasil memilih jadwal" }, { status: 200 });

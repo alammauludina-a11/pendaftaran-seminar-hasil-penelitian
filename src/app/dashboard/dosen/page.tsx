@@ -173,6 +173,9 @@ export default function DosenDashboard() {
    };
 
 
+   // Shown instead of an alert when the periode's moderator limit is reached
+   const [pesanBatasModerator, setPesanBatasModerator] = useState<string | null>(null);
+
    const handlePilihModerator = async (pendaftaranId: string | number) => {
       try {
          setIsSubmittingModerasi(true);
@@ -186,6 +189,8 @@ export default function DosenDashboard() {
             alert(data.message);
             fetchData(selectedPeriodeId);
             fetchModerator(selectedPeriodeId);
+         } else if (data.kode === "batas_moderator") {
+            setPesanBatasModerator(data.error);
          } else {
             alert(data.error);
          }
@@ -834,6 +839,29 @@ export default function DosenDashboard() {
             </>)}
 
          </main>
+
+         {/* Modal Batas Moderator Tercapai */}
+         {pesanBatasModerator && (
+           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+             <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setPesanBatasModerator(null)}></div>
+             <div role="alertdialog" aria-labelledby="judul-batas-moderator" className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative z-10 animate-in fade-in zoom-in-95 duration-200 p-6 flex flex-col items-center text-center gap-4">
+               <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                 <AlertCircle size={28} />
+               </div>
+               <div>
+                 <h3 id="judul-batas-moderator" className="text-lg font-bold text-[#06125C]">Batas Moderator Tercapai</h3>
+                 <p className="text-sm text-slate-600 mt-2">{pesanBatasModerator}</p>
+               </div>
+               <button
+                 onClick={() => setPesanBatasModerator(null)}
+                 autoFocus
+                 className="px-6 py-2 rounded-xl text-sm font-semibold bg-[#06125C] hover:bg-[#06125C]/90 text-white transition-colors"
+               >
+                 Mengerti
+               </button>
+             </div>
+           </div>
+         )}
 
          {/* Modal Alasan Batal Moderasi */}
          {formBatal && (

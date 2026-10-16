@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, integer, text, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -31,8 +31,18 @@ export const periode = sqliteTable("periode", {
   isOpen: integer("is_open", { mode: "boolean" }).notNull().default(false),
   batasKelas: integer("batas_kelas").notNull().default(31),
   isDraft: integer("is_draft", { mode: "boolean" }).notNull().default(true),
+  // Max seminars (students) a dosen may pick to moderate in this periode; null = no limit
+  batasModerator: integer("batas_moderator"),
   createdAt: integer("created_at", { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
+
+// A dosen the admin allows to go over the periode's batasModerator, by `tambahan` seminars
+export const pengecualianModerator = sqliteTable("pengecualian_moderator", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  periodeId: integer("periode_id").notNull().references(() => periode.id, { onDelete: "cascade" }),
+  dosenId: text("dosen_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tambahan: integer("tambahan").notNull(),
+}, (t) => [uniqueIndex("pengecualian_moderator_periode_dosen_idx").on(t.periodeId, t.dosenId)]);
 
 export const slotWaktu = sqliteTable("slot_waktu", {
   id: integer("id").primaryKey({ autoIncrement: true }),

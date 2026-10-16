@@ -2,7 +2,7 @@ import "./setup-env";
 import crypto from "node:crypto";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { db } from "../src/db";
-import { users, periode, slotWaktu, pendaftaran, kelasSeminar, moderator } from "../src/db/schema";
+import { users, periode, slotWaktu, pendaftaran, kelasSeminar, moderator, pengecualianModerator } from "../src/db/schema";
 
 export { db };
 
@@ -76,6 +76,7 @@ export async function jadikanModerator(pendaftaranId: number, dosenId: string) {
 
 /** Removes all rows between tests (schema stays). */
 export async function kosongkan() {
+  await db.delete(pengecualianModerator);
   await db.delete(moderator);
   await db.delete(pendaftaran);
   await db.delete(kelasSeminar);

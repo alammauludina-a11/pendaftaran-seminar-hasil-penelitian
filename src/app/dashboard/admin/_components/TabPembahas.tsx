@@ -36,6 +36,16 @@ export default function TabPembahas() {
       ) : (
         kelasTampil.map(k => {
           const classPendaftaran = activePendaftaran.filter(p => p.kelas === k);
+          const assignedPembahasList = classPendaftaran
+            .map(x => x.pembahas)
+            .filter(Boolean)
+            .flatMap(pStr => pStr!.split(',').map((s: string) => s.trim()))
+            .filter(Boolean);
+          // Which penyaji each pembahas is assigned to, so a manual change that makes someone pembahas
+          // more than once (e.g. after generate) can be flagged.
+          const penyajiPerPembahas = new Map<string, { id: number; name: string }[]>();
+          classPendaftaran.forEach(x => (x.pembahas || "").split(',').map((s: string) => s.trim()).filter(Boolean)
+            .forEach((v: string) => penyajiPerPembahas.set(v, [...(penyajiPerPembahas.get(v) || []), { id: x.id, name: x.name }])));
 
           return (
             <div key={k} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm relative overflow-hidden">
@@ -67,12 +77,6 @@ export default function TabPembahas() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {classPendaftaran.filter(cocok).map(p => {
-                      const assignedPembahasList = classPendaftaran
-                        .map(x => x.pembahas)
-                        .filter(Boolean)
-                        .flatMap(pStr => pStr!.split(',').map((s: string) => s.trim()))
-                        .filter(Boolean);
-
                       const currentPembahas = p.pembahas ? p.pembahas.split(',').map((s: string) => s.trim()) : [""];
                       if (currentPembahas.length === 0) currentPembahas.push("");
 
@@ -90,8 +94,12 @@ export default function TabPembahas() {
                           </td>
                           <td className="px-4 py-4">
                             <div className="flex flex-col gap-2">
-                              {currentPembahas.map((pembVal: string, idx: number) => (
-                                <div key={idx} className="flex items-center gap-2">
+                              {currentPembahas.map((pembVal: string, idx: number) => {
+                                const dibahasOleh = pembVal ? penyajiPerPembahas.get(pembVal) || [] : [];
+                                const lainnya = dibahasOleh.filter((_, i) => i !== dibahasOleh.findIndex(d => d.id === p.id)).map(x => x.id === p.id ? 'mahasiswa ini' : x.name);
+                                return (
+                                <div key={idx} className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
                                   <select
                                     value={pembVal || ""}
                                     disabled={p.isReleased || sedangProses(`pembahas:${p.id}`)}
@@ -111,17 +119,22 @@ export default function TabPembahas() {
                                         console.error("Gagal menyimpan pembahas:", err);
                                       }
                                     }}
-                                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#06125C]/20 w-full font-medium text-[#06125C] disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className={`px-3 py-2 bg-slate-50 border rounded-xl ${dibahasOleh.length > 1 ? 'border-amber-400 ring-1 ring-amber-300' : 'border-slate-200'} text-sm outline-none focus:ring-2 focus:ring-[#06125C]/20 w-full font-medium text-[#06125C] disabled:opacity-50 disabled:cursor-not-allowed`}
                                   >
                                     <option value="">-- Pilih Pembahas --</option>
                                     {classPendaftaran.filter(c => c.id !== p.id).map(c => {
                                       const value = `${c.name} (${c.nim})`;
                                       const isSameDospem = [c.dospem1Id, c.dospem2Id].some(d => d && (d === p.dospem1Id || d === p.dospem2Id));
-                                      const isAlreadyAssigned = assignedPembahasList.filter(x => x === value).length >= 2 && pembVal !== value;
+                                      const jumlahDipilih = assignedPembahasList.filter(x => x === value).length;
+                                      const isAlreadyAssigned = jumlahDipilih >= 2 && pembVal !== value;
+                                      const label = [
+                                        isAlreadyAssigned ? '🔒 Limit 2' : jumlahDipilih > 0 && pembVal !== value ? `sudah dipilih ${jumlahDipilih}×` : '',
+                                        !isAlreadyAssigned && isSameDospem ? '⚠️ Dospem Sama' : '',
+                                      ].filter(Boolean).join(', ');
 
                                       return (
                                         <option key={c.id} value={value} disabled={isAlreadyAssigned}>
-                                          {value} {isAlreadyAssigned ? '(🔒 Limit 2)' : isSameDospem ? '(⚠️ Dospem Sama)' : ''}
+                                          {value} {label ? `(${label})` : ''}
                                         </option>
                                       );
                                     })}
@@ -147,7 +160,14 @@ export default function TabPembahas() {
                                     </button>
                                   )}
                                 </div>
-                              ))}
+                                {dibahasOleh.length > 1 && (
+                                  <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 w-fit whitespace-normal">
+                                    ⚠️ Pembahas {dibahasOleh.length}× — juga membahas {lainnya.join(', ')}
+                                  </span>
+                                )}
+                                </div>
+                                );
+                              })}
                               {sedangProses(`pembahas:${p.id}`) && <span className="text-[11px] text-slate-500">Memproses…</span>}
                               {!p.isReleased && (
                                 <button 

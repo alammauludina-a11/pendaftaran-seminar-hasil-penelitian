@@ -12,6 +12,7 @@ import ViewManajemen from "./_components/ViewManajemen";
 import ModalVerifikasi from "./_components/ModalVerifikasi";
 import ModalHapusPeriode from "./_components/ModalHapusPeriode";
 import ModalTambahData from "./_components/ModalTambahData";
+import NotifikasiAdmin from "./_components/NotifikasiAdmin";
 import { AdminContext } from "./AdminContext";
 import { useAdminDashboard } from "./useAdminDashboard";
 
@@ -67,7 +68,9 @@ export default function AdminDashboard() {
                   <span className="text-white font-medium">Analisis Log</span>
                 </button>
               </div>
-            
+
+              <NotifikasiAdmin onBuka={() => setIsMobileMenuOpen(false)} />
+
               {/* Mobile Menu Toggle */}
               <button 
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 

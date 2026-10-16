@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { moderator, pendaftaran } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { catatAktivitas } from "@/lib/audit";
+import { responBatalModerasi } from "@/lib/moderasi";
 
 // POST: Admin merespon pengajuan batal moderasi
 export async function POST(
@@ -20,70 +18,33 @@ export async function POST(
     const { id: idStr } = await params;
     const pendaftaranId = parseInt(idStr);
     const body = await request.json();
-    const { action } = body; // "setujui" | "tolak"
+    const action = body?.action; // "setujui" | "tolak"
 
-    if (!action || !["setujui", "tolak"].includes(action)) {
-      return NextResponse.json({ error: "Action harus 'setujui' atau 'tolak'" }, { status: 400 });
+    const hasil = await responBatalModerasi({ pendaftaranId, action });
+    if ("error" in hasil) {
+      return NextResponse.json({ error: hasil.error }, { status: hasil.status });
     }
 
-    // Find the moderator record for this pendaftaran
-    const modRecords = await db
-      .select()
-      .from(moderator)
-      .where(eq(moderator.pendaftaranId, pendaftaranId))
-      .limit(1);
-
-    if (modRecords.length === 0) {
-      return NextResponse.json({ error: "Data moderator tidak ditemukan" }, { status: 404 });
-    }
-
-    const modRecord = modRecords[0];
-
-    if (modRecord.batalStatus !== "menunggu") {
-      return NextResponse.json({ error: "Tidak ada pengajuan batal yang menunggu" }, { status: 400 });
-    }
-
-    if (action === "setujui") {
-      // Delete moderator record → slot opens up again.
-      // Only while the request is still pending: the dosen may have withdrawn it in the meantime.
-      const deleted = await db.delete(moderator)
-        .where(and(eq(moderator.id, modRecord.id), eq(moderator.batalStatus, "menunggu")))
-        .returning({ id: moderator.id });
-      if (deleted.length === 0) {
-        return NextResponse.json({ error: "Pengajuan batal sudah tidak menunggu (mungkin baru saja ditarik dosen)." }, { status: 409 });
-      }
-      catatAktivitas({
-        kategori: "jadwal",
-        aksi: "moderator.batal_disetujui",
-        deskripsi: `Menyetujui pengajuan batal moderator untuk {mahasiswa}${modRecord.batalReason ? ` (alasan: "${modRecord.batalReason}")` : ""}`,
-        targetTipe: "pendaftaran",
-        targetId: pendaftaranId,
-        pendaftaranIds: [pendaftaranId],
-        detail: { alasan: modRecord.batalReason },
-      });
-      return NextResponse.json({ message: "Pembatalan moderator disetujui. Slot moderator kini kosong kembali." }, { status: 200 });
-
-    } else if (action === "tolak") {
-      // Reset batal request, keep moderator assignment intact
-      const updated = await db.update(moderator)
-        .set({ batalStatus: "ditolak", batalReason: modRecord.batalReason })
-        .where(and(eq(moderator.id, modRecord.id), eq(moderator.batalStatus, "menunggu")))
-        .returning({ id: moderator.id });
-      if (updated.length === 0) {
-        return NextResponse.json({ error: "Pengajuan batal sudah tidak menunggu (mungkin baru saja ditarik dosen)." }, { status: 409 });
-      }
-      catatAktivitas({
-        kategori: "jadwal",
-        aksi: "moderator.batal_ditolak",
-        deskripsi: "Menolak pengajuan batal moderator untuk {mahasiswa}",
-        targetTipe: "pendaftaran",
-        targetId: pendaftaranId,
-        pendaftaranIds: [pendaftaranId],
-        detail: { alasan: modRecord.batalReason },
-      });
-      return NextResponse.json({ message: "Pengajuan batal ditolak. Dosen tetap menjadi moderator." }, { status: 200 });
-    }
-
+    catatAktivitas(action === "setujui"
+      ? {
+          kategori: "jadwal",
+          aksi: "moderator.batal_disetujui",
+          deskripsi: `Menyetujui pengajuan batal moderator untuk {mahasiswa}${hasil.batalReason ? ` (alasan: "${hasil.batalReason}")` : ""}`,
+          targetTipe: "pendaftaran",
+          targetId: pendaftaranId,
+          pendaftaranIds: [pendaftaranId],
+          detail: { alasan: hasil.batalReason },
+        }
+      : {
+          kategori: "jadwal",
+          aksi: "moderator.batal_ditolak",
+          deskripsi: "Menolak pengajuan batal moderator untuk {mahasiswa}",
+          targetTipe: "pendaftaran",
+          targetId: pendaftaranId,
+          pendaftaranIds: [pendaftaranId],
+          detail: { alasan: hasil.batalReason },
+        });
+    return NextResponse.json({ message: hasil.message }, { status: 200 });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Gagal memproses pengajuan" }, { status: 500 });

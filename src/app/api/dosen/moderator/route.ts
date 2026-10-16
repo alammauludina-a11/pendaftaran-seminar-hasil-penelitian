@@ -190,6 +190,8 @@ export async function GET(request: Request) {
           isPast: sIsPast,
           isToday: sIsToday,
           isFuture: sIsFuture,
+          // Same cut-off the server uses for a cancellation request: from the start of the seminar
+          sudahMulai: now.getTime() >= startD.getTime(),
         };
       });
 

@@ -803,7 +803,7 @@ export default function DosenDashboard() {
                                                       <ShieldCheck size={14} /> {m.isMyStudent ? "Anda Pembimbing" : isSubmittingModerasi ? "..." : "Pilih"}
                                                     </button>
                                                   )}
-                                                  {m.isMyModeration && !m.isPast && (!m.batalStatus || m.batalStatus === "ditolak") && (
+                                                  {m.isMyModeration && !m.sudahMulai && (!m.batalStatus || m.batalStatus === "ditolak") && (
                                                     <button
                                                       onClick={() => { setAlasanBatal(""); setFormBatal({ pendaftaranId: m.pendaftaranId, nama: m.nama }); }}
                                                       disabled={!!isBatalLoading[m.pendaftaranId]}
@@ -812,7 +812,7 @@ export default function DosenDashboard() {
                                                       <Ban size={12} /> {isBatalLoading[m.pendaftaranId] ? "..." : "Ajukan Batal"}
                                                     </button>
                                                   )}
-                                                  {m.isMyModeration && !m.isPast && m.batalStatus === "menunggu" && (
+                                                  {m.isMyModeration && m.batalStatus === "menunggu" && (
                                                     <button
                                                       onClick={() => handleAjukanBatal(m.pendaftaranId, "batalkan_pengajuan")}
                                                       disabled={!!isBatalLoading[m.pendaftaranId]}
